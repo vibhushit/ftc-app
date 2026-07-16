@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { ArrowLeft, ArrowRight, FileText, Phone, Plus, X, Send } from 'lucide-react'
-import { StatusBar } from '@/components/ui/StatusBar'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { CREATORS } from '@/data/creators'
@@ -141,7 +140,6 @@ export function ChatScreen() {
 
   return (
     <div className="flex-1 flex flex-col bg-bone relative min-h-0">
-      <StatusBar />
       {/* Header */}
       <div className="px-4 pt-2 pb-3 bg-paper border-b border-line flex items-center gap-3 shrink-0">
         <button onClick={() => dispatch({ type: 'BACK' })} className="tap -ml-1 p-1"><ArrowLeft size={20} /></button>

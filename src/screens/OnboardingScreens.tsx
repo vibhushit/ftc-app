@@ -4,7 +4,6 @@ import {
   Instagram, Film, Globe, Briefcase, Link2, AtSign,
   Shield, Clock, Home, MapPin, BadgeCheck, ChevronDown,
 } from 'lucide-react'
-import { StatusBar } from '@/components/ui/StatusBar'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { DISCIPLINE_CONFIG } from '@/data/creators'
@@ -29,8 +28,7 @@ function OnboardShell({ step, total, title, sub, onBack, children, cta, ctaActio
 }) {
   return (
     <div className="flex-1 relative flex flex-col bg-paper overflow-hidden">
-      <StatusBar />
-      <div className="px-5 pt-2 pb-3 flex items-center justify-between border-b border-line shrink-0">
+      <div className="px-5 pt-4 pb-3 flex items-center justify-between border-b border-line shrink-0">
         <button onClick={onBack} className="tap w-10 h-10 -ml-2 grid place-items-center">
           <ArrowLeft size={20} />
         </button>
@@ -622,7 +620,6 @@ export function CreatorOnboardReview() {
     <div className="flex-1 flex flex-col bg-obsidian text-paper relative overflow-hidden">
       <div className="absolute top-20 -right-20 w-80 h-80 dots-acid opacity-20 pointer-events-none" />
       <div className="absolute -bottom-20 -left-20 w-80 h-80 dots-acid opacity-15 pointer-events-none" />
-      <StatusBar dark />
       <div className="relative flex-1 flex flex-col items-center justify-center px-8 text-center">
         <div className="w-20 h-20 rounded-full bg-iris grid place-items-center mb-6">
           <Clock size={36} className="text-paper" />

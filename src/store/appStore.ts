@@ -33,6 +33,7 @@ const DEFAULT_STATE: AppState = {
     portfolio: [], idVerified: false, socialProof: false,
   },
   activeTab: 'home',
+  drillIntoTab: false,
   sponsorRole: 'creator',
   selectedDealId: null,
   campaigns: CAMPAIGNS,
@@ -51,9 +52,9 @@ function reduce(state: AppState, action: AppAction): AppState {
     case 'GO':
       return { ...state, prevScreen: state.screen, screen: action.screen }
     case 'GO_TAB':
-      return { ...state, prevScreen: state.screen, screen: TAB_SCREENS[action.tab], activeTab: action.tab }
+      return { ...state, prevScreen: state.screen, screen: TAB_SCREENS[action.tab], activeTab: action.tab, drillIntoTab: !!action.viaMenu }
     case 'BACK':
-      return { ...state, screen: state.prevScreen ?? TAB_SCREENS[state.activeTab], prevScreen: null }
+      return { ...state, screen: state.prevScreen ?? TAB_SCREENS[state.activeTab], prevScreen: null, drillIntoTab: false }
     case 'OPEN_CREATOR':
       return { ...state, prevScreen: state.screen, screen: 'creator', selectedCreatorId: action.id, selectedClient: null }
     case 'START_BOOKING':

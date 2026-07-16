@@ -3,11 +3,11 @@ import {
   MessageCircle, Bell, Settings, ChevronRight, Shield, Star,
   MapPin, Edit3, Sparkles, CalendarCheck, Wallet, Link2, FileText,
   Bookmark, Copy, X, Clock, HelpCircle, BadgeCheck, Heart, Calendar,
-  ArrowRight,
+  ArrowRight, ArrowLeft,
 } from 'lucide-react'
-import { StatusBar } from '@/components/ui/StatusBar'
 import { SimpleHeader } from '@/components/ui/SimpleHeader'
 import { CreatorCardRow } from '@/components/creator/CreatorCardRow'
+import { CreatorCardLarge } from '@/components/creator/CreatorCardLarge'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { inr } from '@/data/constants'
@@ -46,13 +46,16 @@ const INBOX = [
 ]
 
 export function InboxScreen() {
-  const dispatch = useAppStore(s => s.dispatch)
+  const { drillIntoTab, dispatch } = useAppStore(useShallow(s => ({ drillIntoTab: s.drillIntoTab, dispatch: s.dispatch })))
   return (
     <div className="flex-1 flex flex-col bg-paper overflow-hidden">
-      <div className="dynamic-island" />
-      <StatusBar />
-      <div className="px-5 pt-2 pb-3 border-b border-line flex items-center justify-between">
-        <div className="font-display text-3xl tracking-tight leading-none">Inbox</div>
+      <div className="px-5 pt-4 pb-3 border-b border-line flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          {drillIntoTab && (
+            <button onClick={() => dispatch({ type: 'BACK' })} className="tap -ml-2 w-9 h-9 grid place-items-center"><ArrowLeft size={18} /></button>
+          )}
+          <div className="font-display text-3xl tracking-tight leading-none">Inbox</div>
+        </div>
         <button className="tap w-9 h-9 rounded-full bg-bone grid place-items-center">
           <Edit3 size={15} />
         </button>
@@ -126,15 +129,14 @@ export function MeScreen() {
   const stats = isC
     ? [['7', 'Jobs'], ['4.8', 'Rating'], ['12', 'Reviews']]
     : [['7', 'Bookings'], [String(state.saved.length), 'Saved'], ['12', 'Reviews']]
-  const go = (s: string) => dispatch(s === 'inbox' ? { type: 'GO_TAB', tab: 'inbox' } : { type: 'GO', screen: s as any })
+  const go = (s: string) => dispatch(s === 'inbox' ? { type: 'GO_TAB', tab: 'inbox', viaMenu: true } : { type: 'GO', screen: s as any })
 
   return (
     <div className="flex-1 flex flex-col bg-bone overflow-hidden">
       {/* Dark header */}
       <div className="bg-obsidian text-paper relative shrink-0">
         <div className="absolute inset-0 dots-acid opacity-10 pointer-events-none" />
-        <StatusBar dark />
-        <div className="relative px-5 pb-6">
+        <div className="relative px-5 pt-4 pb-6">
           <div className="flex items-center justify-between">
             <div className="text-[11px] font-mono uppercase tracking-wider text-acid">Your account</div>
             <button onClick={() => go('settings')} className="tap w-9 h-9 rounded-full bg-paper/10 grid place-items-center">
@@ -462,15 +464,28 @@ export function SavedScreen() {
         </div>
       ) : (
         <div className="app-scroll pb-nav">
-          {savedCreators.map(c => (
-            <CreatorCardRow
-              key={c.id}
-              c={c}
-              isSaved={true}
-              onOpen={() => dispatch({ type: 'OPEN_CREATOR', id: c.id })}
-              onToggleSave={() => dispatch({ type: 'TOGGLE_SAVE', id: c.id })}
-            />
-          ))}
+          {/* Mobile: stacked rows */}
+          <div className="md:hidden">
+            {savedCreators.map(c => (
+              <CreatorCardRow
+                key={c.id}
+                c={c}
+                isSaved={true}
+                onOpen={() => dispatch({ type: 'OPEN_CREATOR', id: c.id })}
+                onToggleSave={() => dispatch({ type: 'TOGGLE_SAVE', id: c.id })}
+              />
+            ))}
+          </div>
+          {/* Tablet/desktop: card grid */}
+          <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 px-5 py-4">
+            {savedCreators.map(c => (
+              <CreatorCardLarge
+                key={c.id}
+                c={c}
+                onOpen={() => dispatch({ type: 'OPEN_CREATOR', id: c.id })}
+              />
+            ))}
+          </div>
         </div>
       )}
     </div>

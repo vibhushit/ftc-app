@@ -2,6 +2,7 @@ import { Heart, BadgeCheck, Star, MapPin } from 'lucide-react'
 import { memo } from 'react'
 import type { Creator } from '@/types'
 import { inr } from '@/data/constants'
+import { cn } from '@/utils'
 
 interface CreatorCardLargeProps {
   c: Creator
@@ -10,7 +11,7 @@ interface CreatorCardLargeProps {
 
 export const CreatorCardLarge = memo(function CreatorCardLarge({ c, onOpen }: CreatorCardLargeProps) {
   return (
-    <button onClick={onOpen} className="tap shrink-0 w-[240px] text-left group">
+    <button onClick={onOpen} className={cn('tap shrink-0 w-[240px] md:w-full md:shrink text-left group')}>
       <div className="relative aspect-[3/4] rounded-2xl overflow-hidden bg-bone">
         <img
           src={c.portfolio[0]}

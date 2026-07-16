@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { ArrowLeft, Heart, Share2, MapPin, BadgeCheck, Shield, Check, Star, Clock, ChevronRight, MessageCircle, HelpCircle, Volume2, Coffee, ArrowRight, CalendarCheck, Instagram, Film, Briefcase, Globe, Link2 } from 'lucide-react'
-import { StatusBar } from '@/components/ui/StatusBar'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { CREATORS } from '@/data/creators'
@@ -108,10 +107,113 @@ export function CreatorDetailScreen() {
   const bookReady = selectedDate !== null && !!selectedTime
   const dep = depositInfo(packages[selectedPkg].price)
 
+  const packagesBlock = (
+    <div className="px-5 py-5 border-b border-line">
+      <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-obsidian/50 mb-1.5">Packages</div>
+      <div className="flex items-start gap-1.5 mb-3 text-[11px] text-obsidian/55 leading-snug">
+        <HelpCircle size={13} className="text-iris shrink-0 mt-0.5" />
+        <span>FTC Secure escrow — quick gigs paid in full; bigger projects take a deposit with balance due on delivery.</span>
+      </div>
+      <div className="space-y-2">
+        {packages.map((p, i) => (
+          <button key={i} onClick={() => setSelectedPkg(i)} className={cn('tap w-full text-left p-4 rounded-2xl border-2 transition-colors', selectedPkg === i ? 'border-obsidian bg-obsidian text-paper' : 'border-line bg-paper')}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-display text-lg">{p.name}</span>
+                  {i === 1 && <span className="px-1.5 py-0.5 rounded bg-acid text-obsidian text-[9px] font-mono uppercase">Popular</span>}
+                </div>
+                <div className={cn('text-[11px] mt-0.5', selectedPkg === i ? 'text-paper/60' : 'text-obsidian/60')}>
+                  {p.duration} · {p.revisions} revision{p.revisions > 1 ? 's' : ''} · {p.delivery}
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="font-display text-xl tracking-tight tnum">{inr(p.price)}</div>
+                <div className={cn('text-[10px] font-medium', selectedPkg === i ? 'text-acid' : 'text-iris')}>
+                  {depositInfo(p.price).full ? 'Pay in full · escrow' : depositInfo(p.price).pct + '% to reserve'}
+                </div>
+              </div>
+            </div>
+            {selectedPkg === i && (
+              <ul className="mt-3 pt-3 border-t border-paper/20 space-y-1">
+                {p.inclusions.map(inc => (
+                  <li key={inc} className="text-[11px] flex items-center gap-2"><Check size={12} className="text-acid" />{inc}</li>
+                ))}
+              </ul>
+            )}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+
+  const calendarBlock = (
+    <div className="px-5 py-5 border-b border-line">
+      <div className="flex items-center justify-between mb-3">
+        <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-obsidian/50">Next 28 days</div>
+        <div className="flex items-center gap-3 text-[10px] font-mono">
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-acid" /> Open</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-obsidian/10" /> Booked</span>
+        </div>
+      </div>
+      <div className="grid grid-cols-7 gap-1.5 text-center">
+        {DAYS.map((d, i) => <div key={i} className="text-[10px] font-mono text-obsidian/40 py-1">{d}</div>)}
+        {c.availability.map((avail, i) => {
+          const date = 23 + i
+          const isSelected = selectedDate === i
+          return (
+            <button
+              key={i}
+              disabled={!avail}
+              onClick={() => { setSelectedDate(i); setSelectedTime(null) }}
+              className={cn('aspect-square rounded-lg text-[12px] font-medium transition-all tnum',
+                !avail && 'text-obsidian/20 bg-obsidian/5',
+                !!avail && !isSelected && 'bg-acid/30 hover:bg-acid/50',
+                isSelected && 'bg-obsidian text-paper')}
+            >
+              {date > 30 ? date - 30 : date}
+            </button>
+          )
+        })}
+      </div>
+      {selectedDate !== null && (
+        <div className="mt-4 pt-4 border-t border-line">
+          <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-obsidian/50 mb-2.5">Pick a time</div>
+          <div className="grid grid-cols-3 gap-2">
+            {SLOTS.map(t => (
+              <button key={t} onClick={() => setSelectedTime(t)} className={cn('tap py-2.5 rounded-xl text-[12px] font-medium transition border', selectedTime === t ? 'bg-obsidian text-paper border-obsidian' : 'bg-bone border-line text-obsidian/70')}>{t}</button>
+            ))}
+          </div>
+        </div>
+      )}
+      {selectedDate === null && (
+        <div className="mt-3 text-[11px] text-obsidian/45 flex items-center gap-1.5"><Clock size={12} />Pick a date to see open time slots</div>
+      )}
+    </div>
+  )
+
+  const desktopCta = (
+    <div className="px-5 pb-5">
+      {bookReady && (
+        <div className="flex items-center gap-1.5 mb-2 text-[11px] text-obsidian/60">
+          <CalendarCheck size={12} className="text-success" />
+          {bookDateLabel} · {selectedTime} · {packages[selectedPkg].name}
+        </div>
+      )}
+      <button
+        disabled={!bookReady}
+        onClick={() => dispatch({ type: 'START_BOOKING', draft: { creatorId: c.id, creatorName: c.name, creatorAvatar: c.avatar, packageName: packages[selectedPkg].name, packagePrice: packages[selectedPkg].price, date: bookDateLabel, time: selectedTime ?? '', location: c.area, notes: '' } })}
+        className={cn('tap w-full py-3.5 rounded-2xl font-semibold text-[14px] flex items-center justify-center gap-2', bookReady ? 'bg-obsidian text-paper' : 'bg-bone text-obsidian/40')}
+      >
+        {!bookReady ? 'Select date & time' : `${dep.full ? 'Book' : 'Reserve'} · ${inr(dep.advance)}`}
+        {bookReady && <ArrowRight size={16} />}
+      </button>
+    </div>
+  )
+
   return (
     <div className="flex-1 flex flex-col bg-paper overflow-hidden">
-      <StatusBar />
-      <div className="absolute top-[50px] inset-x-0 z-20 px-5 py-3 flex items-center justify-between pointer-events-none">
+      <div className="absolute top-0 inset-x-0 z-20 px-5 py-3 flex items-center justify-between pointer-events-none">
         <button onClick={() => dispatch({ type: 'BACK' })} className="tap pointer-events-auto w-10 h-10 rounded-full bg-paper/90 backdrop-blur grid place-items-center shadow-md"><ArrowLeft size={18} /></button>
         <div className="flex gap-2">
           <button onClick={() => dispatch({ type: 'TOGGLE_SAVE', id: c.id })} className="tap pointer-events-auto w-10 h-10 rounded-full bg-paper/90 backdrop-blur grid place-items-center shadow-md">
@@ -128,7 +230,9 @@ export function CreatorDetailScreen() {
         </div>
       )}
 
-      <div className="app-scroll pb-28">
+      <div className="app-scroll pb-28 md:pb-8">
+      <div className="md:grid md:grid-cols-[1fr_380px] md:gap-6 md:items-start md:px-6 md:pt-6">
+      <div className="md:min-w-0">
         {/* Hero */}
         <div className="relative aspect-[4/5] bg-obsidian overflow-hidden">
           <img src={c.portfolio[portfolioIdx]} className="w-full h-full object-cover" alt="" />
@@ -268,87 +372,10 @@ export function CreatorDetailScreen() {
           </div>
         )}
 
-        {/* Packages */}
-        <div className="px-5 py-5 border-b border-line">
-          <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-obsidian/50 mb-1.5">Packages</div>
-          <div className="flex items-start gap-1.5 mb-3 text-[11px] text-obsidian/55 leading-snug">
-            <HelpCircle size={13} className="text-iris shrink-0 mt-0.5" />
-            <span>FTC Secure escrow — quick gigs paid in full; bigger projects take a deposit with balance due on delivery.</span>
-          </div>
-          <div className="space-y-2">
-            {packages.map((p, i) => (
-              <button key={i} onClick={() => setSelectedPkg(i)} className={cn('tap w-full text-left p-4 rounded-2xl border-2 transition-colors', selectedPkg === i ? 'border-obsidian bg-obsidian text-paper' : 'border-line bg-paper')}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-display text-lg">{p.name}</span>
-                      {i === 1 && <span className="px-1.5 py-0.5 rounded bg-acid text-obsidian text-[9px] font-mono uppercase">Popular</span>}
-                    </div>
-                    <div className={cn('text-[11px] mt-0.5', selectedPkg === i ? 'text-paper/60' : 'text-obsidian/60')}>
-                      {p.duration} · {p.revisions} revision{p.revisions > 1 ? 's' : ''} · {p.delivery}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-display text-xl tracking-tight tnum">{inr(p.price)}</div>
-                    <div className={cn('text-[10px] font-medium', selectedPkg === i ? 'text-acid' : 'text-iris')}>
-                      {depositInfo(p.price).full ? 'Pay in full · escrow' : depositInfo(p.price).pct + '% to reserve'}
-                    </div>
-                  </div>
-                </div>
-                {selectedPkg === i && (
-                  <ul className="mt-3 pt-3 border-t border-paper/20 space-y-1">
-                    {p.inclusions.map(inc => (
-                      <li key={inc} className="text-[11px] flex items-center gap-2"><Check size={12} className="text-acid" />{inc}</li>
-                    ))}
-                  </ul>
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Calendar */}
-        <div className="px-5 py-5 border-b border-line">
-          <div className="flex items-center justify-between mb-3">
-            <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-obsidian/50">Next 28 days</div>
-            <div className="flex items-center gap-3 text-[10px] font-mono">
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-acid" /> Open</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-obsidian/10" /> Booked</span>
-            </div>
-          </div>
-          <div className="grid grid-cols-7 gap-1.5 text-center">
-            {DAYS.map((d, i) => <div key={i} className="text-[10px] font-mono text-obsidian/40 py-1">{d}</div>)}
-            {c.availability.map((avail, i) => {
-              const date = 23 + i
-              const isSelected = selectedDate === i
-              return (
-                <button
-                  key={i}
-                  disabled={!avail}
-                  onClick={() => { setSelectedDate(i); setSelectedTime(null) }}
-                  className={cn('aspect-square rounded-lg text-[12px] font-medium transition-all tnum',
-                    !avail && 'text-obsidian/20 bg-obsidian/5',
-                    !!avail && !isSelected && 'bg-acid/30 hover:bg-acid/50',
-                    isSelected && 'bg-obsidian text-paper')}
-                >
-                  {date > 30 ? date - 30 : date}
-                </button>
-              )
-            })}
-          </div>
-          {selectedDate !== null && (
-            <div className="mt-4 pt-4 border-t border-line">
-              <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-obsidian/50 mb-2.5">Pick a time</div>
-              <div className="grid grid-cols-3 gap-2">
-                {SLOTS.map(t => (
-                  <button key={t} onClick={() => setSelectedTime(t)} className={cn('tap py-2.5 rounded-xl text-[12px] font-medium transition border', selectedTime === t ? 'bg-obsidian text-paper border-obsidian' : 'bg-bone border-line text-obsidian/70')}>{t}</button>
-                ))}
-              </div>
-            </div>
-          )}
-          {selectedDate === null && (
-            <div className="mt-3 text-[11px] text-obsidian/45 flex items-center gap-1.5"><Clock size={12} />Pick a date to see open time slots</div>
-          )}
+        {/* Packages — mobile inline position (hidden on desktop, shown in sidebar instead) */}
+        <div className="md:hidden">
+          {packagesBlock}
+          {calendarBlock}
         </div>
 
         {/* Reviews */}
@@ -405,8 +432,19 @@ export function CreatorDetailScreen() {
         </div>
       </div>
 
-      {/* Sticky bottom CTA */}
-      <div className="absolute bottom-0 inset-x-0 px-5 pb-6 pt-3 bg-paper/95 backdrop-blur-xl border-t border-line z-10">
+      {/* Desktop booking rail — sticky, mirrors the mobile packages/calendar/CTA flow */}
+      <div className="hidden md:block md:sticky md:top-6">
+        <div className="rounded-2xl border border-line bg-paper overflow-hidden">
+          {packagesBlock}
+          {calendarBlock}
+          {desktopCta}
+        </div>
+      </div>
+      </div>
+      </div>
+
+      {/* Sticky bottom CTA — mobile only; desktop uses the sidebar CTA above */}
+      <div className="md:hidden absolute bottom-0 inset-x-0 px-5 pb-6 pt-3 bg-paper/95 backdrop-blur-xl border-t border-line z-10">
         {bookReady && (
           <div className="flex items-center gap-1.5 mb-2 text-[11px] text-obsidian/60">
             <CalendarCheck size={12} className="text-success" />

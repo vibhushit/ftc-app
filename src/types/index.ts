@@ -278,6 +278,7 @@ export interface AppState {
   viewMode: 'list' | 'map'
   onboard: OnboardState
   activeTab: Tab
+  drillIntoTab: boolean
   sponsorRole: 'creator' | 'brand'
   selectedDealId: string | null
   campaigns: Campaign[]
@@ -293,7 +294,7 @@ export interface AppState {
 
 export type AppAction =
   | { type: 'GO'; screen: Screen }
-  | { type: 'GO_TAB'; tab: Tab }
+  | { type: 'GO_TAB'; tab: Tab; viaMenu?: boolean }
   | { type: 'BACK' }
   | { type: 'OPEN_CREATOR'; id: string }
   | { type: 'START_BOOKING'; draft: BookingDraft }

@@ -4,7 +4,6 @@ import {
   Star, X, HelpCircle, BadgeCheck, Plus,
   Share2, Copy, CreditCard,
 } from 'lucide-react'
-import { StatusBar } from '@/components/ui/StatusBar'
 import { SimpleHeader } from '@/components/ui/SimpleHeader'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
@@ -133,7 +132,6 @@ export function CompareScreen() {
   if (creators.length === 0) {
     return (
       <div className="flex-1 flex flex-col bg-paper min-h-0">
-        <StatusBar />
         <div className="px-5 py-3 flex items-center border-b border-line">
           <button onClick={() => dispatch({ type: 'BACK' })} className="tap w-10 h-10 -ml-2 grid place-items-center"><ArrowLeft size={20} /></button>
           <span className="font-display text-lg tracking-tight ml-2">Compare</span>
@@ -164,7 +162,6 @@ export function CompareScreen() {
 
   return (
     <div className="flex-1 relative flex flex-col bg-paper overflow-hidden min-h-0">
-      <StatusBar />
       <div className="px-5 py-3 flex items-center justify-between border-b border-line shrink-0">
         <div className="flex items-center gap-2">
           <button onClick={() => dispatch({ type: 'BACK' })} className="tap w-10 h-10 -ml-2 grid place-items-center"><ArrowLeft size={20} /></button>
@@ -512,8 +509,7 @@ export function ReferralScreen() {
   return (
     <div className="flex-1 flex flex-col bg-acid relative overflow-hidden min-h-0">
       <div className="absolute inset-0 dots-obsidian opacity-[0.08] pointer-events-none" />
-      <StatusBar />
-      <div className="relative px-5 pt-2 pb-3 flex items-center justify-between">
+      <div className="relative px-5 pt-4 pb-3 flex items-center justify-between">
         <button onClick={() => dispatch({ type: 'BACK' })} className="tap -ml-2 p-2"><ArrowLeft size={20} /></button>
         <div className="font-mono text-[11px] uppercase tracking-wider text-obsidian/60">Refer & earn</div>
         <div className="w-8" />

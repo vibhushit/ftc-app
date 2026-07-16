@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { Search, SlidersHorizontal, Map, List, X } from 'lucide-react'
-import { StatusBar } from '@/components/ui/StatusBar'
 import { CreatorCardRow } from '@/components/creator/CreatorCardRow'
+import { CreatorCardLarge } from '@/components/creator/CreatorCardLarge'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { CREATORS, DISCIPLINE_CONFIG } from '@/data/creators'
@@ -101,7 +101,6 @@ export function DiscoverScreen() {
 
   return (
     <div className="flex-1 flex flex-col bg-paper overflow-hidden">
-      <StatusBar />
       {/* Search header */}
       <div className="px-4 pt-2 pb-3 space-y-3 border-b border-line">
         <div className="flex items-center gap-2 bg-bone border border-line rounded-2xl px-3.5 py-3">
@@ -177,15 +176,30 @@ export function DiscoverScreen() {
               </button>
             </div>
           ) : (
-            results.map(c => (
-              <CreatorCardRow
-                key={c.id}
-                c={c}
-                isSaved={state.saved.includes(c.id)}
-                onOpen={() => dispatch({ type: 'OPEN_CREATOR', id: c.id })}
-                onToggleSave={() => dispatch({ type: 'TOGGLE_SAVE', id: c.id })}
-              />
-            ))
+            <>
+              {/* Mobile: stacked rows */}
+              <div className="md:hidden">
+                {results.map(c => (
+                  <CreatorCardRow
+                    key={c.id}
+                    c={c}
+                    isSaved={state.saved.includes(c.id)}
+                    onOpen={() => dispatch({ type: 'OPEN_CREATOR', id: c.id })}
+                    onToggleSave={() => dispatch({ type: 'TOGGLE_SAVE', id: c.id })}
+                  />
+                ))}
+              </div>
+              {/* Tablet/desktop: card grid */}
+              <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 px-5 py-4">
+                {results.map(c => (
+                  <CreatorCardLarge
+                    key={c.id}
+                    c={c}
+                    onOpen={() => dispatch({ type: 'OPEN_CREATOR', id: c.id })}
+                  />
+                ))}
+              </div>
+            </>
           )}
         </div>
       )}

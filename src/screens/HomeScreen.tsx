@@ -1,5 +1,4 @@
 import { Heart, Bell, Search, SlidersHorizontal, ChevronRight, Sparkles, MessageCircle } from 'lucide-react'
-import { StatusBar } from '@/components/ui/StatusBar'
 import { CreatorCardLarge } from '@/components/creator/CreatorCardLarge'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
@@ -17,7 +16,6 @@ export function HomeScreen() {
 
   return (
     <div className="flex-1 flex flex-col bg-paper overflow-hidden">
-      <StatusBar />
       <div className="px-5 pt-3 pb-4 flex items-center justify-between">
         <div>
           <div className="text-[11px] font-mono uppercase tracking-[0.14em] text-obsidian/50">Mumbai · Thursday</div>
@@ -113,7 +111,7 @@ export function HomeScreen() {
               See all <ChevronRight size={13} />
             </button>
           </div>
-          <div className="flex gap-3 overflow-x-auto no-scrollbar px-5 pb-2">
+          <div className="flex gap-3 overflow-x-auto no-scrollbar px-5 pb-2 md:grid md:grid-cols-3 lg:grid-cols-4 md:gap-4 md:overflow-visible md:px-5">
             {featured.map(c => (
               <CreatorCardLarge key={c.id} c={c} onOpen={() => dispatch({ type: 'OPEN_CREATOR', id: c.id })} />
             ))}
@@ -128,7 +126,7 @@ export function HomeScreen() {
               <div className="font-display text-xl tracking-tight mt-0.5">New & <span className="italic">climbing fast</span></div>
             </div>
           </div>
-          <div className="flex gap-3 overflow-x-auto no-scrollbar px-5 pb-2">
+          <div className="flex gap-3 overflow-x-auto no-scrollbar px-5 pb-2 md:grid md:grid-cols-3 lg:grid-cols-4 md:gap-4 md:overflow-visible md:px-5">
             {rising.map(c => (
               <CreatorCardLarge key={c.id} c={c} onOpen={() => dispatch({ type: 'OPEN_CREATOR', id: c.id })} />
             ))}

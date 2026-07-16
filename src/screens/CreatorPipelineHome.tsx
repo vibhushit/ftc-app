@@ -1,5 +1,4 @@
 import { Calendar, ChevronRight, Clock, Plus } from 'lucide-react'
-import { StatusBar } from '@/components/ui/StatusBar'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { inr } from '@/data/constants'
@@ -15,9 +14,7 @@ export function CreatorPipelineHome() {
 
   return (
     <div className="flex-1 flex flex-col bg-paper overflow-hidden">
-      <div className="dynamic-island" />
-      <StatusBar />
-      <div className="px-5 pt-2 pb-4">
+      <div className="px-5 pt-4 pb-4">
         <div className="flex items-end justify-between">
           <div>
             <div className="text-[11px] font-mono uppercase tracking-[0.14em] text-iris">Creator pipeline</div>
@@ -68,12 +65,12 @@ export function CreatorPipelineHome() {
             <p className="text-[13px] text-obsidian/50 mt-2 leading-relaxed">{CRM_EMPTY[tab]?.[1]}</p>
           </div>
         ) : (
-          <div className="divide-y divide-line">
+          <div className="divide-y divide-line md:divide-y-0 md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-3 md:px-5 md:pt-4">
             {jobs.map(b => (
               <button
                 key={b.id}
                 onClick={() => dispatch({ type: 'OPEN_BOOKING', booking: b })}
-                className="tap w-full px-5 py-4 flex items-center gap-3 text-left"
+                className="tap w-full px-5 py-4 flex items-center gap-3 text-left md:rounded-2xl md:border md:border-line md:bg-paper"
               >
                 <img src={b.clientAvatar} className="w-12 h-12 rounded-xl object-cover shrink-0" alt="" />
                 <div className="flex-1 min-w-0">

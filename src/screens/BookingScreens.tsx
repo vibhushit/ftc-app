@@ -4,7 +4,6 @@ import {
   Zap, CreditCard, Lock, MessageCircle, Share2, ChevronRight,
   FileText, Star, HelpCircle, Upload,
 } from 'lucide-react'
-import { StatusBar } from '@/components/ui/StatusBar'
 import { SimpleHeader } from '@/components/ui/SimpleHeader'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
@@ -85,7 +84,6 @@ export function BookingScreen() {
 
   return (
     <div className="flex-1 relative flex flex-col bg-paper overflow-hidden">
-      <StatusBar />
       {/* Step header */}
       <div className="px-5 py-3 flex items-center justify-between border-b border-line shrink-0">
         <button onClick={() => step > 0 ? setStep(step - 1) : dispatch({ type: 'BACK' })} className="tap w-10 h-10 -ml-2 grid place-items-center">
@@ -112,7 +110,9 @@ export function BookingScreen() {
         <div className="font-display text-lg tnum">{inr(base)}</div>
       </div>
 
-      <div className="app-scroll pb-28">
+      <div className="app-scroll pb-28 md:pb-8">
+      <div className="md:grid md:grid-cols-[1fr_340px] md:gap-6 md:items-start md:px-6 md:pt-6">
+      <div className="md:min-w-0">
         {/* STEP 0 — Location */}
         {step === 0 && (
           <div className="px-5 py-5">
@@ -250,8 +250,72 @@ export function BookingScreen() {
         )}
       </div>
 
-      {/* Fixed bottom CTA */}
-      <div className="absolute bottom-0 inset-x-0 px-5 pb-6 pt-4 bg-paper border-t border-line">
+      {/* Desktop order summary — sticky, mirrors the mobile fixed CTA */}
+      <div className="hidden md:block md:sticky md:top-6">
+        <div className="rounded-2xl border border-line bg-bone p-5">
+          <div className="flex items-center gap-3 pb-4 border-b border-line">
+            <img src={c.avatar} className="w-11 h-11 rounded-full object-cover" alt="" />
+            <div className="flex-1 min-w-0">
+              <div className="font-display text-base leading-tight">{c.name}</div>
+              <div className="text-[11px] text-obsidian/60">{pkg.name} · {dateLabel} · {time}</div>
+            </div>
+          </div>
+          <div className="pt-4 space-y-2.5">
+            <div className="flex items-center justify-between text-[12.5px] text-obsidian/55">
+              <span>{pkg.name} package · {pkg.dur}</span><span className="tnum">{inr(base)}</span>
+            </div>
+            {travelFee > 0 && (
+              <div className="flex items-center justify-between text-[12.5px] text-obsidian/55">
+                <span>{sel?.key === 'outstation' ? 'Travel (outstation)' : 'Travel to your location'}</span>
+                <span className="tnum">+{inr(travelFee)}</span>
+              </div>
+            )}
+            {accom > 0 && (
+              <div className="flex items-center justify-between text-[12.5px] text-obsidian/55">
+                <span>Accommodation (est.)</span><span className="tnum">+{inr(accom)}</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between text-[12.5px] text-obsidian/55">
+              <span>FTC platform fee</span><span className="tnum">+{inr(platformFee)}</span>
+            </div>
+            <div className="pt-2 border-t border-line" />
+            <div className="flex items-center justify-between text-[12.5px] font-semibold">
+              <span>Total</span><span className="tnum">{inr(total)}</span>
+            </div>
+            <div className="pt-2 border-t border-line" />
+            <div className="flex items-center justify-between text-[12.5px]">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-acid" />
+                {dep.full ? 'Pay now (in escrow)' : `Deposit now (${dep.pct}%)`}
+              </span>
+              <span className="tnum font-semibold">{inr(dep.advance)}</span>
+            </div>
+            {!dep.full && (
+              <div className="flex items-center justify-between text-[12.5px] text-obsidian/55">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-obsidian/20" />
+                  On delivery approval
+                </span>
+                <span className="tnum">{inr(dep.balance)}</span>
+              </div>
+            )}
+          </div>
+          <button
+            onClick={() => step < 2 ? setStep(step + 1) : confirm()}
+            className="tap w-full mt-5 py-3.5 rounded-2xl bg-obsidian text-paper font-semibold text-[14px] flex items-center justify-center gap-2"
+          >
+            {step < 2
+              ? <>Continue <ArrowRight size={16} /></>
+              : <><Lock size={14} /> {dep.full ? `Pay ${inr(dep.advance)} securely` : `Pay ${dep.pct}% deposit — ${inr(dep.advance)}`}</>
+            }
+          </button>
+        </div>
+      </div>
+      </div>
+      </div>
+
+      {/* Fixed bottom CTA — mobile only; desktop uses the sticky summary above */}
+      <div className="md:hidden absolute bottom-0 inset-x-0 px-5 pb-6 pt-4 bg-paper border-t border-line">
         <button
           onClick={() => step < 2 ? setStep(step + 1) : confirm()}
           className="tap w-full py-4 rounded-2xl bg-obsidian text-paper font-semibold text-[14px] flex items-center justify-center gap-2"
@@ -278,7 +342,6 @@ export function ConfirmedScreen() {
   return (
     <div className="flex-1 flex flex-col bg-obsidian text-paper relative overflow-hidden">
       <div className="absolute top-20 right-0 w-80 h-80 dots-acid opacity-20 pointer-events-none" style={{ transform: 'translateX(30%)' }} />
-      <StatusBar dark />
       <div className="relative flex-1 flex flex-col items-center justify-center px-8 text-center">
         <div className="w-20 h-20 rounded-full bg-acid grid place-items-center mb-6">
           <Check size={40} className="text-obsidian" strokeWidth={3} />
@@ -322,13 +385,12 @@ export function BookingsScreen() {
   const dispatch = useAppStore(s => s.dispatch)
   return (
     <div className="flex-1 flex flex-col bg-bone overflow-hidden min-h-0">
-      <StatusBar />
-      <div className="px-5 pt-2 pb-3 flex items-center justify-between bg-paper border-b border-line">
+      <div className="px-5 pt-4 pb-3 flex items-center justify-between bg-paper border-b border-line">
         <button onClick={() => dispatch({ type: 'BACK' })} className="tap -ml-2 p-2"><ArrowLeft size={20} /></button>
         <div className="font-display text-lg">My bookings</div>
         <div className="w-8" />
       </div>
-      <div className="flex-1 overflow-y-auto min-h-0 px-5 pt-4 pb-6 space-y-3">
+      <div className="flex-1 overflow-y-auto min-h-0 px-5 pt-4 pb-6 space-y-3 md:space-y-0 md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-3">
         {BOOKINGS_SEED.map(b => {
           const c = CREATORS.find(x => x.id === b.cid)
           if (!c) return null
@@ -338,7 +400,7 @@ export function BookingsScreen() {
               ? { cls: 'bg-acid text-obsidian', t: 'Awaiting creator' }
               : { cls: 'bg-bone border border-line text-obsidian/70', t: 'Completed' }
           return (
-            <button key={b.id} onClick={() => dispatch({ type: 'OPEN_BOOKING', booking: b as any })} className="tap w-full text-left p-4 rounded-2xl bg-paper border border-line active:bg-bone">
+            <button key={b.id} onClick={() => dispatch({ type: 'OPEN_BOOKING', booking: b as any })} className="tap w-full text-left p-4 rounded-2xl bg-paper border border-line active:bg-bone md:h-full">
               <div className="flex items-center gap-3">
                 <img src={c.avatar} className="w-11 h-11 rounded-full object-cover" alt="" />
                 <div className="flex-1 min-w-0">

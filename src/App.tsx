@@ -1,7 +1,9 @@
 import { useShallow } from 'zustand/shallow'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useAppStore } from '@/store/appStore'
 import { AuthProvider } from '@/components/AuthProvider'
 import { BottomNav } from '@/components/ui/BottomNav'
+import { SideNav } from '@/components/ui/SideNav'
 import { WelcomeScreen } from '@/screens/WelcomeScreen'
 import { PhoneScreen, OtpScreen, RoleScreen, MagicLinkSentScreen } from '@/screens/AuthScreens'
 import { HomeScreen } from '@/screens/HomeScreen'
@@ -20,9 +22,17 @@ import {
   NotificationsScreen,
   SavedScreen,
 } from '@/screens/StubScreens'
+import { cn } from '@/utils'
 import type { Tab } from '@/types'
 
 const TAB_SCREENS = ['home', 'discover', 'inbox', 'me']
+const WIDE_SCREENS = ['home', 'discover', 'inbox', 'saved', 'campaigns', 'creator', 'booking', 'campaignDetail', 'bookings', 'compare']
+// Pre-auth / dedicated-wizard screens — these are the only ones where hiding
+// the app shell entirely is correct (there's no "workspace" to stay consistent with yet).
+const NO_SHELL_SCREENS = [
+  'welcome', 'phone', 'otp', 'magicLinkSent', 'role',
+  'creatorOnboard1', 'creatorOnboard2', 'creatorOnboard3', 'creatorOnboard4', 'creatorOnboard5', 'creatorOnboardReview',
+]
 
 export function App() {
   const { screen, activeTab, dispatch } = useAppStore(useShallow(s => ({
@@ -31,7 +41,9 @@ export function App() {
     dispatch: s.dispatch,
   })))
 
-  const showNav = TAB_SCREENS.includes(screen)
+  const showBottomNav = TAB_SCREENS.includes(screen)
+  const showSideNav = !NO_SHELL_SCREENS.includes(screen)
+  const isWide = WIDE_SCREENS.includes(screen)
 
   const renderScreen = () => {
     switch (screen) {
@@ -93,19 +105,32 @@ export function App() {
 
   return (
     <AuthProvider>
-      <div className="phone-stage">
-        <div className="phone">
-          <div className="phone-frame">
-            <div className="phone-screen">
+      <div className="app-shell">
+        {showSideNav && (
+          <SideNav
+            active={activeTab as Tab}
+            onNav={(tab) => dispatch({ type: 'GO_TAB', tab })}
+          />
+        )}
+        <div className={cn('app-main', isWide && 'app-main--wide')}>
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={screen}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.14, ease: 'easeOut' }}
+              className="flex-1 flex flex-col min-h-0 min-w-0"
+            >
               {renderScreen()}
-            </div>
-            {showNav && (
-              <BottomNav
-                active={activeTab as Tab}
-                onNav={(tab) => dispatch({ type: 'GO_TAB', tab })}
-              />
-            )}
-          </div>
+            </motion.div>
+          </AnimatePresence>
+          {showBottomNav && (
+            <BottomNav
+              active={activeTab as Tab}
+              onNav={(tab) => dispatch({ type: 'GO_TAB', tab })}
+            />
+          )}
         </div>
       </div>
     </AuthProvider>

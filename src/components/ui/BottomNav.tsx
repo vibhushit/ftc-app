@@ -1,5 +1,5 @@
-import { Home, Compass, MessageCircle, User } from 'lucide-react'
 import { cn } from '@/utils'
+import { NAV_TABS } from './navTabs'
 import type { Tab } from '@/types'
 
 interface BottomNavProps {
@@ -8,16 +8,11 @@ interface BottomNavProps {
   notifications?: number
 }
 
-const TABS: { id: Tab; label: string; icon: React.ComponentType<{ size: number; className?: string; strokeWidth?: number }> }[] = [
-  { id: 'home', label: 'Home', icon: Home },
-  { id: 'discover', label: 'Search', icon: Compass },
-  { id: 'inbox', label: 'Inbox', icon: MessageCircle },
-  { id: 'me', label: 'Profile', icon: User },
-]
+const TABS = NAV_TABS
 
 export function BottomNav({ active, onNav, notifications = 0 }: BottomNavProps) {
   return (
-    <div className="absolute bottom-0 inset-x-0 bg-paper/95 backdrop-blur-xl border-t border-line z-30">
+    <div className="md:hidden absolute bottom-0 inset-x-0 bg-paper/95 backdrop-blur-xl border-t border-line z-30">
       <div className="flex items-center justify-around py-2 px-2">
         {TABS.map(t => {
           const Ic = t.icon

@@ -4,7 +4,6 @@ import {
   Plus, X, Star, Bookmark, Share2, Users, MapPin,
   MessageCircle, Upload, Eye,
 } from 'lucide-react'
-import { StatusBar } from '@/components/ui/StatusBar'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { DEAL_STAGES, inr, pic } from '@/data/constants'
@@ -155,15 +154,16 @@ export function SponsorshipsScreen() {
 
   return (
     <div className="flex-1 flex flex-col bg-bone min-h-0">
-      <div className="dynamic-island" />
-      <StatusBar />
-      <div className="px-5 pt-2 pb-3 bg-paper border-b border-line shrink-0">
+      <div className="px-5 pt-4 pb-3 bg-paper border-b border-line shrink-0">
         <div className="flex items-end justify-between">
-          <div>
-            <div className="text-[11px] uppercase tracking-wider text-iris font-mono font-semibold">Brands × creators</div>
-            <h1 className="font-display text-3xl tracking-tight leading-none mt-1">Sponsorships</h1>
+          <div className="flex items-center gap-3">
+            <button onClick={() => dispatch({ type: 'BACK' })} className="tap -ml-2 w-10 h-10 grid place-items-center shrink-0"><ArrowLeft size={20} /></button>
+            <div>
+              <div className="text-[11px] uppercase tracking-wider text-iris font-mono font-semibold">Brands × creators</div>
+              <h1 className="font-display text-3xl tracking-tight leading-none mt-1">Sponsorships</h1>
+            </div>
           </div>
-          <button onClick={() => dispatch({ type: 'GO', screen: 'campaignCompose' })} className="tap w-10 h-10 rounded-full bg-obsidian text-paper grid place-items-center">
+          <button onClick={() => dispatch({ type: 'GO', screen: 'campaignCompose' })} className="tap w-10 h-10 rounded-full bg-obsidian text-paper grid place-items-center shrink-0">
             <Plus size={20} />
           </button>
         </div>
@@ -198,14 +198,16 @@ export function SponsorshipsScreen() {
               ))}
             </div>
           )}
-          {feed.map(c => (
-            <SponsorshipCard
-              key={c.id}
-              campaign={c}
-              deal={deals.find(d => d.campaignId === c.id)}
-              onClick={() => dispatch({ type: 'OPEN_CAMPAIGN', id: c.id })}
-            />
-          ))}
+          <div className="md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-3 md:space-y-0 space-y-3">
+            {feed.map(c => (
+              <SponsorshipCard
+                key={c.id}
+                campaign={c}
+                deal={deals.find(d => d.campaignId === c.id)}
+                onClick={() => dispatch({ type: 'OPEN_CAMPAIGN', id: c.id })}
+              />
+            ))}
+          </div>
           <div className="h-6" />
         </div>
       ) : (
@@ -235,7 +237,9 @@ export function SponsorshipsScreen() {
               <div className="text-[11px] text-obsidian/60 mt-1">{role === 'creator' ? 'Apply to a campaign to start your first deal.' : 'Post a campaign and creators will apply.'}</div>
             </div>
           )}
-          {deals.map(d => <DealRow key={d.id} deal={d} role={role} onOpen={() => dispatch({ type: 'OPEN_DEAL', id: d.id })} />)}
+          <div className="md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-3 md:space-y-0 space-y-3">
+            {deals.map(d => <DealRow key={d.id} deal={d} role={role} onOpen={() => dispatch({ type: 'OPEN_DEAL', id: d.id })} />)}
+          </div>
           <div className="h-6" />
         </div>
       )}
@@ -270,10 +274,33 @@ export function SponsorshipDetailScreen() {
     })
   }
 
+  const statsBlock = (
+    <div className="mt-5 grid grid-cols-2 gap-3">
+      {[
+        ['Budget', c.budgetMin && c.budgetMax ? `₹${(c.budgetMin / 1000).toFixed(0)}–${(c.budgetMax / 1000).toFixed(0)}K` : 'On request'],
+        ['Closes', c.deadline || 'Open'],
+        ['Location', (c as any).city || 'Remote'],
+        ['Discipline', c.discipline || '—'],
+      ].map(([label, val]) => (
+        <div key={label as string} className="p-3.5 rounded-2xl bg-bone">
+          <div className="text-[10px] font-mono uppercase tracking-wider text-obsidian/50">{label}</div>
+          <div className="font-display text-xl mt-0.5">{val}</div>
+        </div>
+      ))}
+    </div>
+  )
+
+  const applyCtaBlock = existing
+    ? <button onClick={() => dispatch({ type: 'OPEN_DEAL', id: existing.id })} className="tap w-full py-4 rounded-2xl bg-iris text-paper font-semibold text-[14px] flex items-center justify-center gap-2">
+        {role === 'brand' ? 'Review applicant' : 'Track your deal'} <ArrowRight size={16} />
+      </button>
+    : role === 'brand'
+      ? <button onClick={() => dispatch({ type: 'GO_TAB', tab: 'me' })} className="tap w-full py-4 rounded-2xl bg-obsidian text-paper font-semibold text-[14px]">{c.applicants} applicants · review in your deals</button>
+      : <button onClick={() => setShowApply(true)} className="tap w-full py-4 rounded-2xl bg-obsidian text-paper font-semibold text-[14px] flex items-center justify-center gap-2">Apply — takes 2 minutes <ArrowRight size={16} /></button>
+
   return (
     <div className="flex-1 relative flex flex-col bg-paper overflow-hidden min-h-0">
-      <StatusBar />
-      <div className="absolute top-12 inset-x-0 z-10 px-5 pt-2 flex items-center justify-between pointer-events-none">
+      <div className="absolute top-0 inset-x-0 z-10 px-5 pt-2 flex items-center justify-between pointer-events-none">
         <button onClick={() => dispatch({ type: 'BACK' })} className="tap pointer-events-auto w-10 h-10 rounded-full bg-paper/90 backdrop-blur grid place-items-center shadow">
           <ArrowLeft size={18} />
         </button>
@@ -282,7 +309,9 @@ export function SponsorshipDetailScreen() {
           <button className="tap pointer-events-auto w-10 h-10 rounded-full bg-paper/90 backdrop-blur grid place-items-center shadow"><Share2 size={16} /></button>
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto pb-28 min-h-0">
+      <div className="flex-1 overflow-y-auto pb-28 md:pb-8 min-h-0">
+      <div className="md:grid md:grid-cols-[1fr_360px] md:gap-6 md:items-start md:px-6 md:pt-6">
+      <div className="md:min-w-0">
         {c.hero
           ? <div className="relative h-72"><img src={c.hero} className="w-full h-full object-cover" alt="" /><div className="absolute inset-0 bg-gradient-to-t from-paper via-paper/30 to-transparent" /></div>
           : <div className="h-32 bg-bone" />
@@ -299,19 +328,7 @@ export function SponsorshipDetailScreen() {
               <div className="text-[11px] text-obsidian/60">Posted {c.postedAgo}</div>
             </div>
           </div>
-          <div className="mt-5 grid grid-cols-2 gap-3">
-            {[
-              ['Budget', c.budgetMin && c.budgetMax ? `₹${(c.budgetMin / 1000).toFixed(0)}–${(c.budgetMax / 1000).toFixed(0)}K` : 'On request'],
-              ['Closes', c.deadline || 'Open'],
-              ['Location', (c as any).city || 'Remote'],
-              ['Discipline', c.discipline || '—'],
-            ].map(([label, val]) => (
-              <div key={label as string} className="p-3.5 rounded-2xl bg-bone">
-                <div className="text-[10px] font-mono uppercase tracking-wider text-obsidian/50">{label}</div>
-                <div className="font-display text-xl mt-0.5">{val}</div>
-              </div>
-            ))}
-          </div>
+          <div className="md:hidden">{statsBlock}</div>
           <div className="mt-6">
             <div className="text-[10px] font-mono uppercase tracking-wider text-obsidian/50 mb-2">The brief</div>
             <p className="text-[14px] leading-relaxed text-obsidian/80">{c.description}</p>
@@ -346,15 +363,18 @@ export function SponsorshipDetailScreen() {
         </div>
       </div>
 
-      <div className="absolute bottom-0 inset-x-0 px-5 pb-6 pt-4 bg-paper border-t border-line">
-        {existing
-          ? <button onClick={() => dispatch({ type: 'OPEN_DEAL', id: existing.id })} className="tap w-full py-4 rounded-2xl bg-iris text-paper font-semibold text-[14px] flex items-center justify-center gap-2">
-              {role === 'brand' ? 'Review applicant' : 'Track your deal'} <ArrowRight size={16} />
-            </button>
-          : role === 'brand'
-            ? <button onClick={() => dispatch({ type: 'GO_TAB', tab: 'me' })} className="tap w-full py-4 rounded-2xl bg-obsidian text-paper font-semibold text-[14px]">{c.applicants} applicants · review in your deals</button>
-            : <button onClick={() => setShowApply(true)} className="tap w-full py-4 rounded-2xl bg-obsidian text-paper font-semibold text-[14px] flex items-center justify-center gap-2">Apply — takes 2 minutes <ArrowRight size={16} /></button>
-        }
+      {/* Desktop rail — sticky, mirrors the mobile fixed CTA */}
+      <div className="hidden md:block md:sticky md:top-6">
+        <div className="rounded-2xl border border-line bg-paper p-5">
+          {statsBlock}
+          <div className="mt-5">{applyCtaBlock}</div>
+        </div>
+      </div>
+      </div>
+      </div>
+
+      <div className="md:hidden absolute bottom-0 inset-x-0 px-5 pb-6 pt-4 bg-paper border-t border-line">
+        {applyCtaBlock}
       </div>
 
       {showApply && (
@@ -429,8 +449,7 @@ export function DealScreen() {
 
   return (
     <div className="flex-1 flex flex-col bg-bone relative min-h-0">
-      <StatusBar />
-      <div className="px-5 pt-2 pb-3 bg-paper border-b border-line shrink-0">
+      <div className="px-5 pt-4 pb-3 bg-paper border-b border-line shrink-0">
         <div className="flex items-center gap-3">
           <button onClick={() => dispatch({ type: 'BACK' })} className="tap w-10 h-10 -ml-2 grid place-items-center"><ArrowLeft size={20} /></button>
           <img src={otherAvatar} className="w-10 h-10 rounded-full object-cover" alt="" />
@@ -650,8 +669,7 @@ export function SponsorComposeScreen() {
 
   return (
     <div className="flex-1 relative flex flex-col bg-paper overflow-hidden min-h-0">
-      <StatusBar />
-      <div className="px-5 pt-2 pb-3 flex items-center justify-between border-b border-line shrink-0">
+      <div className="px-5 pt-4 pb-3 flex items-center justify-between border-b border-line shrink-0">
         <button onClick={() => dispatch({ type: 'BACK' })} className="tap -ml-2 p-2"><X size={22} /></button>
         <div className="font-display text-lg">New sponsorship post</div>
         <div className="w-8" />

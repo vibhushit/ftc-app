@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { ArrowLeft, ArrowRight, X, Mail, RotateCcw } from 'lucide-react'
-import { StatusBar } from '@/components/ui/StatusBar'
 import { BrandIcon } from '@/components/ui/BrandIcon'
 import { useAppStore } from '@/store/appStore'
 import { useShallow } from 'zustand/shallow'
@@ -58,7 +57,6 @@ export function PhoneScreen() {
   }
   return (
     <div className="flex-1 flex flex-col bg-paper">
-      <StatusBar />
       <div className="px-5 pt-1 pb-3 flex items-center border-b border-line">
         <button onClick={() => dispatch({ type: 'GO', screen: 'welcome' })} className="tap w-9 h-9 -ml-1.5 grid place-items-center rounded-full">
           <X size={20} />
@@ -132,7 +130,6 @@ export function MagicLinkSentScreen() {
 
   return (
     <div className="flex-1 flex flex-col bg-paper">
-      <StatusBar />
       <div className="px-6 py-4 flex items-center">
         <button onClick={() => dispatch({ type: 'BACK' })} className="tap w-10 h-10 -ml-2 grid place-items-center">
           <ArrowLeft size={20} />
@@ -221,7 +218,6 @@ export function OtpScreen() {
   }
   return (
     <div className="flex-1 flex flex-col bg-paper">
-      <StatusBar />
       <div className="px-6 py-4 flex items-center justify-between">
         <button onClick={() => dispatch({ type: 'BACK' })} className="tap w-10 h-10 -ml-2 grid place-items-center">
           <ArrowLeft size={20} />
@@ -296,7 +292,6 @@ export function RoleScreen() {
   )
   return (
     <div className="flex-1 flex flex-col bg-paper min-h-0">
-      <StatusBar />
       <div className="flex-1 overflow-y-auto min-h-0 px-6 pt-10 pb-10">
         <BrandIcon size={36} />
         <h1 className="font-display text-4xl font-light tracking-tight leading-tight mt-8">

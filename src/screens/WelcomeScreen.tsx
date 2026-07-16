@@ -1,6 +1,5 @@
 import { motion } from 'framer-motion'
 import { ArrowRight } from 'lucide-react'
-import { StatusBar } from '@/components/ui/StatusBar'
 import { BrandIcon } from '@/components/ui/BrandIcon'
 import { useAppStore } from '@/store/appStore'
 
@@ -8,8 +7,6 @@ export function WelcomeScreen() {
   const dispatch = useAppStore(s => s.dispatch)
   return (
     <div className="relative flex-1 flex flex-col bg-obsidian text-paper overflow-hidden">
-      <div className="dynamic-island" />
-      <StatusBar dark />
       <div className="absolute top-10 right-0 w-72 h-72 dots-acid opacity-30 pointer-events-none" style={{ transform: 'translateX(40%)' }} />
       <div className="absolute bottom-40 -left-20 w-72 h-72 rounded-full border-[32px] border-iris/20 pointer-events-none" />
       <div className="relative flex-1 flex flex-col px-8 pt-12 pb-10 z-10">
