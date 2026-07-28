@@ -109,7 +109,8 @@ function QuoteModal({ partnerName, onClose, onSend }: { partnerName: string; onC
   )
 }
 
-/* ─── Chat Screen ─── */
+import { InboxList } from './StubScreens'
+
 export function ChatScreen() {
   const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
   const [msg, setMsg] = useState('')
@@ -138,8 +139,8 @@ export function ChatScreen() {
     setShowQuote(false)
   }
 
-  return (
-    <div className="flex-1 flex flex-col bg-bone relative min-h-0">
+  const chatPane = (
+    <div className="flex-1 flex flex-col bg-bone relative min-h-0 h-full">
       {/* Header */}
       <div className="px-4 pt-2 pb-3 bg-paper border-b border-line flex items-center gap-3 shrink-0">
         <button onClick={() => dispatch({ type: 'BACK' })} className="tap -ml-1 p-1"><ArrowLeft size={20} /></button>
@@ -183,6 +184,17 @@ export function ChatScreen() {
       </div>
 
       {showQuote && <QuoteModal partnerName={partner.name} onClose={() => setShowQuote(false)} onSend={sendQuote} />}
+    </div>
+  )
+
+  return (
+    <div className="flex-1 flex flex-col md:flex-row bg-paper overflow-hidden h-full">
+      <div className="hidden md:flex flex-none md:w-[320px] lg:w-[360px] md:border-r md:border-line h-full flex-col">
+        <InboxList />
+      </div>
+      <div className="flex-1 flex flex-col h-full min-w-0">
+        {chatPane}
+      </div>
     </div>
   )
 }

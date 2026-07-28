@@ -45,11 +45,11 @@ const INBOX = [
   { id: 'ib6', cid: 'c10',last: 'Booking confirmed ✨',               time: '3d',  unread: 0, online: false },
 ]
 
-export function InboxScreen() {
+export function InboxList() {
   const { drillIntoTab, dispatch } = useAppStore(useShallow(s => ({ drillIntoTab: s.drillIntoTab, dispatch: s.dispatch })))
   return (
-    <div className="flex-1 flex flex-col bg-paper overflow-hidden">
-      <div className="px-5 pt-4 pb-3 border-b border-line flex items-center justify-between">
+    <div className="flex-1 flex flex-col bg-paper overflow-hidden h-full">
+      <div className="px-5 pt-4 pb-3 border-b border-line flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
           {drillIntoTab && (
             <button onClick={() => dispatch({ type: 'BACK' })} className="tap -ml-2 w-9 h-9 grid place-items-center"><ArrowLeft size={18} /></button>
@@ -60,7 +60,7 @@ export function InboxScreen() {
           <Edit3 size={15} />
         </button>
       </div>
-      <div className="app-scroll pb-nav">
+      <div className="app-scroll pb-nav flex-1">
         {INBOX.map(m => {
           const c = CREATORS.find(x => x.id === m.cid)
           if (!c) return null
@@ -68,7 +68,7 @@ export function InboxScreen() {
             <button
               key={m.id}
               onClick={() => dispatch({ type: 'OPEN_CLIENT_CHAT', client: { name: c.name, avatar: c.avatar } })}
-              className="tap w-full flex items-center gap-3.5 px-5 py-4 border-b border-line text-left"
+              className="tap w-full flex items-center gap-3.5 px-5 py-4 border-b border-line text-left hover:bg-bone/40 transition-colors"
             >
               <div className="relative shrink-0">
                 <img src={c.avatar} className="w-12 h-12 rounded-full object-cover" alt="" />
@@ -89,6 +89,25 @@ export function InboxScreen() {
             </button>
           )
         })}
+      </div>
+    </div>
+  )
+}
+
+export function InboxScreen() {
+  return (
+    <div className="flex-1 flex flex-col md:flex-row bg-paper overflow-hidden h-full">
+      <div className="flex-1 md:flex-none md:w-[320px] lg:w-[360px] md:border-r md:border-line h-full flex flex-col">
+        <InboxList />
+      </div>
+      <div className="hidden md:flex flex-1 flex-col items-center justify-center p-8 text-center bg-bone">
+        <div className="w-16 h-16 rounded-full bg-iris/10 text-iris grid place-items-center mb-3">
+          <MessageCircle size={32} />
+        </div>
+        <h3 className="font-display text-xl tracking-tight text-obsidian">Your Conversations</h3>
+        <p className="text-[13px] text-obsidian/60 max-w-xs mt-1 leading-relaxed">
+          Select a conversation from the left to view quotes, discuss bookings, and send messages.
+        </p>
       </div>
     </div>
   )

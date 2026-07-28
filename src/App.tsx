@@ -27,7 +27,7 @@ import { cn } from '@/utils'
 import type { Tab } from '@/types'
 
 const TAB_SCREENS = ['home', 'discover', 'inbox', 'me']
-const WIDE_SCREENS = ['home', 'discover', 'inbox', 'saved', 'campaigns', 'creator', 'booking', 'campaignDetail', 'bookings', 'compare']
+const WIDE_SCREENS = ['home', 'discover', 'inbox', 'saved', 'campaigns', 'creator', 'booking', 'campaignDetail', 'bookings', 'compare', 'chat']
 // Pre-auth / dedicated-wizard screens — these are the only ones where hiding
 // the app shell entirely is correct (there's no "workspace" to stay consistent with yet).
 const NO_SHELL_SCREENS = [
