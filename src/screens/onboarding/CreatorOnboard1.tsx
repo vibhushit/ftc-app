@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Home, MapPin, Globe } from 'lucide-react'
+import { Home, MapPin, Globe, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { cn } from '@/utils'
@@ -16,6 +16,8 @@ export function CreatorOnboard1() {
   const [bio, setBio] = useState(ob.bio)
   const [langs, setLangs] = useState<string[]>((ob.languages as string[]) ?? ['Hindi', 'English'])
   const [travelMode, setTravelMode] = useState<'studio' | 'travel' | 'both'>(ob.travelMode ?? 'both')
+  const [touched, setTouched] = useState(false)
+
   const toggleLang = (l: string) => setLangs(langs.includes(l) ? langs.filter(x => x !== l) : [...langs, l])
 
   const isNameValid = name.trim().length >= 2
@@ -23,6 +25,12 @@ export function CreatorOnboard1() {
   const isCityValid = city.trim().length > 0
   const isLangsValid = langs.length > 0
   const isReady = isNameValid && isCityValid && isBioValid && isLangsValid
+
+  const errors: string[] = []
+  if (!isNameValid) errors.push('Full name must be at least 2 characters')
+  if (!isCityValid) errors.push('Please select your city')
+  if (!isBioValid) errors.push(`Short bio must be at least 15 characters (${bio.trim().length}/15)`)
+  if (!isLangsValid) errors.push('Select at least 1 language you speak')
 
   return (
     <OnboardShell
@@ -33,43 +41,95 @@ export function CreatorOnboard1() {
       cta="Continue"
       ctaDisabled={!isReady}
       ctaAction={() => {
+        setTouched(true)
+        if (!isReady) return
         dispatch({ type: 'SET_ONBOARD', patch: { name, city, bio, languages: langs, travelMode } })
         dispatch({ type: 'GO', screen: 'creatorOnboard2' })
       }}
     >
       <div className="space-y-4">
+        {/* Name input */}
         <div>
-          <div className="flex items-center justify-between">
-            <label className="text-[11px] font-mono uppercase tracking-wider text-obsidian/50">Full name</label>
-            {!isNameValid && name.length > 0 && <span className="text-[10px] text-danger font-medium">At least 2 characters</span>}
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="text-[11px] font-mono uppercase tracking-wider text-obsidian/50">Full name *</label>
+            {name.length > 0 && (
+              isNameValid
+                ? <span className="text-[10px] text-success font-medium flex items-center gap-1"><CheckCircle2 size={11} /> Valid</span>
+                : <span className="text-[10px] text-danger font-medium flex items-center gap-1"><AlertCircle size={11} /> Min 2 characters</span>
+            )}
           </div>
-          <input value={name} onChange={e => setName(e.target.value)} placeholder="Ananya Desai" className="mt-1.5 w-full py-3 px-4 bg-bone rounded-xl text-[14px] outline-none focus:ring-2 focus:ring-iris/30" />
+          <input
+            value={name}
+            onChange={e => setName(e.target.value)}
+            onBlur={() => setTouched(true)}
+            placeholder="Ananya Desai"
+            className={cn(
+              'w-full py-3 px-4 rounded-xl text-[14px] outline-none transition',
+              touched && !isNameValid ? 'bg-danger/10 border-2 border-danger focus:ring-2 focus:ring-danger/30' : 'bg-bone focus:ring-2 focus:ring-iris/30 border border-line'
+            )}
+          />
         </div>
+
+        {/* City selection */}
         <div>
-          <label className="text-[11px] font-mono uppercase tracking-wider text-obsidian/50">Your city</label>
-          <div className="mt-1.5 flex flex-wrap gap-1.5">
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="text-[11px] font-mono uppercase tracking-wider text-obsidian/50">Your city *</label>
+            {!isCityValid && touched && <span className="text-[10px] text-danger font-medium">Required</span>}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
             {CITIES.map(c => (
-              <button key={c} onClick={() => setCity(c)} className={cn('tap px-3 py-1.5 rounded-full text-[12px] font-medium border transition', city === c ? 'bg-obsidian text-paper border-obsidian' : 'bg-bone border-line')}>{c}</button>
+              <button
+                key={c}
+                onClick={() => setCity(c)}
+                className={cn('tap px-3 py-1.5 rounded-full text-[12px] font-medium border transition', city === c ? 'bg-obsidian text-paper border-obsidian' : 'bg-bone border-line')}
+              >
+                {c}
+              </button>
             ))}
           </div>
         </div>
+
+        {/* Bio textarea */}
         <div>
-          <div className="flex items-center justify-between">
-            <label className="text-[11px] font-mono uppercase tracking-wider text-obsidian/50">Short bio</label>
-            <span className={cn('text-[10px] font-mono', isBioValid ? 'text-success font-medium' : 'text-obsidian/40')}>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="text-[11px] font-mono uppercase tracking-wider text-obsidian/50">Short bio *</label>
+            <span className={cn('text-[10px] font-mono', isBioValid ? 'text-success font-medium' : bio.length > 0 ? 'text-danger font-medium' : 'text-obsidian/40')}>
               {bio.trim().length}/15 min chars {isBioValid && '✓'}
             </span>
           </div>
-          <textarea value={bio} onChange={e => setBio(e.target.value)} placeholder="Cinematic wedding photographer based in Bandra, 5 years in…" rows={3} className="mt-1.5 w-full py-3 px-4 bg-bone rounded-xl text-[14px] outline-none resize-none focus:ring-2 focus:ring-iris/30 leading-relaxed" />
+          <textarea
+            value={bio}
+            onChange={e => setBio(e.target.value)}
+            onBlur={() => setTouched(true)}
+            placeholder="Cinematic wedding photographer based in Bandra, 5 years experience creating high-impact visuals…"
+            rows={3}
+            className={cn(
+              'w-full py-3 px-4 rounded-xl text-[14px] outline-none resize-none leading-relaxed transition',
+              touched && !isBioValid ? 'bg-danger/10 border-2 border-danger focus:ring-2 focus:ring-danger/30' : 'bg-bone focus:ring-2 focus:ring-iris/30 border border-line'
+            )}
+          />
         </div>
+
+        {/* Languages */}
         <div>
-          <label className="text-[11px] font-mono uppercase tracking-wider text-obsidian/50">Languages you speak <span className="text-obsidian/30 normal-case">({langs.length})</span></label>
-          <div className="mt-1.5 flex flex-wrap gap-1.5">
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="text-[11px] font-mono uppercase tracking-wider text-obsidian/50">Languages you speak * <span className="text-obsidian/30 normal-case">({langs.length})</span></label>
+            {!isLangsValid && touched && <span className="text-[10px] text-danger font-medium">Pick at least 1</span>}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
             {ALL_LANGUAGES.map(l => (
-              <button key={l} onClick={() => toggleLang(l)} className={cn('tap px-3 py-1.5 rounded-full text-[12px] font-medium border transition', langs.includes(l) ? 'bg-iris text-paper border-iris' : 'bg-bone border-line')}>{l}</button>
+              <button
+                key={l}
+                onClick={() => toggleLang(l)}
+                className={cn('tap px-3 py-1.5 rounded-full text-[12px] font-medium border transition', langs.includes(l) ? 'bg-iris text-paper border-iris' : 'bg-bone border-line')}
+              >
+                {l}
+              </button>
             ))}
           </div>
         </div>
+
+        {/* Travel Mode */}
         <div>
           <label className="text-[11px] font-mono uppercase tracking-wider text-obsidian/50">Where do you work?</label>
           <div className="mt-1.5 grid grid-cols-3 gap-2">
@@ -82,6 +142,18 @@ export function CreatorOnboard1() {
             ))}
           </div>
         </div>
+
+        {/* Validation Errors Box */}
+        {!isReady && (
+          <div className="p-3.5 rounded-2xl bg-danger/10 border border-danger/30 space-y-1">
+            <div className="text-[11px] font-semibold text-danger flex items-center gap-1.5">
+              <AlertCircle size={14} /> Complete required fields to continue:
+            </div>
+            <ul className="list-disc list-inside text-[11.5px] text-danger/80 space-y-0.5">
+              {errors.map(err => <li key={err}>{err}</li>)}
+            </ul>
+          </div>
+        )}
       </div>
     </OnboardShell>
   )
