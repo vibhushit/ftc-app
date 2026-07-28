@@ -155,8 +155,33 @@ function reduce(state: AppState, action: AppAction): AppState {
 
 function parseInitialHash(defaultState: AppState): AppState {
   if (typeof window === 'undefined') return defaultState
+
+  let baseState = defaultState
+
+  // 1. Try restoring from localStorage session draft
+  try {
+    const saved = localStorage.getItem('ftc_saved_session')
+    if (saved) {
+      const parsed = JSON.parse(saved)
+      if (parsed && typeof parsed === 'object') {
+        baseState = {
+          ...defaultState,
+          screen: parsed.screen || defaultState.screen,
+          activeTab: parsed.activeTab || defaultState.activeTab,
+          selectedCreatorId: parsed.selectedCreatorId || null,
+          onboard: { ...defaultState.onboard, ...(parsed.onboard || {}) },
+          isAuthed: parsed.isAuthed ?? defaultState.isAuthed,
+          isCreator: parsed.isCreator ?? defaultState.isCreator,
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[FTC] Failed to parse saved session from localStorage', e)
+  }
+
+  // 2. URL hash overrides localStorage
   const hash = window.location.hash.replace(/^#/, '')
-  if (!hash) return defaultState
+  if (!hash) return baseState
 
   const params = new URLSearchParams(hash)
   const creator = params.get('creator')
@@ -164,7 +189,7 @@ function parseInitialHash(defaultState: AppState): AppState {
 
   if (creator) {
     return {
-      ...defaultState,
+      ...baseState,
       screen: 'creator',
       selectedCreatorId: creator,
     }
@@ -173,13 +198,13 @@ function parseInitialHash(defaultState: AppState): AppState {
   if (screen) {
     const tabMap: Record<string, Tab> = { home: 'home', discover: 'discover', inbox: 'inbox', me: 'me' }
     return {
-      ...defaultState,
+      ...baseState,
       screen,
-      activeTab: tabMap[screen] || defaultState.activeTab,
+      activeTab: tabMap[screen] || baseState.activeTab,
     }
   }
 
-  return defaultState
+  return baseState
 }
 
 function syncUrlHash(state: AppState) {
@@ -197,6 +222,20 @@ function syncUrlHash(state: AppState) {
     } else {
       window.history.replaceState(null, '', window.location.pathname + window.location.search)
     }
+  }
+
+  // Persist session state to localStorage for seamless refresh
+  try {
+    localStorage.setItem('ftc_saved_session', JSON.stringify({
+      screen: state.screen,
+      activeTab: state.activeTab,
+      selectedCreatorId: state.selectedCreatorId,
+      onboard: state.onboard,
+      isAuthed: state.isAuthed,
+      isCreator: state.isCreator,
+    }))
+  } catch (e) {
+    // Ignore quota errors
   }
 }
 

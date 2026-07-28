@@ -17,6 +17,10 @@ export function CreatorOnboard5() {
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const allConsent = consents.contract && consents.conduct && consents.tax && consents.cancel
 
+  const UPI_REGEX = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9]+$/
+  const isValidUpi = UPI_REGEX.test(upi.trim())
+  const isValidIg = soc.ig.trim().length >= 2
+
   const submit = async () => {
     if (supabaseAvailable && state.supabaseUserId) {
       const ob = state.onboard
@@ -74,7 +78,7 @@ export function CreatorOnboard5() {
       sub="Link every platform you're active on. Then sign four quick agreements that protect both sides."
       onBack={() => dispatch({ type: 'GO', screen: 'creatorOnboard4' })}
       cta={upsert.isPending ? 'Submitting…' : 'Submit for review'}
-      ctaDisabled={!soc.ig.trim() || !upi.trim() || !allConsent || upsert.isPending}
+      ctaDisabled={!isValidIg || !isValidUpi || !allConsent || upsert.isPending}
       ctaAction={submit}
     >
       <div className="space-y-5">
@@ -114,13 +118,14 @@ export function CreatorOnboard5() {
 
         <div>
           <div className="text-[11px] font-mono uppercase tracking-wider text-obsidian/50 mb-2">Payouts & safety</div>
-          <div className={cn('rounded-2xl border-2 transition p-3', upi.trim() ? 'border-iris bg-iris-tint' : 'border-line bg-bone')}>
+          <div className={cn('rounded-2xl border-2 transition p-3', isValidUpi ? 'border-iris bg-iris-tint' : upi.length > 0 ? 'border-danger bg-danger/10' : 'border-line bg-bone')}>
             <div className="flex items-center gap-2.5">
               <div className="w-9 h-9 rounded-xl bg-paper grid place-items-center shrink-0"><AtSign size={16} className="text-obsidian/60" /></div>
               <div className="flex-1">
                 <div className="flex items-center gap-2">
                   <span className="text-[12px] font-semibold">UPI for payouts</span>
                   <span className="px-1.5 py-0.5 rounded text-[8px] font-mono font-semibold bg-acid text-obsidian">REQUIRED</span>
+                  {upi.length > 0 && !isValidUpi && <span className="text-[10px] text-danger font-medium">Format: name@upi</span>}
                 </div>
                 <input value={upi} onChange={e => setUpi(e.target.value)} placeholder="name@upi" className="w-full bg-transparent text-[13px] outline-none mt-0.5" />
               </div>

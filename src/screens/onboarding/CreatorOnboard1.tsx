@@ -18,6 +18,12 @@ export function CreatorOnboard1() {
   const [travelMode, setTravelMode] = useState<'studio' | 'travel' | 'both'>(ob.travelMode ?? 'both')
   const toggleLang = (l: string) => setLangs(langs.includes(l) ? langs.filter(x => x !== l) : [...langs, l])
 
+  const isNameValid = name.trim().length >= 2
+  const isBioValid = bio.trim().length >= 15
+  const isCityValid = city.trim().length > 0
+  const isLangsValid = langs.length > 0
+  const isReady = isNameValid && isCityValid && isBioValid && isLangsValid
+
   return (
     <OnboardShell
       step={1} total={5}
@@ -25,7 +31,7 @@ export function CreatorOnboard1() {
       sub="This is what clients see first. Keep it real."
       onBack={() => dispatch({ type: 'BACK' })}
       cta="Continue"
-      ctaDisabled={!name.trim() || !city.trim() || langs.length === 0}
+      ctaDisabled={!isReady}
       ctaAction={() => {
         dispatch({ type: 'SET_ONBOARD', patch: { name, city, bio, languages: langs, travelMode } })
         dispatch({ type: 'GO', screen: 'creatorOnboard2' })
@@ -33,7 +39,10 @@ export function CreatorOnboard1() {
     >
       <div className="space-y-4">
         <div>
-          <label className="text-[11px] font-mono uppercase tracking-wider text-obsidian/50">Full name</label>
+          <div className="flex items-center justify-between">
+            <label className="text-[11px] font-mono uppercase tracking-wider text-obsidian/50">Full name</label>
+            {!isNameValid && name.length > 0 && <span className="text-[10px] text-danger font-medium">At least 2 characters</span>}
+          </div>
           <input value={name} onChange={e => setName(e.target.value)} placeholder="Ananya Desai" className="mt-1.5 w-full py-3 px-4 bg-bone rounded-xl text-[14px] outline-none focus:ring-2 focus:ring-iris/30" />
         </div>
         <div>
@@ -45,7 +54,12 @@ export function CreatorOnboard1() {
           </div>
         </div>
         <div>
-          <label className="text-[11px] font-mono uppercase tracking-wider text-obsidian/50">Short bio</label>
+          <div className="flex items-center justify-between">
+            <label className="text-[11px] font-mono uppercase tracking-wider text-obsidian/50">Short bio</label>
+            <span className={cn('text-[10px] font-mono', isBioValid ? 'text-success font-medium' : 'text-obsidian/40')}>
+              {bio.trim().length}/15 min chars {isBioValid && '✓'}
+            </span>
+          </div>
           <textarea value={bio} onChange={e => setBio(e.target.value)} placeholder="Cinematic wedding photographer based in Bandra, 5 years in…" rows={3} className="mt-1.5 w-full py-3 px-4 bg-bone rounded-xl text-[14px] outline-none resize-none focus:ring-2 focus:ring-iris/30 leading-relaxed" />
         </div>
         <div>
