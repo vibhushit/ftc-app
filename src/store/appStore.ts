@@ -153,6 +153,55 @@ function reduce(state: AppState, action: AppAction): AppState {
   }
 }
 
+function parseInitialHash(defaultState: AppState): AppState {
+  if (typeof window === 'undefined') return defaultState
+  const hash = window.location.hash.replace(/^#/, '')
+  if (!hash) return defaultState
+
+  const params = new URLSearchParams(hash)
+  const creator = params.get('creator')
+  const screen = params.get('screen') as Screen | null
+
+  if (creator) {
+    return {
+      ...defaultState,
+      screen: 'creator',
+      selectedCreatorId: creator,
+    }
+  }
+
+  if (screen) {
+    const tabMap: Record<string, Tab> = { home: 'home', discover: 'discover', inbox: 'inbox', me: 'me' }
+    return {
+      ...defaultState,
+      screen,
+      activeTab: tabMap[screen] || defaultState.activeTab,
+    }
+  }
+
+  return defaultState
+}
+
+function syncUrlHash(state: AppState) {
+  if (typeof window === 'undefined') return
+  let nextHash = ''
+  if (state.screen === 'creator' && state.selectedCreatorId) {
+    nextHash = `creator=${state.selectedCreatorId}`
+  } else if (state.screen && state.screen !== 'welcome' && state.screen !== 'home') {
+    nextHash = `screen=${state.screen}`
+  }
+  const currentHash = window.location.hash.replace(/^#/, '')
+  if (currentHash !== nextHash) {
+    if (nextHash) {
+      window.history.replaceState(null, '', `#${nextHash}`)
+    } else {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search)
+    }
+  }
+}
+
+const INITIAL_STATE = parseInitialHash(DEFAULT_STATE)
+
 interface AppStore extends AppState {
   dispatch: (action: AppAction) => void
   setFilter: (patch: Partial<Filters>) => void
@@ -161,9 +210,26 @@ interface AppStore extends AppState {
 }
 
 export const useAppStore = create<AppStore>((set) => ({
-  ...DEFAULT_STATE,
-  dispatch: (action) => set(state => reduce(state, action)),
-  setFilter: (patch) => set(state => ({ filters: { ...state.filters, ...patch } })),
-  go: (screen) => set(state => ({ prevScreen: state.screen, screen })),
-  back: () => set(state => ({ screen: state.prevScreen ?? TAB_SCREENS[state.activeTab], prevScreen: null })),
+  ...INITIAL_STATE,
+  dispatch: (action) => set(state => {
+    const next = reduce(state, action)
+    syncUrlHash(next)
+    return next
+  }),
+  setFilter: (patch) => set(state => {
+    const next = { ...state, filters: { ...state.filters, ...patch } }
+    syncUrlHash(next)
+    return next
+  }),
+  go: (screen) => set(state => {
+    const next = { ...state, prevScreen: state.screen, screen }
+    syncUrlHash(next)
+    return next
+  }),
+  back: () => set(state => {
+    const next = { ...state, screen: state.prevScreen ?? TAB_SCREENS[state.activeTab], prevScreen: null }
+    syncUrlHash(next)
+    return next
+  }),
 }))
+
