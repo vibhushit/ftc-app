@@ -1,4 +1,4 @@
-import { Calendar, ChevronRight, Clock, Plus } from 'lucide-react'
+import { Calendar, ChevronRight, Clock, Plus, Bell } from 'lucide-react'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { inr } from '@/data/constants'
@@ -17,11 +17,12 @@ export function CreatorPipelineHome() {
       <div className="px-5 pt-4 pb-4">
         <div className="flex items-end justify-between">
           <div>
-            <div className="text-[11px] font-mono uppercase tracking-[0.14em] text-iris">Creator pipeline</div>
+            <div className="text-[11px] font-mono uppercase tracking-[0.14em] text-iris font-semibold">Creator pipeline</div>
             <div className="font-display text-3xl tracking-tight leading-none mt-1">Your jobs</div>
           </div>
-          <button onClick={() => dispatch({ type: 'GO', screen: 'calendar' })} className="tap w-10 h-10 rounded-full bg-bone grid place-items-center">
-            <Calendar size={18} />
+          <button onClick={() => dispatch({ type: 'GO', screen: 'notifications' })} className="tap w-10 h-10 rounded-full bg-bone border border-line grid place-items-center relative">
+            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-iris" />
+            <Bell size={18} className="text-obsidian/75" />
           </button>
         </div>
         <div className="mt-4 grid grid-cols-2 gap-2">
