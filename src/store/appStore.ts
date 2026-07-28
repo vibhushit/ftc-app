@@ -153,6 +153,94 @@ function reduce(state: AppState, action: AppAction): AppState {
   }
 }
 
+function parseInitialHash(defaultState: AppState): AppState {
+  if (typeof window === 'undefined') return defaultState
+
+  let baseState = defaultState
+
+  // 1. Try restoring from localStorage session draft
+  try {
+    const saved = localStorage.getItem('ftc_saved_session')
+    if (saved) {
+      const parsed = JSON.parse(saved)
+      if (parsed && typeof parsed === 'object') {
+        baseState = {
+          ...defaultState,
+          screen: parsed.screen || defaultState.screen,
+          activeTab: parsed.activeTab || defaultState.activeTab,
+          selectedCreatorId: parsed.selectedCreatorId || null,
+          onboard: { ...defaultState.onboard, ...(parsed.onboard || {}) },
+          isAuthed: parsed.isAuthed ?? defaultState.isAuthed,
+          isCreator: parsed.isCreator ?? defaultState.isCreator,
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[FTC] Failed to parse saved session from localStorage', e)
+  }
+
+  // 2. URL hash overrides localStorage
+  const hash = window.location.hash.replace(/^#/, '')
+  if (!hash) return baseState
+
+  const params = new URLSearchParams(hash)
+  const creator = params.get('creator')
+  const screen = params.get('screen') as Screen | null
+
+  if (creator) {
+    return {
+      ...baseState,
+      screen: 'creator',
+      selectedCreatorId: creator,
+    }
+  }
+
+  if (screen) {
+    const tabMap: Record<string, Tab> = { home: 'home', discover: 'discover', inbox: 'inbox', me: 'me' }
+    return {
+      ...baseState,
+      screen,
+      activeTab: tabMap[screen] || baseState.activeTab,
+    }
+  }
+
+  return baseState
+}
+
+function syncUrlHash(state: AppState) {
+  if (typeof window === 'undefined') return
+  let nextHash = ''
+  if (state.screen === 'creator' && state.selectedCreatorId) {
+    nextHash = `creator=${state.selectedCreatorId}`
+  } else if (state.screen && state.screen !== 'welcome' && state.screen !== 'home') {
+    nextHash = `screen=${state.screen}`
+  }
+  const currentHash = window.location.hash.replace(/^#/, '')
+  if (currentHash !== nextHash) {
+    if (nextHash) {
+      window.history.replaceState(null, '', `#${nextHash}`)
+    } else {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search)
+    }
+  }
+
+  // Persist session state to localStorage for seamless refresh
+  try {
+    localStorage.setItem('ftc_saved_session', JSON.stringify({
+      screen: state.screen,
+      activeTab: state.activeTab,
+      selectedCreatorId: state.selectedCreatorId,
+      onboard: state.onboard,
+      isAuthed: state.isAuthed,
+      isCreator: state.isCreator,
+    }))
+  } catch (e) {
+    // Ignore quota errors
+  }
+}
+
+const INITIAL_STATE = parseInitialHash(DEFAULT_STATE)
+
 interface AppStore extends AppState {
   dispatch: (action: AppAction) => void
   setFilter: (patch: Partial<Filters>) => void
@@ -161,9 +249,26 @@ interface AppStore extends AppState {
 }
 
 export const useAppStore = create<AppStore>((set) => ({
-  ...DEFAULT_STATE,
-  dispatch: (action) => set(state => reduce(state, action)),
-  setFilter: (patch) => set(state => ({ filters: { ...state.filters, ...patch } })),
-  go: (screen) => set(state => ({ prevScreen: state.screen, screen })),
-  back: () => set(state => ({ screen: state.prevScreen ?? TAB_SCREENS[state.activeTab], prevScreen: null })),
+  ...INITIAL_STATE,
+  dispatch: (action) => set(state => {
+    const next = reduce(state, action)
+    syncUrlHash(next)
+    return next
+  }),
+  setFilter: (patch) => set(state => {
+    const next = { ...state, filters: { ...state.filters, ...patch } }
+    syncUrlHash(next)
+    return next
+  }),
+  go: (screen) => set(state => {
+    const next = { ...state, prevScreen: state.screen, screen }
+    syncUrlHash(next)
+    return next
+  }),
+  back: () => set(state => {
+    const next = { ...state, screen: state.prevScreen ?? TAB_SCREENS[state.activeTab], prevScreen: null }
+    syncUrlHash(next)
+    return next
+  }),
 }))
+

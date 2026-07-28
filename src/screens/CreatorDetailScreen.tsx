@@ -421,7 +421,7 @@ export function CreatorDetailScreen() {
 
         {/* Message CTA */}
         <div className="px-5 py-5">
-          <button className="tap w-full rounded-2xl bg-bone p-4 flex items-center gap-4 text-left active:bg-obsidian/5">
+          <button onClick={() => dispatch({ type: 'OPEN_CLIENT_CHAT', client: { name: c.name, avatar: c.avatar } })} className="tap w-full rounded-2xl bg-bone p-4 flex items-center gap-4 text-left active:bg-obsidian/5">
             <div className="w-12 h-12 rounded-2xl bg-obsidian grid place-items-center shrink-0"><MessageCircle size={22} className="text-acid" /></div>
             <div className="flex-1">
               <div className="font-display text-base leading-tight">Have a question first?</div>
@@ -434,7 +434,7 @@ export function CreatorDetailScreen() {
 
       {/* Desktop booking rail — sticky, mirrors the mobile packages/calendar/CTA flow */}
       <div className="hidden md:block md:sticky md:top-6">
-        <div className="rounded-2xl border border-line bg-paper overflow-hidden">
+        <div className="rounded-2xl border border-line bg-paper overflow-hidden shadow-sm">
           {packagesBlock}
           {calendarBlock}
           {desktopCta}
@@ -452,7 +452,7 @@ export function CreatorDetailScreen() {
           </div>
         )}
         <div className="flex gap-2">
-          <button className="tap w-14 rounded-2xl bg-obsidian/5 grid place-items-center">
+          <button onClick={() => dispatch({ type: 'OPEN_CLIENT_CHAT', client: { name: c.name, avatar: c.avatar } })} className="tap w-14 rounded-2xl bg-obsidian/5 grid place-items-center">
             <MessageCircle size={19} className="text-obsidian/70" />
           </button>
           <button
