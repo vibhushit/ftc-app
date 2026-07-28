@@ -12,10 +12,10 @@ interface SideNavProps {
 export function SideNav({ active, onNav, notifications = 0 }: SideNavProps) {
   return (
     <div className="hidden md:flex flex-col w-[220px] shrink-0 py-6 px-3 border-r border-line" style={{ background: '#f4f1ea' }}>
-      <div className="px-3 mb-8 flex items-center gap-2">
+      <button onClick={() => onNav('home')} className="tap px-3 mb-8 flex items-center gap-2 text-left cursor-pointer group">
         <BrandIcon size={28} />
-        <span className="font-display text-lg tracking-tight">FTC</span>
-      </div>
+        <span className="font-display text-lg tracking-tight group-hover:text-iris transition-colors">FTC</span>
+      </button>
       <nav className="flex flex-col gap-1">
         {NAV_TABS.map(t => {
           const Ic = t.icon

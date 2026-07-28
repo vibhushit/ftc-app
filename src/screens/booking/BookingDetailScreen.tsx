@@ -58,7 +58,8 @@ export function BookingDetailScreen() {
     <div className="flex-1 flex flex-col bg-bone overflow-hidden min-h-0">
       <SimpleHeader title="Booking details" onBack={() => dispatch({ type: 'BACK' })} />
       <div className="app-scroll py-4">
-        <div className="mx-5 mb-3 p-4 rounded-2xl bg-obsidian text-paper flex items-center gap-3">
+        <div className="max-w-2xl mx-auto w-full">
+          <div className="mx-5 mb-3 p-4 rounded-2xl bg-obsidian text-paper flex items-center gap-3">
           <img src={c.avatar} className="w-12 h-12 rounded-full object-cover border-2 border-paper/20" alt="" />
           <div className="flex-1">
             <div className="font-display text-lg leading-tight">{c.name}</div>
@@ -120,7 +121,7 @@ export function BookingDetailScreen() {
           </button>
         </div>
         <div className="px-5 grid grid-cols-2 gap-2 mt-2 mb-4">
-          <button className="tap py-3.5 rounded-2xl bg-obsidian text-paper text-[13px] font-semibold flex items-center justify-center gap-1.5">
+          <button onClick={() => dispatch({ type: 'OPEN_CLIENT_CHAT', client: { name: c.name, avatar: c.avatar } })} className="tap py-3.5 rounded-2xl bg-obsidian text-paper text-[13px] font-semibold flex items-center justify-center gap-1.5">
             <MessageCircle size={15} /> Message
           </button>
           {status === 'completed'
@@ -131,6 +132,7 @@ export function BookingDetailScreen() {
                 <HelpCircle size={15} /> Get help
               </button>
           }
+        </div>
         </div>
       </div>
     </div>
