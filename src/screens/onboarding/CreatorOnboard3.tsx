@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Upload, Instagram, Check, X, Shield } from 'lucide-react'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
@@ -10,14 +10,36 @@ export function CreatorOnboard3() {
   const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
   const [imported, setImported] = useState<string[]>(state.onboard.portfolio ?? [])
   const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+
   const addPics = (seeds: string[]) => setImported(cur => [...cur, ...seeds.filter(s => !cur.includes(s))].slice(0, 9))
+  
   const importIG = () => addPics([pic('onb-1', 600, 600), pic('onb-2', 600, 600), pic('onb-3', 600, 600), pic('onb-4', 600, 600)])
   const importBe = () => addPics([pic('onb-be1', 600, 600), pic('onb-be2', 600, 600), pic('onb-be3', 600, 600)])
-  const uploadOne = () => {
-    if (uploading || imported.length >= 9) return
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
     setUploading(true)
-    setTimeout(() => { addPics([pic('onb-up' + Date.now(), 600, 600)]); setUploading(false) }, 700)
+
+    const newUrls: string[] = []
+    Array.from(files).forEach(file => {
+      const blobUrl = URL.createObjectURL(file)
+      newUrls.push(blobUrl)
+    })
+
+    setTimeout(() => {
+      addPics(newUrls)
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }, 400)
   }
+
+  const triggerUpload = () => {
+    if (uploading || imported.length >= 9) return
+    fileInputRef.current?.click()
+  }
+
   const left = Math.max(0, 3 - imported.length)
 
   return (
@@ -33,6 +55,15 @@ export function CreatorOnboard3() {
         dispatch({ type: 'GO', screen: 'creatorOnboard4' })
       }}
     >
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*,video/*"
+        multiple
+        onChange={handleFileSelect}
+        className="hidden"
+      />
+
       <div className="space-y-4">
         <div className="p-3 rounded-xl bg-bone border border-line">
           <div className="text-[12px] font-semibold">{imported.length} of 9 added {imported.length >= 3 ? '· looking good ✓' : `· ${left} more needed`}</div>
@@ -46,7 +77,7 @@ export function CreatorOnboard3() {
               <Instagram size={16} className="text-white" />
             </div>
             <div className="mt-3 text-[13px] font-semibold">Import from Instagram</div>
-            <div className="text-[11px] text-obsidian/60 mt-0.5">Pulls your top grid posts</div>
+            <div className="text-[11px] text-obsidian/60 mt-0.5">Pulls sample grid posts</div>
           </button>
           <button onClick={importBe} className="tap p-4 rounded-xl border-2 border-line active:bg-bone text-left">
             <div className="w-8 h-8 rounded-lg bg-[#1769FF] grid place-items-center text-white font-bold text-xs">Bē</div>
@@ -54,7 +85,7 @@ export function CreatorOnboard3() {
             <div className="text-[11px] text-obsidian/60 mt-0.5">Pulls project covers</div>
           </button>
         </div>
-        <button onClick={uploadOne} className={cn('tap w-full py-4 border-2 border-dashed rounded-xl text-[13px] font-medium flex items-center justify-center gap-2 transition', uploading ? 'border-iris text-iris bg-iris-tint' : 'border-line text-obsidian/60 active:bg-bone')}>
+        <button onClick={triggerUpload} className={cn('tap w-full py-4 border-2 border-dashed rounded-xl text-[13px] font-medium flex items-center justify-center gap-2 transition', uploading ? 'border-iris text-iris bg-iris-tint' : 'border-line text-obsidian/60 active:bg-bone')}>
           <Upload size={16} />
           {uploading ? 'Uploading…' : 'Upload from this device (photo or video)'}
         </button>

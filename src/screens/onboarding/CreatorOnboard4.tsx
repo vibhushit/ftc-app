@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Check, Upload, BadgeCheck, Clock, Shield } from 'lucide-react'
+import { useState, useRef } from 'react'
+import { Check, Upload, BadgeCheck, Clock } from 'lucide-react'
 import { useAppStore } from '@/store/appStore'
 import { cn } from '@/utils'
 import { OnboardShell } from './OnboardShell'
@@ -7,6 +7,8 @@ import { OnboardShell } from './OnboardShell'
 export function CreatorOnboard4() {
   const dispatch = useAppStore(s => s.dispatch)
   const [docs, setDocs] = useState<Record<string, string>>({ aadhaar: 'idle', pan: 'idle', selfie: 'idle' })
+  const [activeDocKey, setActiveDocKey] = useState<string | null>(null)
+  const docInputRef = useRef<HTMLInputElement | null>(null)
 
   const REQUIRED = [
     { key: 'aadhaar', emoji: '🪪', title: 'Aadhaar Card', sub: 'Front + back. Only the last 4 digits are shown publicly.' },
@@ -14,10 +16,22 @@ export function CreatorOnboard4() {
     { key: 'selfie',  emoji: '📸', title: 'Selfie + ID',  sub: 'A live photo holding your Aadhaar, for verification.' },
   ]
 
-  const upload = (key: string) => {
+  const triggerUpload = (key: string) => {
     if (docs[key] === 'verified' || docs[key] === 'review') return
+    setActiveDocKey(key)
+    docInputRef.current?.click()
+  }
+
+  const handleDocSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0 || !activeDocKey) return
+    const key = activeDocKey
     setDocs(d => ({ ...d, [key]: 'review' }))
-    setTimeout(() => setDocs(d => ({ ...d, [key]: 'verified' })), 1300)
+    setTimeout(() => {
+      setDocs(d => ({ ...d, [key]: 'verified' }))
+      if (docInputRef.current) docInputRef.current.value = ''
+      setActiveDocKey(null)
+    }, 800)
   }
 
   const reqDone = REQUIRED.filter(r => docs[r.key] === 'verified').length
@@ -43,6 +57,14 @@ export function CreatorOnboard4() {
         dispatch({ type: 'GO', screen: 'creatorOnboard5' })
       }}
     >
+      <input
+        ref={docInputRef}
+        type="file"
+        accept="image/*,application/pdf"
+        onChange={handleDocSelect}
+        className="hidden"
+      />
+
       <div className="space-y-4">
         <div className="p-4 rounded-2xl bg-obsidian relative overflow-hidden">
           <div className="absolute inset-0 dots-acid opacity-10 pointer-events-none" />
@@ -97,24 +119,13 @@ export function CreatorOnboard4() {
                       ? <span className="flex items-center gap-1 text-[11px] font-semibold text-success shrink-0"><BadgeCheck size={15} /> Verified</span>
                       : st === 'review'
                         ? <span className="flex items-center gap-1 text-[11px] font-semibold text-iris shrink-0"><Clock size={13} /> Reviewing…</span>
-                        : <button onClick={() => upload(d.key)} className="tap shrink-0 px-3 py-2 rounded-lg bg-obsidian text-paper text-[11.5px] font-semibold flex items-center gap-1.5"><Upload size={13} /> Upload</button>
+                        : <button onClick={() => triggerUpload(d.key)} className="tap shrink-0 px-3 py-2 rounded-lg bg-obsidian text-paper text-[11.5px] font-semibold flex items-center gap-1.5"><Upload size={13} /> Upload</button>
                     }
-                  </div>
-                  <div className="mt-2.5 flex items-center gap-2">
-                    <div className="flex-1 h-1.5 rounded-full bg-paper overflow-hidden">
-                      <div className={cn('h-full rounded-full transition-all duration-500', st === 'verified' ? 'bg-success' : 'bg-iris')} style={{ width: st === 'verified' ? '100%' : st === 'review' ? '66%' : '0%' }} />
-                    </div>
-                    <span className="text-[9px] font-mono uppercase tracking-wider text-obsidian/40 w-20 text-right">{st === 'verified' ? 'Verified' : st === 'review' ? 'Under review' : 'Pending'}</span>
                   </div>
                 </div>
               )
             })}
           </div>
-        </div>
-
-        <div className="p-3 rounded-xl bg-bone border border-line flex items-start gap-2 text-[11px] text-obsidian/55 leading-relaxed">
-          <Shield size={14} className="text-iris shrink-0 mt-0.5" />
-          After you submit, your profile enters Under Review. You can't go live until our team approves (usually within a few hours).
         </div>
       </div>
     </OnboardShell>
