@@ -13,21 +13,20 @@ export interface CreatorSearchParams {
   offset?:     number
 }
 
+import { apiClient } from '@/services/apiClient'
+
 // ─── Discovery ────────────────────────────────────────────────────────────────
 export async function searchCreators(params: CreatorSearchParams = {}) {
-  const { data, error } = await supabase.rpc('search_creators', {
-    p_query:      params.query      ?? null,
-    p_discipline: params.discipline ?? null,
-    p_city:       params.city       ?? null,
-    p_min_price:  params.minPrice   ?? null,
-    p_max_price:  params.maxPrice   ?? null,
-    p_min_rating: params.minRating  ?? null,
-    p_available:  params.available  ?? null,
-    p_limit:      params.limit      ?? 20,
-    p_offset:     params.offset     ?? 0,
-  })
-  if (error) throw error
-  return data
+  try {
+    const list = await apiClient.getCreators()
+    if (params.discipline && params.discipline !== 'All') {
+      return list.filter(c => c.discipline === params.discipline)
+    }
+    return list
+  } catch (err) {
+    console.warn('Failed to fetch creators from API client:', err)
+    return []
+  }
 }
 
 // ─── Profile by ID ────────────────────────────────────────────────────────────

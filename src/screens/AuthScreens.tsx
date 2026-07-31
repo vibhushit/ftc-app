@@ -6,6 +6,7 @@ import { useShallow } from 'zustand/shallow'
 import { cn } from '@/utils'
 import { supabaseAvailable } from '@/lib/supabase'
 import * as authApi from '@/lib/api/auth'
+import { apiClient } from '@/services/apiClient'
 
 function GoogleG({ size = 18 }: { size?: number }) {
   return (
@@ -30,21 +31,22 @@ export function PhoneScreen() {
   const cont = async () => {
     if (!ok || loading) return
     setError('')
-    if (looksEmail && supabaseAvailable) {
-      setLoading(true)
-      try {
+    setLoading(true)
+    try {
+      if (looksEmail && supabaseAvailable) {
         await authApi.sendEmailOtp(val.trim())
         dispatch({ type: 'SET_PENDING_PHONE', phone: val.trim() })
         dispatch({ type: 'GO', screen: 'magicLinkSent' })
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed to send email. Try again.')
-      } finally {
-        setLoading(false)
+      } else {
+        // Send phone OTP to Rust API backend
+        await apiClient.sendPhoneOtp(val.trim())
+        dispatch({ type: 'SET_PENDING_PHONE', phone: val.trim() })
+        dispatch({ type: 'GO', screen: 'role' })
       }
-    } else {
-      // Phone: OTP bypassed until SMS provider is configured
-      dispatch({ type: 'SET_PENDING_PHONE', phone: val.trim() })
-      dispatch({ type: 'GO', screen: 'role' })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to send code. Try again.')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -273,6 +275,11 @@ export function RoleScreen() {
   const [sel, setSel] = useState<string | null>(null)
   const choose = async (role: string) => {
     setSel(role)
+    try {
+      await apiClient.selectRole(role)
+    } catch (e) {
+      console.warn('[FTC] selectRole API failed:', e)
+    }
     if (supabaseAvailable) {
       try {
         await authApi.setUserRole(role === 'creator' ? 'creator' : 'consumer')

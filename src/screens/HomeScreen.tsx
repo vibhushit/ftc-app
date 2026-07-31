@@ -6,11 +6,21 @@ import { CREATORS, DISCIPLINE_CONFIG } from '@/data/creators'
 import { CAMPAIGNS, pic, inr } from '@/data/constants'
 import { CreatorPipelineHome } from './CreatorPipelineHome'
 
+import { useEffect, useState } from 'react'
+import { apiClient } from '@/services/apiClient'
+import type { Creator } from '@/types/bindings'
+
 export function HomeScreen() {
   const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
+  const [creators, setCreators] = useState<Creator[]>([])
+
+  useEffect(() => {
+    apiClient.getCreators().then(setCreators).catch(err => console.warn('Failed to load API creators:', err))
+  }, [])
+
   if (state.isCreator) return <CreatorPipelineHome />
 
-  const featured = CREATORS.filter(c => c.tier === 'Platinum').slice(0, 5)
+  const featured = creators.length > 0 ? creators : CREATORS.filter(c => c.tier === 'Platinum').slice(0, 5)
   const rising = CREATORS.filter(c => c.tier === 'Rising').slice(0, 4)
   const liveCampaigns = CAMPAIGNS.slice(0, 3)
 
@@ -20,7 +30,7 @@ export function HomeScreen() {
         <div>
           <div className="text-[11px] font-mono uppercase tracking-[0.14em] text-obsidian/50">Mumbai · Thursday</div>
           <div className="font-display text-xl tracking-tight mt-0.5">
-            Good morning, <span className="italic">{state.user.name.split(' ')[0]}</span>.
+            Good morning, <span className="italic">{state.user?.name ? state.user.name.split(' ')[0] : 'there'}</span>.
           </div>
         </div>
         <div className="flex items-center gap-2">

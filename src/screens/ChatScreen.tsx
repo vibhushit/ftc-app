@@ -132,7 +132,7 @@ function QuoteModal({ partnerName, onClose, onSend }: { partnerName: string; onC
           onClick={() => onSend({ scope, price: +price, delivery, note })}
           className="tap w-full mt-4 py-4 rounded-2xl bg-obsidian text-paper font-semibold text-[14px] flex items-center justify-center gap-2 disabled:opacity-30 shadow-md"
         >
-          <Send size={15} /> Send quote to {partnerName.split(' ')[0]}
+          <Send size={15} /> Send quote to {partnerName ? partnerName.split(' ')[0] : 'client'}
         </button>
       </div>
     </div>
