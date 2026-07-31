@@ -187,6 +187,11 @@ function parseInitialHash(defaultState: AppState): AppState {
   const creator = params.get('creator')
   const screen = params.get('screen') as Screen | null
 
+  if (screen === 'welcome') {
+    try { localStorage.removeItem('ftc_saved_session') } catch {}
+    return { ...defaultState, screen: 'welcome', isAuthed: false }
+  }
+
   if (creator) {
     return {
       ...baseState,
@@ -224,16 +229,20 @@ function syncUrlHash(state: AppState) {
     }
   }
 
-  // Persist session state to localStorage for seamless refresh
+  // Persist session state to localStorage unless on welcome/login screen
   try {
-    localStorage.setItem('ftc_saved_session', JSON.stringify({
-      screen: state.screen,
-      activeTab: state.activeTab,
-      selectedCreatorId: state.selectedCreatorId,
-      onboard: state.onboard,
-      isAuthed: state.isAuthed,
-      isCreator: state.isCreator,
-    }))
+    if (state.screen === 'welcome' || !state.isAuthed) {
+      localStorage.removeItem('ftc_saved_session')
+    } else {
+      localStorage.setItem('ftc_saved_session', JSON.stringify({
+        screen: state.screen,
+        activeTab: state.activeTab,
+        selectedCreatorId: state.selectedCreatorId,
+        onboard: state.onboard,
+        isAuthed: state.isAuthed,
+        isCreator: state.isCreator,
+      }))
+    }
   } catch (e) {
     // Ignore quota errors
   }

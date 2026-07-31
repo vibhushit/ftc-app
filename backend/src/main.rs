@@ -5,14 +5,18 @@ use axum::{
     Json, Router,
 };
 use models::creator::{Creator, CreatorPackage};
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::{
+    cors::{Any, CorsLayer},
+    trace::TraceLayer,
+};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
 async fn main() {
+    // Configure environment logger (RUST_LOG=info by default)
     tracing_subscriber::registry()
         .with(tracing_subscriber::EnvFilter::new(
-            std::env::var("RUST_LOG").unwrap_or_else(|_| "backend=debug,tower_http=debug".into()),
+            std::env::var("RUST_LOG").unwrap_or_else(|_| "backend=info,tower_http=info".into()),
         ))
         .with(tracing_subscriber::fmt::layer())
         .init();
@@ -25,23 +29,26 @@ async fn main() {
     let app = Router::new()
         .route("/health", get(health_check))
         .route("/api/creators", get(get_creators))
+        .layer(TraceLayer::new_for_http())
         .layer(cors);
 
     let addr = std::net::SocketAddr::from(([0, 0, 0, 0], 3000));
-    tracing::info!("Server running on http://{}", addr);
+    tracing::info!("🚀 FTC Rust Axum Server running on http://{}", addr);
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
 
 async fn health_check() -> &'static str {
+    tracing::info!("Health check requested!");
     "OK"
 }
 
 async fn get_creators() -> Json<Vec<Creator>> {
+    tracing::info!("GET /api/creators -> Returning mock creators from Rust server!");
     let mock = vec![
         Creator {
             id: "c1".into(),
-            name: "Rhea Kapoor".into(),
+            name: "Rhea Kapoor (via Rust Axum)".into(),
             handle: "@rhea".into(),
             avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80".into(),
             discipline: "Photography".into(),
@@ -99,7 +106,7 @@ mod tests {
         models::chat::ChatMessagePayload::export_all().unwrap();
         models::chat::CustomQuote::export_all().unwrap();
         models::chat::CreateQuotePayload::export_all().unwrap();
-        
+
         println!("Successfully exported all Rust models to TypeScript types!");
     }
 }

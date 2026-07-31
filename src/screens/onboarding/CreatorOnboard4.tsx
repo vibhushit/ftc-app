@@ -57,6 +57,19 @@ export function CreatorOnboard4() {
         dispatch({ type: 'GO', screen: 'creatorOnboard5' })
       }}
     >
+      <div className="flex items-center justify-between -mt-2 mb-2">
+        <span className="text-[11px] text-obsidian/50">You can complete ID verification later</span>
+        <button
+          type="button"
+          onClick={() => {
+            dispatch({ type: 'SET_ONBOARD', patch: { idVerified: false } })
+            dispatch({ type: 'GO', screen: 'creatorOnboard5' })
+          }}
+          className="tap text-[12px] font-semibold text-iris hover:underline cursor-pointer"
+        >
+          Skip for now →
+        </button>
+      </div>
       <input
         ref={docInputRef}
         type="file"
