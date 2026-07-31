@@ -4,6 +4,7 @@ import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { pic } from '@/data/constants'
 import { cn } from '@/utils'
+import { compressImageToWebP } from '@/utils/imageCompressor'
 import { OnboardShell } from './OnboardShell'
 
 export function CreatorOnboard3() {
@@ -12,31 +13,35 @@ export function CreatorOnboard3() {
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
-  const addPics = (seeds: string[]) => setImported(cur => [...cur, ...seeds.filter(s => !cur.includes(s))].slice(0, 9))
+  const addPics = (seeds: string[]) => setImported(cur => [...cur, ...seeds.filter(s => !cur.includes(s))].slice(0, 5))
   
   const importIG = () => addPics([pic('onb-1', 600, 600), pic('onb-2', 600, 600), pic('onb-3', 600, 600), pic('onb-4', 600, 600)])
   const importBe = () => addPics([pic('onb-be1', 600, 600), pic('onb-be2', 600, 600), pic('onb-be3', 600, 600)])
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files || files.length === 0) return
     setUploading(true)
 
-    const newUrls: string[] = []
-    Array.from(files).forEach(file => {
-      const blobUrl = URL.createObjectURL(file)
-      newUrls.push(blobUrl)
-    })
+    const remainingSlots = Math.max(0, 5 - imported.length)
+    const selectedFiles = Array.from(files).slice(0, remainingSlots)
 
-    setTimeout(() => {
+    try {
+      const compressedWebPFiles = await Promise.all(
+        selectedFiles.map(file => compressImageToWebP(file, 1920, 0.82))
+      )
+      const newUrls = compressedWebPFiles.map(file => URL.createObjectURL(file))
       addPics(newUrls)
+    } catch (err) {
+      console.warn('Image compression failed:', err)
+    } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
-    }, 400)
+    }
   }
 
   const triggerUpload = () => {
-    if (uploading || imported.length >= 9) return
+    if (uploading || imported.length >= 5) return
     fileInputRef.current?.click()
   }
 
@@ -46,7 +51,7 @@ export function CreatorOnboard3() {
     <OnboardShell
       step={3} total={5}
       title="Show your craft"
-      sub="Add at least 3 pieces — your best work first. Clients decide in the first 5 seconds."
+      sub="Upload up to 5 photos — your best work first. Client-compressed for lightning fast loading."
       onBack={() => dispatch({ type: 'GO', screen: 'creatorOnboard2' })}
       cta={left > 0 ? `Add ${left} more to continue` : 'Continue'}
       ctaDisabled={imported.length < 3}
@@ -58,7 +63,7 @@ export function CreatorOnboard3() {
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*,video/*"
+        accept="image/*"
         multiple
         onChange={handleFileSelect}
         className="hidden"
@@ -66,7 +71,7 @@ export function CreatorOnboard3() {
 
       <div className="space-y-4">
         <div className="p-3 rounded-xl bg-bone border border-line">
-          <div className="text-[12px] font-semibold">{imported.length} of 9 added {imported.length >= 3 ? '· looking good ✓' : `· ${left} more needed`}</div>
+          <div className="text-[12px] font-semibold">{imported.length} of 5 added {imported.length >= 3 ? '· looking good ✓' : `· ${left} more needed`}</div>
           <div className="mt-1.5 h-1.5 rounded-full bg-paper overflow-hidden">
             <div className={cn('h-full transition-all duration-500', imported.length >= 3 ? 'bg-success' : 'bg-iris')} style={{ width: `${Math.min(imported.length / 3 * 100, 100)}%` }} />
           </div>

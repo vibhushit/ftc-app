@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "backend:dev": "cd backend && cargo run",
+    "backend:test": "cd backend && cargo test",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",

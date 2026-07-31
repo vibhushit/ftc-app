@@ -6,157 +6,105 @@
 
 FTC (Find To Connect) simplifies how people discover, connect with, and work with creative professionals.
 
-The platform provides a seamless experience for consumers looking to hire creators, while giving creators the tools they need to manage their business, build trust, receive payments, and grow their professional presence. As the platform evolves, it will also support collaborations between creators and brands.
+The platform provides a seamless experience for consumers looking to hire creators, while giving creators the tools they need to manage their business, build trust, receive payments, and grow their professional presence.
 
-FTC is designed with scalability, maintainability, and developer experience as first-class priorities. The project follows modern engineering practices, emphasizing clean architecture, automated testing, continuous integration, and a collaborative development workflow.
-
-Concretely, it's a mobile-first web app: consumers discover, book, and pay local creative professionals (photographers, makeup artists, videographers, etc.), while creators manage bookings, quotes, payouts, and brand sponsorships — all in one app. The UI is built as a simulated phone screen with bottom-tab navigation, backed by Supabase (Postgres + Auth + Storage + Edge Functions).
-
-## Project Goals
-
-* Build a reliable marketplace for creative professionals and consumers.
-* Deliver a secure and transparent booking and payment experience.
-* Empower creators with business management and growth tools.
-* Enable meaningful collaborations between creators and brands.
-* Develop a platform that can evolve through continuous iteration and community contributions.
-
-## Repository Status
-
-🏗️ **Active Development**
-
-The project foundation (architecture, engineering workflows, documentation) is in place, and the initial application codebase — frontend (React/Vite) and backend (Supabase schema, RLS, Edge Functions) — has landed. Expect the project structure and documentation to continue evolving as features are built out.
-
-## Development Workflow
-
-This repository follows a pull request–based development workflow.
-
-```text
-feature/* → dev → qa → main
-```
-
-All changes are developed in feature branches, reviewed through pull requests, validated by automated checks, and promoted through the development lifecycle before reaching the production branch.
+FTC is designed with scalability, maintainability, and developer experience as first-class priorities. It features a **decoupled architecture**: a high-performance **Rust (`Axum` + `Tokio`) Backend API** and a **React 19 + TypeScript UI**.
 
 ---
 
 ## Tech Stack
 
-| Layer | Tech |
-|---|---|
-| Frontend | React 19, TypeScript, Vite 6 |
-| Styling | Tailwind CSS, Framer Motion (animations) |
-| State | Zustand (single global store, reducer-style `dispatch`) |
-| Data fetching | `@tanstack/react-query` + hand-written Supabase API wrappers |
-| Icons | lucide-react |
-| Backend | Supabase (Postgres 15, Auth, Storage, Realtime, Edge Functions) |
-| Edge Functions | Deno (`process-payment`, `trust-score`, `send-notification`) |
-| Payments | Razorpay (via Edge Function, escrow model) |
+| Layer | Tech | Description |
+|---|---|---|
+| **Frontend UI** | React 19, TypeScript 5.6, Vite 6 | Mobile-first responsive web application |
+| **Styling** | Tailwind CSS, Framer Motion | Modern design system, glassmorphism, micro-animations |
+| **State** | Zustand | Single global state store with reducer-style `dispatch` |
+| **Data Fetching** | `@tanstack/react-query` + `apiClient` | Decoupled API service layer |
+| **Backend API** | Rust (`Axum` v0.7, `Tokio` v1.0) | High-concurrency REST & WebSockets API server |
+| **Type Generator** | `ts-rs` v9.0 | Zero-drift Rust model export to TypeScript (`src/types/bindings/`) |
+| **Database** | PostgreSQL + `SQLx` v0.7 | Compile-time checked SQL queries & migrations |
+| **Media Storage** | Cloudflare R2 / AWS S3 | Client-side WebP compressed direct uploads via presigned URLs |
 
 ---
 
 ## Project Structure
 
 ```
-src/
-  App.tsx              # Screen router (switch over `screen` in the Zustand store)
-  main.tsx             # React entry point
-  store/appStore.ts     # Global state + reducer (navigation, bookings, filters, onboarding…)
-  types/index.ts        # All shared TypeScript types (Screen, Creator, Booking, Deal, etc.)
-  screens/              # One file per feature area (Auth, Booking, Chat, Sponsorship, Settings…)
-  components/
-    AuthProvider.tsx     # Syncs Supabase auth session -> Zustand store
-    ui/                  # Shared UI primitives (BottomNav, etc.)
-    creator/             # Creator-specific components
-  hooks/                 # useAuth, useBookings, useCreators, useServices
-  lib/
-    supabase.ts           # Supabase client + "demo mode" detection
-    database.types.ts     # Generated Postgres types
-    api/                  # Thin query/mutation wrappers per domain (auth, bookings, payments…)
-  data/                  # Seed/demo data used when Supabase env vars are absent
-
-supabase/
-  migrations/            # 001_schema, 002_indexes, 003_rls, 004_functions, 005_storage
-  functions/             # Deno Edge Functions: process-payment, trust-score, send-notification
-  seed.sql               # Dev seed data
-  config.toml            # Supabase CLI config
+ftc/
+├── backend/                       # Rust Axum API Server Crate
+│   ├── Cargo.toml                 # Backend dependencies (Axum, Tokio, SQLx, ts-rs)
+│   ├── migrations/                # SQLx database migration files
+│   └── src/
+│       ├── main.rs                # Axum server entrypoint, routes & CORS
+│       └── models/                # Domain models with #[derive(TS)] auto-export
+│           ├── user.rs
+│           ├── creator.rs
+│           ├── booking.rs
+│           └── chat.rs
+├── src/                           # React 19 Frontend App
+│   ├── services/
+│   │   └── apiClient.ts           # Decoupled API service layer
+│   ├── types/
+│   │   └── bindings/              # Auto-generated TypeScript types from Rust
+│   ├── utils/
+│   │   └── imageCompressor.ts     # Client-side Canvas WebP image compressor (~300KB)
+│   ├── store/appStore.ts          # Zustand state store + local storage session persistence
+│   └── screens/                   # Screen components (Discover, Creator, Chat, Booking...)
 ```
 
 ---
 
 ## Getting Started
 
-### 1. Install dependencies
+### 1. Install Frontend Dependencies
 
 ```bash
 npm install
 ```
 
-### 2. Run in demo mode (no backend needed)
+### 2. Run Rust Backend Server
 
-The app detects missing Supabase env vars and runs fully offline using seed data from `src/data/`.
+In a new terminal window:
+
+```bash
+npm run backend:dev
+# OR: cd backend && cargo run
+```
+> 📍 Starts the Rust Axum API server on **`http://localhost:3000`**.  
+> Test healthcheck: `http://localhost:3000/health` -> `200 OK`
+
+### 3. Run React Frontend UI
+
+In another terminal window:
 
 ```bash
 npm run dev
 ```
-
-Open the printed local URL — auth, bookings, etc. use static demo data.
-
-### 3. Connect to a real Supabase backend (optional)
-
-```bash
-cp .env.example .env.local
-# fill in VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY
-npm run dev
-```
-
-Full backend setup (migrations, auth providers, storage buckets, Edge Functions, RLS) is documented in [`SUPABASE_SETUP.md`](./SUPABASE_SETUP.md).
+> 📍 Starts the React Vite UI server on **`http://localhost:5173`**.
 
 ---
 
-## Scripts
+## Available Scripts
 
 | Command | Description |
 |---|---|
-| `npm run dev` | Start Vite dev server |
-| `npm run build` | Type-check (`tsc -b`) then build for production |
-| `npm run preview` | Preview the production build locally |
-| `npm run lint` | Run ESLint |
-| `npm run db:push` | Push local Supabase migrations to the linked project |
-| `npm run db:reset` | Reset local Supabase DB + reseed |
-| `npm run db:types` | Regenerate `src/lib/database.types.ts` from the live schema |
+| `npm run dev` | Start Vite dev server (`http://localhost:5173`) |
+| `npm run backend:dev` | Start Rust Axum API server (`http://localhost:3000`) |
+| `npm run backend:test` | Run Rust tests & auto-generate TypeScript definitions to `src/types/bindings/` |
+| `npm run build` | Type-check (`tsc`) and build Vite production bundle |
+| `npm run preview` | Preview production build locally |
+| `npm run lint` | Run ESLint check |
 
 ---
 
-## Architecture Notes
+## Decoupled API & Type Safety
 
-- **No router library is used for screens.** `App.tsx` renders a component based on `screen` in the Zustand store; navigation is done via `dispatch({ type: 'GO', screen: ... })` and similar actions defined in `src/types/index.ts` (`AppAction`).
-- **Demo mode vs connected mode**: `src/lib/supabase.ts` exports `supabaseAvailable`. Components (e.g. `AuthProvider`) short-circuit when it's `false`, so the app is always runnable without any backend configured.
-- **Payments use an escrow model**: advance payment is captured and held in `escrow` status, then released to the creator on job completion via the `process-payment` Edge Function (`release_escrow` action) or `pg_cron` auto-release.
-- **Trust score** is calculated server-side (`recalculate_trust_score` DB function) and triggered via the `trust-score` Edge Function after reviews, completions, or ID verification.
-
----
-
-## Backend Setup
-
-See [`SUPABASE_SETUP.md`](./SUPABASE_SETUP.md) for the complete guide: creating a Supabase project, running migrations, configuring Phone/OTP + Google auth, deploying Edge Functions, storage buckets, RLS policies, and production checklist.
+- **Zero-Drift Type Sharing**: The Rust backend defines domain models (e.g. `Creator`, `Booking`, `Quote`) using `#[derive(TS)]`. Running `npm run backend:test` automatically exports matching TypeScript definition files to `src/types/bindings/`.
+- **Decoupled API Client**: `src/services/apiClient.ts` handles all HTTP and WebSocket requests to the Rust backend. If the backend is offline during local UI development, it falls back to typed data seamlessly.
+- **Client-Side Image Optimization**: `imageCompressor.ts` resizes raw camera photos (8 MB+) to `1920px` WebP images (~300 KB) in the browser before storage upload.
 
 ---
-
-## Documentation
-
-Project documentation is maintained alongside the codebase and will expand as the project grows.
-
-* [`PRODUCT.md`](./PRODUCT.md) — product vision, personas, core flows, and feature scope.
-* [`SUPABASE_SETUP.md`](./SUPABASE_SETUP.md) — backend setup and deployment.
-* System architecture, development guidelines, and API references — planned.
-
-## Contributing
-
-Contribution guidelines, coding standards, and development practices are documented in `CONTRIBUTING.md`.
-
-All contributors are expected to follow the established development workflow (`feature/* → dev → qa → main`) and code review process.
 
 ## License
 
-This project is currently private and proprietary.
-
-Unless explicitly stated otherwise, all rights are reserved.
+Private and proprietary. All rights reserved.
