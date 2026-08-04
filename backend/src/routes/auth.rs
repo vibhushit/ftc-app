@@ -1,4 +1,4 @@
-use axum::{routing::{get, post}, Json, Router};
+use axum::{routing::{get, post, put}, Json, Router};
 use serde_json::{json, Value};
 use crate::models::user::{PhoneAuthPayload, VerifyOtpPayload};
 
@@ -7,7 +7,8 @@ pub fn router() -> Router {
         .route("/phone", post(send_phone_otp))
         .route("/verify", post(verify_otp))
         .route("/role", post(select_role))
-        .route("/me", get(get_current_user))
+        .route("/me", get(get_current_user).put(update_current_user))
+        .route("/logout", post(logout_user))
 }
 
 async fn send_phone_otp(Json(payload): Json<PhoneAuthPayload>) -> Json<Value> {
@@ -50,4 +51,14 @@ async fn get_current_user() -> Json<Value> {
         "trust_score": 85,
         "is_creator": false
     }))
+}
+
+async fn update_current_user(Json(payload): Json<Value>) -> Json<Value> {
+    tracing::info!("✏️ PUT /api/auth/me -> Profile updated");
+    Json(json!({ "success": true, "user": payload }))
+}
+
+async fn logout_user() -> Json<Value> {
+    tracing::info!("👋 POST /api/auth/logout -> Session invalidated");
+    Json(json!({ "success": true, "message": "Logged out successfully" }))
 }

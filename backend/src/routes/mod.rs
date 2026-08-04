@@ -5,3 +5,5 @@ pub mod chat;
 pub mod media;
 pub mod payouts;
 pub mod reviews;
+pub mod notifications;
+pub mod safety;

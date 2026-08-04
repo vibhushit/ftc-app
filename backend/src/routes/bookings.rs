@@ -11,6 +11,9 @@ pub fn router() -> Router {
         .route("/", get(list_bookings).post(create_booking))
         .route("/:id", get(get_booking_detail))
         .route("/:id/status", post(update_booking_status))
+        .route("/:id/pay-deposit", post(pay_deposit))
+        .route("/:id/release-escrow", post(release_escrow))
+        .route("/:id/cancel", post(cancel_booking))
 }
 
 async fn list_bookings() -> Json<Vec<Booking>> {
@@ -69,4 +72,21 @@ async fn update_booking_status(Path(id): Path<String>, Json(payload): Json<Value
     let status = payload.get("status").and_then(|v| v.as_str()).unwrap_or("updated");
     tracing::info!("🔄 POST /api/bookings/{}/status -> Status updated to: {}", id, status);
     Json(json!({ "success": true, "booking_id": id, "status": status }))
+}
+
+async fn pay_deposit(Path(id): Path<String>, Json(payload): Json<Value>) -> Json<Value> {
+    let amount = payload.get("amount").and_then(|v| v.as_u64()).unwrap_or(7500);
+    tracing::info!("💳 POST /api/bookings/{}/pay-deposit -> Advance deposit captured: ₹{}", id, amount);
+    Json(json!({ "success": true, "booking_id": id, "escrow_status": "held", "amount_paid": amount }))
+}
+
+async fn release_escrow(Path(id): Path<String>) -> Json<Value> {
+    tracing::info!("🔓 POST /api/bookings/{}/release-escrow -> Escrow released to creator", id);
+    Json(json!({ "success": true, "booking_id": id, "escrow_status": "released" }))
+}
+
+async fn cancel_booking(Path(id): Path<String>, Json(payload): Json<Value>) -> Json<Value> {
+    let reason = payload.get("reason").and_then(|v| v.as_str()).unwrap_or("No reason provided");
+    tracing::info!("❌ POST /api/bookings/{}/cancel -> Cancelled: {}", id, reason);
+    Json(json!({ "success": true, "booking_id": id, "status": "cancelled", "refund_status": "processed" }))
 }

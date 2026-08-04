@@ -6,6 +6,17 @@
 !.env.example
 
 # ==========================
+# Private Internal Docs
+# ==========================
+CHECKLIST_FOR_PRODUCTION.md
+IMPLEMENTATION_PLAN.md
+PRODUCT.md
+SUPABASE_SETUP.md
+backend/docs/
+walkthrough.md
+implementation_plan.md
+
+# ==========================
 # Rust Target & Artifacts
 # ==========================
 /target

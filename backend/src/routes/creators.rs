@@ -9,9 +9,14 @@ use crate::models::creator::{Creator, CreatorOnboardPayload, CreatorPackage};
 pub fn router() -> Router {
     Router::new()
         .route("/", get(get_creators))
+        .route("/saved", get(get_saved_creators))
+        .route("/saved/:id", post(toggle_save_creator))
+        .route("/handle/:handle", get(get_creator_by_handle))
         .route("/:id", get(get_creator_by_id))
         .route("/onboard", post(onboard_creator))
         .route("/:id/availability", get(get_creator_availability))
+        .route("/me/availability", post(update_creator_availability))
+        .route("/me/toggle-holiday-mode", post(toggle_holiday_mode))
 }
 
 async fn get_creators() -> Json<Vec<Creator>> {
@@ -54,6 +59,28 @@ async fn get_creators() -> Json<Vec<Creator>> {
     Json(mock)
 }
 
+async fn get_saved_creators() -> Json<Vec<String>> {
+    tracing::info!("🔖 GET /api/creators/saved -> Fetching bookmarked creators");
+    Json(vec!["c1".into(), "c3".into(), "c5".into()])
+}
+
+async fn toggle_save_creator(Path(id): Path<String>) -> Json<Value> {
+    tracing::info!("🔖 POST /api/creators/saved/{} -> Toggling bookmark", id);
+    Json(json!({ "success": true, "creator_id": id }))
+}
+
+async fn get_creator_by_handle(Path(handle): Path<String>) -> Json<Value> {
+    tracing::info!("🔍 GET /api/creators/handle/{} -> Fetching profile by handle", handle);
+    Json(json!({
+        "id": "c1",
+        "name": "Rhea Kapoor (via Rust Axum)",
+        "handle": handle,
+        "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80",
+        "discipline": "Photography",
+        "city": "Delhi"
+    }))
+}
+
 async fn get_creator_by_id(Path(id): Path<String>) -> Json<Value> {
     tracing::info!("🔍 GET /api/creators/{} -> Fetching profile", id);
     Json(json!({
@@ -82,4 +109,15 @@ async fn onboard_creator(Json(payload): Json<CreatorOnboardPayload>) -> Json<Val
 async fn get_creator_availability(Path(id): Path<String>) -> Json<Value> {
     tracing::info!("📅 GET /api/creators/{}/availability -> Availability slots", id);
     Json(json!({ "creator_id": id, "booked_days": [12, 18, 25, 27, 30] }))
+}
+
+async fn update_creator_availability(Json(payload): Json<Value>) -> Json<Value> {
+    tracing::info!("📅 POST /api/creators/me/availability -> Updating working slots");
+    Json(json!({ "success": true, "updated_slots": payload }))
+}
+
+async fn toggle_holiday_mode(Json(payload): Json<Value>) -> Json<Value> {
+    let enabled = payload.get("enabled").and_then(|v| v.as_bool()).unwrap_or(false);
+    tracing::info!("🌴 POST /api/creators/me/toggle-holiday-mode -> Holiday mode: {}", enabled);
+    Json(json!({ "success": true, "holiday_mode": enabled }))
 }

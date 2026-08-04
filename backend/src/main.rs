@@ -1,3 +1,5 @@
+mod error;
+mod middleware;
 mod models;
 mod routes;
 
@@ -31,6 +33,8 @@ async fn main() {
         .nest("/api/media", routes::media::router())
         .nest("/api/payouts", routes::payouts::router())
         .nest("/api/reviews", routes::reviews::router())
+        .nest("/api/notifications", routes::notifications::router())
+        .nest("/api/safety", routes::safety::router())
         .layer(TraceLayer::new_for_http())
         .layer(cors);
 

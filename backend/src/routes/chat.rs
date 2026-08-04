@@ -13,6 +13,7 @@ pub fn router() -> Router {
         .route("/messages", post(send_message))
         .route("/quotes", post(create_quote))
         .route("/quotes/:id/action", post(quote_action))
+        .route("/ws", get(chat_websocket_handler))
 }
 
 async fn get_inbox() -> Json<Value> {
@@ -81,4 +82,9 @@ async fn quote_action(Path(id): Path<String>, Json(payload): Json<Value>) -> Jso
     let action = payload.get("action").and_then(|v| v.as_str()).unwrap_or("accepted");
     tracing::info!("✍️ POST /api/quotes/{}/action -> Action performed: {}", id, action);
     Json(json!({ "success": true, "quote_id": id, "status": action }))
+}
+
+async fn chat_websocket_handler() -> Json<Value> {
+    tracing::info!("⚡ GET /api/chat/ws -> Live WebSocket connection request");
+    Json(json!({ "message": "WebSocket upgrade endpoint ready" }))
 }
