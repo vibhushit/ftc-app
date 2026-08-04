@@ -12,6 +12,7 @@ CHECKLIST_FOR_PRODUCTION.md
 IMPLEMENTATION_PLAN.md
 PRODUCT.md
 SUPABASE_SETUP.md
+README_INTERNALS.md
 backend/docs/
 walkthrough.md
 implementation_plan.md
