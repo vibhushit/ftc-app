@@ -189,8 +189,26 @@ function parseInitialHash(defaultState: AppState): AppState {
     console.warn('[FTC] Failed to parse saved session from localStorage', e)
   }
 
-  // 2. URL hash overrides localStorage
-  const hash = window.location.hash.replace(/^#/, '')
+  // 2. Auth Tokens in URL (PKCE code or Hash access_token) take highest precedence
+  const rawHash = typeof window !== 'undefined' ? window.location.hash : ''
+  const rawSearch = typeof window !== 'undefined' ? window.location.search : ''
+  const isAuthTokenUrl = rawHash.includes('type=recovery') ||
+    rawHash.includes('type=signup') ||
+    rawHash.includes('type=magiclink') ||
+    rawHash.includes('type=invite') ||
+    rawHash.includes('access_token=') ||
+    rawSearch.includes('code=')
+
+  if (isAuthTokenUrl) {
+    return {
+      ...defaultState,
+      screen: 'resetPassword',
+      isAuthed: false,
+    }
+  }
+
+  // 3. URL hash overrides localStorage
+  const hash = rawHash.replace(/^#/, '')
   if (!hash) return baseState
 
   const params = new URLSearchParams(hash)
@@ -210,7 +228,7 @@ function parseInitialHash(defaultState: AppState): AppState {
     }
   }
 
-  // 3. Final Auth Guard: If not authenticated, only public screens are permitted
+  // 4. Final Auth Guard: If not authenticated, only public screens are permitted
   const PUBLIC_AUTH_SCREENS: Screen[] = ['welcome', 'signup', 'login', 'phone', 'otp', 'magicLinkSent', 'forgotPassword', 'resetPassword']
   if (!baseState.isAuthed && !PUBLIC_AUTH_SCREENS.includes(baseState.screen)) {
     try { localStorage.removeItem('ftc_saved_session') } catch {}
@@ -226,6 +244,20 @@ function parseInitialHash(defaultState: AppState): AppState {
 
 function syncUrlHash(state: AppState) {
   if (typeof window === 'undefined') return
+
+  const rawHash = window.location.hash
+  const rawSearch = window.location.search
+  const hasPendingAuthTokens = rawHash.includes('access_token=') ||
+    rawHash.includes('type=recovery') ||
+    rawHash.includes('type=signup') ||
+    rawHash.includes('type=magiclink') ||
+    rawSearch.includes('code=')
+
+  // NEVER overwrite URL while auth tokens or recovery hashes are pending processing
+  if (hasPendingAuthTokens && state.screen === 'resetPassword') {
+    return
+  }
+
   let nextHash = ''
   if (state.screen === 'creator' && state.selectedCreatorId) {
     nextHash = `creator=${state.selectedCreatorId}`

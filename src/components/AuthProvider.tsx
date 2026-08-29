@@ -25,16 +25,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let mounted = true
 
     const rawHash = typeof window !== 'undefined' ? window.location.hash : ''
+    const rawSearch = typeof window !== 'undefined' ? window.location.search : ''
+    const searchParams = new URLSearchParams(rawSearch)
+    const code = searchParams.get('code')
+
     const isRecoveryHash = rawHash.includes('type=recovery') ||
       rawHash.includes('#reset') ||
       rawHash.includes('type=signup') ||
       rawHash.includes('type=magiclink') ||
       rawHash.includes('type=invite') ||
-      (rawHash.includes('access_token=') && !rawHash.includes('error='))
+      (rawHash.includes('access_token=') && !rawHash.includes('error=')) ||
+      Boolean(code)
 
-    const isLinkExpired = rawHash.includes('error=') || rawHash.includes('error_code=otp_expired')
+    const isLinkExpired = rawHash.includes('error=') ||
+      rawHash.includes('error_code=otp_expired') ||
+      rawSearch.includes('error=')
 
-    // ── 1. Check if URL hash indicates an expired link or active auth session ──
+    // ── 1. Check if URL hash/search indicates an expired link ────────────────
     if (isLinkExpired) {
       console.warn('[FTC] Email auth link expired or invalid.')
       dispatch({ type: 'GO', screen: 'forgotPassword' })
@@ -42,7 +49,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       dispatch({ type: 'GO', screen: 'resetPassword' })
     }
 
-    // ── 2. Check existing session on mount (returning user) ──────────────────
+    // ── 2. Explicitly Exchange PKCE code or Set Session from Hash ────────────
+    async function processIncomingAuthTokens() {
+      if (code) {
+        try {
+          const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+          if (!error && data.session) {
+            dispatch({ type: 'GO', screen: 'resetPassword' })
+            return
+          }
+        } catch (e) {
+          console.warn('[FTC] PKCE code exchange error:', e)
+        }
+      }
+
+      if (rawHash.includes('access_token=') && rawHash.includes('refresh_token=')) {
+        try {
+          const hashParams = new URLSearchParams(rawHash.replace(/^#/, ''))
+          const access_token = hashParams.get('access_token')
+          const refresh_token = hashParams.get('refresh_token')
+          if (access_token && refresh_token) {
+            const { data, error } = await supabase.auth.setSession({ access_token, refresh_token })
+            if (!error && data.session) {
+              dispatch({ type: 'GO', screen: 'resetPassword' })
+              return
+            }
+          }
+        } catch (e) {
+          console.warn('[FTC] Direct hash setSession error:', e)
+        }
+      }
+    }
+
+    processIncomingAuthTokens()
+
+    // ── 3. Check existing session on mount (returning user) ──────────────────
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!mounted) return
       if (!session?.user) {
@@ -65,7 +106,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       syncUser(session.user.id, session.user)
     })
 
-    // ── 3. Subscribe to future auth events ───────────────────────────────────
+    // ── 4. Subscribe to future auth events ───────────────────────────────────
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session) => {
       if (!mounted) return
 

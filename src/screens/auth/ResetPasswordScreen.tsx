@@ -27,10 +27,40 @@ export function ResetPasswordScreen() {
 
     try {
       if (supabaseAvailable && isLiveMode()) {
-        const { data: { session } } = await supabase.auth.getSession()
+        let { data: { session } } = await supabase.auth.getSession()
+
+        // Fallback 1: Extract from hash if session storage is still initializing
         if (!session) {
-          throw new Error('Your reset session has expired or was already used. Please request a new link.')
+          const rawHash = typeof window !== 'undefined' ? window.location.hash : ''
+          if (rawHash.includes('access_token=') && rawHash.includes('refresh_token=')) {
+            const hashParams = new URLSearchParams(rawHash.replace(/^#/, ''))
+            const access_token = hashParams.get('access_token')
+            const refresh_token = hashParams.get('refresh_token')
+            if (access_token && refresh_token) {
+              const res = await supabase.auth.setSession({ access_token, refresh_token })
+              session = res.data.session
+            }
+          }
         }
+
+        // Fallback 2: Exchange PKCE code if query string has code
+        if (!session) {
+          const searchParams = new URLSearchParams(window.location.search)
+          const code = searchParams.get('code')
+          if (code) {
+            const res = await supabase.auth.exchangeCodeForSession(code)
+            session = res.data.session
+          }
+        }
+
+        // Fallback 3: Validate active user token
+        if (!session) {
+          const { data: userData } = await supabase.auth.getUser()
+          if (!userData.user) {
+            throw new Error('Your reset session has expired or was already used. Please request a new link.')
+          }
+        }
+
         await authApi.updateUserPassword(newPassword)
         // Cleanly sign out temporary recovery token so user logs in cleanly
         await supabase.auth.signOut()

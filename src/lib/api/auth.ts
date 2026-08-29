@@ -165,7 +165,7 @@ export async function signInWithPassword(email: string, password: string) {
 }
 
 export async function sendSignUpVerificationLink(email: string, name?: string) {
-  const redirectUrl = typeof window !== 'undefined' ? `${window.location.origin}/#reset` : undefined
+  const redirectUrl = typeof window !== 'undefined' ? window.location.origin : undefined
   
   // Use signUp with initial token to check duplicates and send activation link
   const { data, error } = await supabase.auth.signUp({
@@ -206,7 +206,7 @@ export async function signUpWithPassword(email: string, password: string, name?:
       data: {
         full_name: name || '',
       },
-      emailRedirectTo: typeof window !== 'undefined' ? `${window.location.origin}/#reset` : undefined,
+      emailRedirectTo: typeof window !== 'undefined' ? window.location.origin : undefined,
     },
   })
   if (error) throw error
@@ -215,7 +215,7 @@ export async function signUpWithPassword(email: string, password: string, name?:
 
 export async function resetPassword(email: string) {
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: typeof window !== 'undefined' ? `${window.location.origin}/#reset` : undefined,
+    redirectTo: typeof window !== 'undefined' ? window.location.origin : undefined,
   })
   if (error) throw error
   return true
