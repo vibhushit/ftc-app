@@ -34,14 +34,14 @@ export function WelcomeScreen() {
         </div>
         <div className="space-y-3">
           <button
-            onClick={() => dispatch({ type: 'GO', screen: 'phone' })}
+            onClick={() => dispatch({ type: 'GO', screen: 'signup' })}
             className="tap w-full py-4 rounded-2xl bg-acid text-obsidian font-semibold text-[15px] flex items-center justify-center gap-2"
           >
             Get started <ArrowRight size={16} />
           </button>
           <button
-            onClick={() => dispatch({ type: 'GO', screen: 'phone' })}
-            className="tap w-full py-4 text-paper/70 text-[13px]"
+            onClick={() => dispatch({ type: 'GO', screen: 'login' })}
+            className="tap w-full py-4 text-paper/70 text-[13px] hover:text-paper transition"
           >
             I already have an account
           </button>

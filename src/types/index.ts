@@ -4,7 +4,7 @@ export type Gender = 'male' | 'female' | 'non-binary'
 export type TravelMode = 'studio' | 'travel' | 'both'
 export type TravelRadius = 'city' | 'state' | 'nation'
 export type Screen =
-  | 'welcome' | 'phone' | 'otp' | 'role'
+  | 'welcome' | 'signup' | 'login' | 'phone' | 'otp' | 'role'
   | 'home' | 'discover' | 'filters' | 'creator'
   | 'booking' | 'confirmed' | 'bookings' | 'bookingDetail'
   | 'campaigns' | 'campaignDetail' | 'deal' | 'campaignCompose'

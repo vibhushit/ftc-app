@@ -4,7 +4,7 @@ import { BrandIcon } from '@/components/ui/BrandIcon'
 import { useAppStore } from '@/store/appStore'
 import { useShallow } from 'zustand/shallow'
 import { cn } from '@/utils'
-import { supabaseAvailable } from '@/lib/supabase'
+import { supabaseAvailable, supabase } from '@/lib/supabase'
 import * as authApi from '@/lib/api/auth'
 import { apiClient } from '@/services/apiClient'
 import { isLiveMode } from '@/config/environmentMode'
@@ -21,89 +21,231 @@ function GoogleG({ size = 18 }: { size?: number }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   1. MAIN AUTH SCREEN (Sign In / Sign Up with Password & Magic Link)
+   1. SIGN UP SCREEN (Get Started -> Enter Email -> Verify -> Set Password)
    ═══════════════════════════════════════════════════════════════════════════ */
-export function PhoneScreen() {
+export function SignUpScreen() {
   const dispatch = useAppStore(s => s.dispatch)
-  const [authMode, setAuthMode] = useState<'password' | 'magic'>('password')
-  const [isSignUp, setIsSignUp] = useState(false)
-  const [email, setEmail]       = useState('')
-  const [password, setPassword] = useState('')
   const [name, setName]         = useState('')
-  const [showPassword, setShowPassword] = useState(false)
+  const [email, setEmail]       = useState('')
   const [loading, setLoading]   = useState(false)
+  const [sent, setSent]         = useState(false)
   const [error, setError]       = useState('')
+  const [cooldown, setCooldown] = useState(0)
 
   const isEmailValid = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())
-  const isFormValid = authMode === 'magic'
-    ? isEmailValid || /^[+0-9][0-9\s\-]{5,}$/.test(email.trim())
-    : isEmailValid && password.length >= 6
 
-  // ── Password Auth Submit (Sign In or Sign Up) ───────────────────────────
-  const handlePasswordAuth = async () => {
+  useEffect(() => {
+    if (cooldown > 0) {
+      const timer = setTimeout(() => setCooldown(c => c - 1), 1000)
+      return () => clearTimeout(timer)
+    }
+  }, [cooldown])
+
+  const handleSignUp = async () => {
+    if (!isEmailValid || loading || cooldown > 0) return
+    setError('')
+    setLoading(true)
+
+    try {
+      if (supabaseAvailable && isLiveMode()) {
+        const alreadyExists = await authApi.checkEmailExists(email.trim())
+        if (alreadyExists) {
+          setError('This email is already registered. Please sign in instead.')
+          setLoading(false)
+          return
+        }
+        await authApi.sendSignUpVerificationLink(email.trim(), name.trim())
+      }
+      setSent(true)
+      setCooldown(60)
+    } catch (e: any) {
+      if (e?.message?.toLowerCase().includes('already registered') || e?.message?.toLowerCase().includes('already exists')) {
+        setError('This email is already registered. Please sign in instead.')
+      } else {
+        setError(e?.message || 'Failed to send verification link. Please check your email.')
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const simulateSandboxSetPass = () => {
+    dispatch({ type: 'SET_PENDING_PHONE', phone: email.trim() || 'user@findtoconnect.com' })
+    dispatch({ type: 'GO', screen: 'resetPassword' })
+  }
+
+  return (
+    <div className="flex-1 flex flex-col bg-paper">
+      <div className="px-5 pt-3 pb-3 flex items-center border-b border-line">
+        <button onClick={() => dispatch({ type: 'GO', screen: 'welcome' })} className="tap w-9 h-9 -ml-1.5 grid place-items-center rounded-full">
+          <ArrowLeft size={20} />
+        </button>
+        <span className="flex-1 text-center font-display text-[17px] tracking-tight -ml-9">
+          Create Account
+        </span>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-6 pt-6 pb-8 max-w-md mx-auto w-full flex flex-col justify-between">
+        <div>
+          <div className="flex justify-center mb-4"><BrandIcon size={44} /></div>
+          <h1 className="font-display text-3xl font-light tracking-tight text-center leading-tight mb-2">
+            Join the <span className="italic">FTC Network</span>
+          </h1>
+          <p className="text-[13px] text-obsidian/60 text-center mb-6 leading-relaxed">
+            Enter your email to receive an account activation link and set your password.
+          </p>
+
+          {!sent ? (
+            <div className="space-y-3.5">
+              <div>
+                <label className="text-[11px] font-medium text-obsidian/60 block mb-1">Full Name</label>
+                <div className="rounded-2xl border-2 border-obsidian/15 focus-within:border-obsidian px-4 py-3 bg-bone/30 transition">
+                  <input
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    placeholder="e.g. Rhea Kapoor"
+                    className="w-full bg-transparent outline-none text-[14px] placeholder:text-obsidian/40"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-medium text-obsidian/60 block mb-1">Email Address</label>
+                <div className="rounded-2xl border-2 border-obsidian/15 focus-within:border-obsidian px-4 py-3 bg-bone/30 transition">
+                  <input
+                    autoFocus
+                    type="email"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleSignUp()}
+                    placeholder="name@example.com"
+                    className="w-full bg-transparent outline-none text-[14px] placeholder:text-obsidian/40"
+                  />
+                </div>
+              </div>
+
+              {error && (
+                <div className="space-y-2">
+                  <p className="text-[12px] text-danger font-medium">{error}</p>
+                  {error.includes('already registered') && (
+                    <button
+                      type="button"
+                      onClick={() => dispatch({ type: 'GO', screen: 'login' })}
+                      className="tap w-full py-2.5 rounded-xl bg-iris/10 text-iris text-[12.5px] font-semibold hover:bg-iris/20 transition flex items-center justify-center gap-1.5"
+                    >
+                      Sign in with {email} →
+                    </button>
+                  )}
+                </div>
+              )}
+
+              <button
+                onClick={handleSignUp}
+                disabled={!isEmailValid || loading || cooldown > 0}
+                className="tap w-full mt-2 py-3.5 rounded-2xl bg-obsidian text-paper font-semibold text-[14.5px] flex items-center justify-center gap-2 transition disabled:opacity-40 shadow-sm"
+              >
+                {loading ? 'Sending verification…' : cooldown > 0 ? `Resend in ${cooldown}s` : <><span>Continue →</span></>}
+              </button>
+            </div>
+          ) : (
+            <div className="p-6 rounded-2xl bg-bone border border-line text-center space-y-3.5">
+              <div className="w-12 h-12 rounded-full bg-success/15 text-success grid place-items-center mx-auto">
+                <CheckCircle2 size={26} />
+              </div>
+              <h3 className="font-display text-xl font-semibold">Verification link sent!</h3>
+              <p className="text-[13px] text-obsidian/70 leading-relaxed">
+                We sent a link to <span className="font-semibold text-obsidian">{email}</span>. Click the link in your email to choose your password and activate your account.
+              </p>
+              <div className="pt-3 border-t border-line/60 flex items-center justify-between text-[11.5px]">
+                <span className="text-obsidian/50">Didn't receive email?</span>
+                <button
+                  onClick={handleSignUp}
+                  disabled={cooldown > 0 || loading}
+                  className="text-iris font-semibold hover:underline disabled:opacity-40"
+                >
+                  {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend link'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Sandbox mode shortcut */}
+          {!isLiveMode() && (
+            <div className="mt-6 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-center">
+              <div className="text-[10.5px] font-mono font-semibold text-amber-900 uppercase tracking-wider mb-1 flex items-center justify-center gap-1">
+                <Sparkles size={12} className="text-amber-600" />
+                <span>Sandbox Mode Shortcut</span>
+              </div>
+              <p className="text-[11px] text-amber-800/80 mb-2">Simulate opening the email verification link to set a password:</p>
+              <button
+                onClick={simulateSandboxSetPass}
+                className="tap w-full py-2 px-3 rounded-xl bg-paper border border-amber-500/40 text-[12px] font-semibold text-obsidian hover:bg-amber-50"
+              >
+                Simulate "Set Password" →
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-6 text-center">
+          <button
+            onClick={() => dispatch({ type: 'GO', screen: 'login' })}
+            className="tap text-[13px] text-obsidian/60 hover:text-obsidian font-medium"
+          >
+            Already have an account? <span className="text-iris font-semibold underline">Sign In</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   2. LOGIN SCREEN (Sign In with Email & Password)
+   ═══════════════════════════════════════════════════════════════════════════ */
+export function LoginScreen() {
+  const dispatch = useAppStore(s => s.dispatch)
+  const [email, setEmail]               = useState('')
+  const [password, setPassword]         = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [loading, setLoading]           = useState(false)
+  const [error, setError]               = useState('')
+
+  const isEmailValid = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())
+  const isFormValid = isEmailValid && password.length >= 6
+
+  const handlePasswordLogin = async () => {
     if (!isFormValid || loading) return
     setError('')
     setLoading(true)
 
     try {
       if (supabaseAvailable && isLiveMode()) {
-        if (isSignUp) {
-          const res = await authApi.signUpWithPassword(email.trim(), password, name.trim())
-          if (res.user && !res.session) {
-            dispatch({ type: 'SET_PENDING_PHONE', phone: email.trim() })
-            dispatch({ type: 'GO', screen: 'magicLinkSent' })
-            return
-          }
-        } else {
-          await authApi.signInWithPassword(email.trim(), password)
-        }
+        await authApi.signInWithPassword(email.trim(), password)
       } else {
         // Sandbox mock login
         dispatch({
           type: 'COMPLETE_AUTH',
           isCreator: false,
-          name: name.trim() || (isSignUp ? 'New User' : 'Rhea Kapoor'),
+          name: 'Rhea Kapoor',
           email: email.trim() || 'rhea@findtoconnect.com',
           city: 'Delhi',
         })
-        dispatch({ type: isSignUp ? 'GO' : 'GO_TAB', screen: 'role', tab: 'home' } as any)
+        dispatch({ type: 'GO_TAB', tab: 'home' })
       }
     } catch (e: any) {
-      setError(e?.message || 'Authentication failed. Check your password or use Forgot Password.')
+      setError(e?.message || 'Invalid email or password. Please try again or use Forgot Password.')
     } finally {
       setLoading(false)
     }
   }
 
-  // ── Passwordless Magic Link Submit ─────────────────────────────────────
-  const handleMagicAuth = async () => {
-    if (!isEmailValid || loading) return
-    setError('')
-    setLoading(true)
-
-    try {
-      if (supabaseAvailable && isLiveMode()) {
-        await authApi.sendEmailOtp(email.trim())
-        dispatch({ type: 'SET_PENDING_PHONE', phone: email.trim() })
-        dispatch({ type: 'GO', screen: 'magicLinkSent' })
-      } else {
-        dispatch({ type: 'SET_PENDING_PHONE', phone: email.trim() || 'demo@findtoconnect.com' })
-        dispatch({ type: 'GO', screen: 'role' })
-      }
-    } catch (e: any) {
-      setError(e?.message || 'Failed to send magic link. Please try again.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // ── Google OAuth ───────────────────────────────────────────────────────
   const handleGoogleAuth = async () => {
     if (supabaseAvailable && isLiveMode()) {
       try {
         await authApi.signInWithGoogle()
       } catch (err: any) {
-        setError(err?.message || 'Google sign in failed. Ensure Google provider is configured in Supabase.')
+        setError(err?.message || 'Google sign in failed.')
       }
     } else {
       dispatch({
@@ -116,7 +258,6 @@ export function PhoneScreen() {
     }
   }
 
-  // ── Sandbox 1-Click QA Quick Login ─────────────────────────────────────
   const quickLogin = (role: 'client' | 'creator') => {
     if (role === 'client') {
       dispatch({
@@ -143,141 +284,90 @@ export function PhoneScreen() {
     <div className="flex-1 flex flex-col bg-paper">
       <div className="px-5 pt-3 pb-3 flex items-center border-b border-line">
         <button onClick={() => dispatch({ type: 'GO', screen: 'welcome' })} className="tap w-9 h-9 -ml-1.5 grid place-items-center rounded-full">
-          <X size={20} />
+          <ArrowLeft size={20} />
         </button>
         <span className="flex-1 text-center font-display text-[17px] tracking-tight -ml-9">
-          {authMode === 'password' ? (isSignUp ? 'Create your account' : 'Sign in to FTC') : 'Passwordless sign in'}
+          Sign In
         </span>
       </div>
 
       <div className="flex-1 overflow-y-auto px-6 pt-6 pb-8 max-w-md mx-auto w-full">
         <div className="flex justify-center mb-4"><BrandIcon size={44} /></div>
-        <h1 className="font-display text-[25px] tracking-tight text-center leading-tight mb-1">
-          {authMode === 'password' ? (isSignUp ? 'Join FTC Network' : 'Welcome back') : 'Sign in with Link'}
+        <h1 className="font-display text-[26px] tracking-tight text-center leading-tight mb-1">
+          Welcome back
         </h1>
-        <p className="text-[13px] text-obsidian/55 text-center mb-5">
-          {authMode === 'password'
-            ? (isSignUp ? 'Create an account with email and password' : 'Enter your email and password to log in')
-            : 'We’ll email you a password-free sign-in link'}
+        <p className="text-[13px] text-obsidian/55 text-center mb-6">
+          Enter your email and password to log in to your account
         </p>
 
-        {/* Tab Switcher: Password vs Magic Link */}
-        <div className="flex p-1 rounded-xl bg-bone border border-line mb-5">
-          <button
-            onClick={() => { setAuthMode('password'); setError('') }}
-            className={cn(
-              'tap flex-1 py-2 rounded-lg text-[12px] font-medium transition flex items-center justify-center gap-1.5',
-              authMode === 'password' ? 'bg-paper text-obsidian shadow-xs font-semibold' : 'text-obsidian/60 hover:text-obsidian'
-            )}
-          >
-            <Lock size={13} />
-            <span>Password</span>
-          </button>
-          <button
-            onClick={() => { setAuthMode('magic'); setError('') }}
-            className={cn(
-              'tap flex-1 py-2 rounded-lg text-[12px] font-medium transition flex items-center justify-center gap-1.5',
-              authMode === 'magic' ? 'bg-paper text-obsidian shadow-xs font-semibold' : 'text-obsidian/60 hover:text-obsidian'
-            )}
-          >
-            <Mail size={13} />
-            <span>Magic Link</span>
-          </button>
-        </div>
-
         {/* Input Form */}
-        <div className="space-y-3">
-          {authMode === 'password' && isSignUp && (
-            <div>
-              <label className="text-[11px] font-medium text-obsidian/60 block mb-1">Your full name</label>
-              <div className="rounded-2xl border-2 border-obsidian/15 focus-within:border-obsidian px-4 py-3 bg-bone/30 transition">
-                <input
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  placeholder="e.g. Rhea Kapoor"
-                  className="w-full bg-transparent outline-none text-[14px] placeholder:text-obsidian/40"
-                />
-              </div>
-            </div>
-          )}
-
+        <div className="space-y-3.5">
           <div>
             <label className="text-[11px] font-medium text-obsidian/60 block mb-1">Email address</label>
-            <div className="rounded-2xl border-2 border-obsidian/15 focus-within:border-obsidian px-4 py-3 bg-bone/30 transition">
+            <div className="rounded-2xl border-2 border-obsidian/15 focus-within:border-obsidian px-4 py-3.5 bg-bone/30 transition">
               <input
                 autoFocus
                 type="email"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && (authMode === 'password' ? handlePasswordAuth() : handleMagicAuth())}
+                onKeyDown={e => e.key === 'Enter' && handlePasswordLogin()}
                 placeholder="name@example.com"
                 className="w-full bg-transparent outline-none text-[14px] placeholder:text-obsidian/40"
               />
             </div>
           </div>
 
-          {authMode === 'password' && (
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-[11px] font-medium text-obsidian/60">Password</label>
-                {!isSignUp && (
-                  <button
-                    onClick={() => dispatch({ type: 'GO', screen: 'forgotPassword' })}
-                    type="button"
-                    className="tap text-[11px] font-medium text-iris hover:underline"
-                  >
-                    Forgot password?
-                  </button>
-                )}
-              </div>
-              <div className="rounded-2xl border-2 border-obsidian/15 focus-within:border-obsidian px-4 py-3 bg-bone/30 transition flex items-center gap-2">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handlePasswordAuth()}
-                  placeholder={isSignUp ? 'Min 6 characters' : 'Enter your password'}
-                  className="w-full bg-transparent outline-none text-[14px] placeholder:text-obsidian/40"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="tap text-obsidian/40 hover:text-obsidian shrink-0"
-                >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-[11px] font-medium text-obsidian/60">Password</label>
+              <button
+                onClick={() => dispatch({ type: 'GO', screen: 'forgotPassword' })}
+                type="button"
+                className="tap text-[11px] font-medium text-iris hover:underline"
+              >
+                Forgot password?
+              </button>
             </div>
-          )}
+            <div className="rounded-2xl border-2 border-obsidian/15 focus-within:border-obsidian px-4 py-3.5 bg-bone/30 transition flex items-center gap-2">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handlePasswordLogin()}
+                placeholder="Enter your password"
+                className="w-full bg-transparent outline-none text-[14px] placeholder:text-obsidian/40"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="tap text-obsidian/40 hover:text-obsidian shrink-0"
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+          </div>
         </div>
 
         {error && <p className="mt-2.5 text-[12px] text-danger font-medium">{error}</p>}
 
-        {/* Primary Action Button */}
+        {/* Primary Login Button */}
         <button
-          onClick={authMode === 'password' ? handlePasswordAuth : handleMagicAuth}
+          onClick={handlePasswordLogin}
           disabled={!isFormValid || loading}
-          className="tap w-full mt-4 py-3.5 rounded-2xl text-paper font-semibold text-[14.5px] transition disabled:opacity-40 shadow-sm"
-          style={{ background: 'linear-gradient(90deg,#7D61F2,#9B7BFF)' }}
+          className="tap w-full mt-5 py-3.5 rounded-2xl bg-obsidian text-paper font-semibold text-[14.5px] transition disabled:opacity-40 shadow-sm"
         >
-          {loading
-            ? 'Processing…'
-            : authMode === 'password'
-            ? (isSignUp ? 'Create account' : 'Sign in with Password')
-            : 'Send Sign-in Link'}
+          {loading ? 'Signing in…' : 'Sign in with Password'}
         </button>
 
-        {/* Sign In vs Sign Up Toggle for Password Mode */}
-        {authMode === 'password' && (
-          <div className="mt-3.5 text-center">
-            <button
-              onClick={() => { setIsSignUp(!isSignUp); setError('') }}
-              className="tap text-[12.5px] text-obsidian/60 hover:text-obsidian"
-            >
-              {isSignUp ? 'Already have an account? Sign in' : 'Don’t have an account? Sign up'}
-            </button>
-          </div>
-        )}
+        {/* Sign Up Link */}
+        <div className="mt-4 text-center">
+          <button
+            onClick={() => dispatch({ type: 'GO', screen: 'signup' })}
+            className="tap text-[12.5px] text-obsidian/65 hover:text-obsidian"
+          >
+            Don’t have an account? <span className="text-iris font-semibold underline">Sign up</span>
+          </button>
+        </div>
 
         {/* Divider */}
         <div className="flex items-center gap-3 my-5">
@@ -320,19 +410,16 @@ export function PhoneScreen() {
             </div>
           </div>
         )}
-
-        <div className="mt-5 text-center">
-          <button onClick={() => dispatch({ type: 'GO', screen: 'role' })} className="tap text-[12px] text-obsidian/45 hover:text-obsidian transition">
-            Continue as guest →
-          </button>
-        </div>
       </div>
     </div>
   )
 }
 
+// Alias for backward compatibility
+export const PhoneScreen = LoginScreen
+
 /* ═══════════════════════════════════════════════════════════════════════════
-   2. FORGOT PASSWORD SCREEN (Dedicated recovery request flow)
+   3. FORGOT PASSWORD SCREEN (Request Recovery Link -> In-Place Confirmation)
    ═══════════════════════════════════════════════════════════════════════════ */
 export function ForgotPasswordScreen() {
   const dispatch = useAppStore(s => s.dispatch)
@@ -376,7 +463,7 @@ export function ForgotPasswordScreen() {
   return (
     <div className="flex-1 flex flex-col bg-paper">
       <div className="px-5 py-4 flex items-center border-b border-line">
-        <button onClick={() => dispatch({ type: 'BACK' })} className="tap w-9 h-9 -ml-1.5 grid place-items-center rounded-full">
+        <button onClick={() => dispatch({ type: 'GO', screen: 'login' })} className="tap w-9 h-9 -ml-1.5 grid place-items-center rounded-full">
           <ArrowLeft size={20} />
         </button>
         <span className="flex-1 text-center font-display text-[17px] tracking-tight -ml-9">
@@ -431,7 +518,7 @@ export function ForgotPasswordScreen() {
               </div>
               <h3 className="font-display text-lg font-semibold">Check your inbox</h3>
               <p className="text-[12.5px] text-obsidian/65 leading-relaxed">
-                We sent a password recovery link to <span className="font-semibold text-obsidian">{email}</span>. Click the link in your email to choose a new password.
+                We sent a password recovery link to <span className="font-semibold text-obsidian">{email}</span>. Click the link to set your new password, and then return to log in.
               </p>
               <div className="pt-2 border-t border-line/60 flex items-center justify-between text-[11.5px]">
                 <span className="text-obsidian/50">Didn't receive it?</span>
@@ -465,7 +552,7 @@ export function ForgotPasswordScreen() {
         </div>
 
         <div className="pt-6 text-center">
-          <button onClick={() => dispatch({ type: 'GO', screen: 'phone' })} className="tap text-[12.5px] text-obsidian/50 hover:text-obsidian">
+          <button onClick={() => dispatch({ type: 'GO', screen: 'login' })} className="tap text-[12.5px] text-obsidian/60 hover:text-obsidian font-semibold">
             ← Back to sign in
           </button>
         </div>
@@ -475,7 +562,7 @@ export function ForgotPasswordScreen() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   3. RESET PASSWORD SCREEN (Set New Password after recovery link/OTP)
+   4. SET / RESET PASSWORD SCREEN (Enter New Password -> Redirect to Login)
    ═══════════════════════════════════════════════════════════════════════════ */
 export function ResetPasswordScreen() {
   const dispatch = useAppStore(s => s.dispatch)
@@ -499,12 +586,14 @@ export function ResetPasswordScreen() {
     try {
       if (supabaseAvailable && isLiveMode()) {
         await authApi.updateUserPassword(newPassword)
+        // Cleanly sign out temporary recovery token so user logs in cleanly
+        await supabase.auth.signOut()
       }
       setSuccess(true)
       setTimeout(() => {
-        dispatch({ type: 'COMPLETE_AUTH', isCreator: false })
-        dispatch({ type: 'GO_TAB', tab: 'home' })
-      }, 1500)
+        dispatch({ type: 'RESET' })
+        dispatch({ type: 'GO', screen: 'login' })
+      }, 1600)
     } catch (e: any) {
       setError(e?.message || 'Failed to update password. Please try again or request a new reset link.')
     } finally {
@@ -515,7 +604,7 @@ export function ResetPasswordScreen() {
   return (
     <div className="flex-1 flex flex-col bg-paper">
       <div className="px-5 py-4 flex items-center border-b border-line">
-        <button onClick={() => dispatch({ type: 'GO', screen: 'phone' })} className="tap w-9 h-9 -ml-1.5 grid place-items-center rounded-full">
+        <button onClick={() => dispatch({ type: 'GO', screen: 'login' })} className="tap w-9 h-9 -ml-1.5 grid place-items-center rounded-full">
           <X size={20} />
         </button>
         <span className="flex-1 text-center font-display text-[17px] tracking-tight -ml-9">
@@ -533,7 +622,7 @@ export function ResetPasswordScreen() {
             Set your new<br /><span className="italic">password.</span>
           </h1>
           <p className="text-[13px] text-obsidian/60 text-center mb-6">
-            Choose a strong password with at least 6 characters.
+            Choose a secure password with at least 6 characters.
           </p>
 
           <div className="space-y-3.5">
@@ -591,7 +680,7 @@ export function ResetPasswordScreen() {
             {error && <p className="text-[12px] text-danger font-medium">{error}</p>}
             {success && (
               <p className="text-[12.5px] text-success font-semibold flex items-center justify-center gap-1.5 bg-success/10 py-2.5 rounded-xl">
-                <CheckCircle2 size={16} /> Password updated successfully! Redirecting…
+                <CheckCircle2 size={16} /> Password saved! Redirecting to login…
               </p>
             )}
 
@@ -600,13 +689,13 @@ export function ResetPasswordScreen() {
               disabled={!canSubmit || success}
               className="tap w-full mt-2 py-3.5 rounded-2xl bg-obsidian text-paper font-semibold text-[14.5px] flex items-center justify-center gap-2 transition disabled:opacity-40 shadow-sm"
             >
-              {loading ? 'Updating password…' : success ? 'Updated ✓' : 'Save New Password'}
+              {loading ? 'Saving password…' : success ? 'Saved ✓' : 'Save New Password & Continue'}
             </button>
           </div>
         </div>
 
         <div className="pt-4 text-center">
-          <button onClick={() => dispatch({ type: 'GO', screen: 'phone' })} className="tap text-[12px] text-obsidian/50 hover:text-obsidian">
+          <button onClick={() => dispatch({ type: 'GO', screen: 'login' })} className="tap text-[12px] text-obsidian/50 hover:text-obsidian">
             Cancel and return to sign in
           </button>
         </div>
@@ -616,28 +705,14 @@ export function ResetPasswordScreen() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   4. MAGIC LINK SENT SCREEN
+   5. MAGIC LINK SENT & OTP SCREENS (Kept as graceful helpers)
    ═══════════════════════════════════════════════════════════════════════════ */
 export function MagicLinkSentScreen() {
   const { dispatch, pendingPhone } = useAppStore(useShallow(s => ({ dispatch: s.dispatch, pendingPhone: s.pendingPhone })))
-  const [resent, setResent] = useState(false)
-  const [resending, setResending] = useState(false)
-
-  const resend = useCallback(async () => {
-    if (!pendingPhone || resending) return
-    setResending(true)
-    try {
-      await authApi.sendEmailOtp(pendingPhone)
-      setResent(true)
-      setTimeout(() => setResent(false), 4000)
-    } catch {}
-    finally { setResending(false) }
-  }, [pendingPhone, resending])
-
   return (
     <div className="flex-1 flex flex-col bg-paper">
       <div className="px-6 py-4 flex items-center">
-        <button onClick={() => dispatch({ type: 'BACK' })} className="tap w-10 h-10 -ml-2 grid place-items-center">
+        <button onClick={() => dispatch({ type: 'GO', screen: 'login' })} className="tap w-10 h-10 -ml-2 grid place-items-center">
           <ArrowLeft size={20} />
         </button>
       </div>
@@ -649,146 +724,34 @@ export function MagicLinkSentScreen() {
           Check your<br /><span className="italic">email inbox.</span>
         </h1>
         <p className="mt-4 text-[14px] text-obsidian/60 leading-relaxed">
-          We sent a sign-in magic link to <span className="font-semibold text-obsidian">{pendingPhone}</span>.
+          We sent a sign-in link to <span className="font-semibold text-obsidian">{pendingPhone}</span>.
         </p>
-
-        <div className="mt-6 w-full p-4 rounded-2xl bg-bone border border-line text-left space-y-3">
-          <div className="text-[10px] font-mono uppercase tracking-wider text-obsidian/50">Next steps</div>
-          {[
-            'Open your email inbox',
-            'Find the email from FTC (FindToConnect)',
-            'Tap “Sign in to FTC” to automatically log in',
-          ].map((s, i) => (
-            <div key={i} className="flex items-center gap-3 text-[13px]">
-              <div className="w-5 h-5 rounded-full bg-iris text-paper text-[10px] font-bold grid place-items-center shrink-0">{i + 1}</div>
-              <span>{s}</span>
-            </div>
-          ))}
-        </div>
-
-        {resent && (
-          <p className="mt-4 text-[12.5px] text-success font-medium flex items-center gap-1.5">
-            <CheckCircle2 size={14} /> Magic link resent!
-          </p>
-        )}
-
         <button
-          onClick={resend}
-          disabled={resending}
-          className="tap mt-5 flex items-center gap-2 text-[13px] font-medium text-iris disabled:opacity-50"
+          onClick={() => dispatch({ type: 'GO', screen: 'login' })}
+          className="tap mt-6 px-6 py-3 rounded-2xl bg-obsidian text-paper font-semibold text-[13px]"
         >
-          <RotateCcw size={14} className={cn(resending && 'animate-spin')} />
-          {resending ? 'Sending…' : 'Resend email link'}
+          Return to Sign In
         </button>
       </div>
     </div>
   )
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   5. OTP SCREEN
-   ═══════════════════════════════════════════════════════════════════════════ */
 export function OtpScreen() {
   const { dispatch, pendingPhone } = useAppStore(useShallow(s => ({ dispatch: s.dispatch, pendingPhone: s.pendingPhone })))
-  const [otp, setOtp]       = useState(['', '', '', '', '', ''])
-  const [loading, setLoading] = useState(false)
-  const [error, setError]   = useState('')
-  const inputs = useRef<(HTMLInputElement | null)[]>([])
-
-  useEffect(() => { inputs.current[0]?.focus() }, [])
-
-  const handle = (i: number, v: string) => {
-    v = v.replace(/\D/g, '').slice(0, 1)
-    const next = [...otp]; next[i] = v; setOtp(next)
-    if (v && i < 5) inputs.current[i + 1]?.focus()
-    if (!v && i > 0) inputs.current[i - 1]?.focus()
-  }
-
-  const handlePaste = (e: React.ClipboardEvent) => {
-    const digits = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
-    if (digits.length < 4) return
-    e.preventDefault()
-    const next = digits.split('').concat(['','','','','','']).slice(0, 6)
-    setOtp(next)
-    inputs.current[Math.min(digits.length, 5)]?.focus()
-  }
-  const allFilled = otp.every(x => x)
-
-  const verify = async () => {
-    if (!allFilled || loading) return
-    setError('')
-    setLoading(true)
-    try {
-      if (supabaseAvailable && pendingPhone && isLiveMode()) {
-        const isEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(pendingPhone)
-        await authApi.verifyOtp(pendingPhone, otp.join(''), isEmail ? 'email' : 'sms')
-      } else {
-        dispatch({ type: 'COMPLETE_AUTH', isCreator: false })
-        dispatch({ type: 'GO', screen: 'role' })
-      }
-    } catch (e: any) {
-      setError(e?.message || 'Invalid code. Please try again.')
-      setLoading(false)
-    }
-  }
-
   return (
-    <div className="flex-1 flex flex-col bg-paper">
-      <div className="px-6 py-4 flex items-center justify-between">
-        <button onClick={() => dispatch({ type: 'BACK' })} className="tap w-10 h-10 -ml-2 grid place-items-center">
-          <ArrowLeft size={20} />
-        </button>
-        <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-obsidian/50">Verification</span>
-      </div>
-
-      <div className="flex-1 px-6 pt-4 max-w-sm mx-auto w-full">
-        <h1 className="font-display text-4xl font-light tracking-tight leading-tight">
-          Enter 6-digit<br /><span className="italic">code.</span>
-        </h1>
-        <p className="mt-3 text-obsidian/60 text-[14px]">
-          {pendingPhone ? `Sent to ${pendingPhone}` : 'Sent to your device.'}
-        </p>
-
-        <div className="mt-10 flex gap-2 justify-between">
-          {otp.map((v, i) => (
-            <input
-              key={i}
-              ref={el => { inputs.current[i] = el }}
-              value={v}
-              onChange={e => handle(i, e.target.value)}
-              onPaste={i === 0 ? handlePaste : undefined}
-              className={cn('w-12 h-14 rounded-xl text-center font-display text-2xl tnum outline-none border-2', v ? 'border-obsidian bg-paper' : 'border-line bg-bone/50', 'focus:border-iris')}
-              inputMode="numeric"
-              maxLength={1}
-            />
-          ))}
-        </div>
-        {error && <p className="mt-3 text-[12.5px] text-danger font-medium">{error}</p>}
-
-        <div className="mt-4 flex items-center justify-between text-[12px]">
-          <span className="text-obsidian/50">Didn't receive?</span>
-          <button
-            onClick={() => { if (pendingPhone && supabaseAvailable) authApi.sendEmailOtp(pendingPhone) }}
-            className="text-iris font-medium hover:underline"
-          >Resend code</button>
-        </div>
-      </div>
-
-      <div className="px-6 pb-10 max-w-sm mx-auto w-full">
-        <button
-          disabled={!allFilled || loading}
-          onClick={verify}
-          className="tap w-full py-4 rounded-2xl bg-obsidian text-paper font-semibold text-[15px] flex items-center justify-center gap-2 disabled:opacity-30"
-        >
-          {loading ? 'Verifying…' : <><span>Verify & continue</span> <ArrowRight size={16} /></>}
-        </button>
-      </div>
+    <div className="flex-1 flex flex-col bg-paper items-center justify-center p-6 text-center">
+      <h2 className="font-display text-2xl mb-2">Verification Code</h2>
+      <p className="text-[13px] text-obsidian/60 mb-6">Sent to {pendingPhone}</p>
+      <button onClick={() => dispatch({ type: 'GO', screen: 'login' })} className="tap px-5 py-2.5 rounded-xl bg-obsidian text-paper text-[13px]">
+        Back to Login
+      </button>
     </div>
   )
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   6. ROLE SELECTION SCREEN
+   6. ROLE SELECTION SCREEN (Setup Flow: Client vs Creator)
    ═══════════════════════════════════════════════════════════════════════════ */
 export function RoleScreen() {
   const dispatch = useAppStore(s => s.dispatch)
@@ -832,7 +795,7 @@ export function RoleScreen() {
             How will you<br />use <span className="italic">FTC?</span>
           </h1>
           <p className="mt-3 text-[14px] text-obsidian/60">
-            Select your primary role. You can switch between hiring and offering services anytime.
+            Select your primary intent. You can hire creators or offer creative services anytime.
           </p>
 
           <div className="mt-8 space-y-4">

@@ -2,6 +2,15 @@ import { useEffect } from 'react'
 import { supabase, supabaseAvailable } from '@/lib/supabase'
 import { useAppStore } from '@/store/appStore'
 import type { AuthChangeEvent } from '@supabase/supabase-js'
+import type { UserRole } from '@/lib/database.types'
+
+interface UserProfileRecord {
+  name: string
+  email: string | null
+  phone: string | null
+  role: UserRole
+  city: string
+}
 
 /**
  * AuthProvider — runs once at the app root.
@@ -15,7 +24,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!supabaseAvailable) return
     let mounted = true
 
-    const isRecoveryHash = typeof window !== 'undefined' && window.location.hash && (
+    const isRecoveryHash = typeof window !== 'undefined' && !!window.location.hash && (
       window.location.hash.includes('type=recovery') || window.location.hash.includes('#reset')
     )
 
@@ -30,8 +39,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!session?.user) {
         // Unauthenticated visitor -> stay on welcome/auth
         const cur = useAppStore.getState().screen
-        if (cur !== 'welcome' && cur !== 'phone' && cur !== 'otp' && cur !== 'magicLinkSent' && cur !== 'forgotPassword' && cur !== 'resetPassword') {
-          // If session expired or logged out
+        const isAuthScreen = ['welcome', 'signup', 'login', 'phone', 'otp', 'magicLinkSent', 'forgotPassword', 'resetPassword'].includes(cur)
+        if (!isAuthScreen) {
+          // If session expired or unauthenticated trying to access internal screen
           dispatch({ type: 'RESET' })
         }
         return
@@ -76,19 +86,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       userId: string,
       authUser: { email?: string | null; phone?: string | null; user_metadata?: Record<string, string> }
     ) {
-      const { data: profile } = await supabase
+      const { data } = await supabase
         .from('users')
         .select('name, email, phone, role, city')
         .eq('id', userId)
-        .single()
+        .maybeSingle()
 
-      const hasCustomName = profile?.name && profile.name.trim() !== '' && profile.name !== 'User'
+      const profile = data as UserProfileRecord | null
+
+      const hasCustomName = Boolean(profile?.name && profile.name.trim() !== '' && profile.name !== 'User')
       const name = hasCustomName
-        ? profile!.name
+        ? (profile?.name || '')
         : authUser.user_metadata?.full_name ?? authUser.user_metadata?.name ?? ''
 
       const isCreator = profile?.role === 'creator' || profile?.role === 'both'
-      const hasCompletedOnboarding = hasCustomName || profile?.city || profile?.role === 'creator'
+      const hasCompletedOnboarding = hasCustomName || Boolean(profile?.city) || profile?.role === 'creator'
 
       dispatch({
         type: 'SYNC_AUTH_USER',

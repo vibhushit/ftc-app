@@ -1,5 +1,23 @@
-import { supabase } from '../supabase'
-import type { UserRow } from '../database.types'
+import { supabase } from '@/lib/supabase'
+import type { UserRow, UserRole } from '@/lib/database.types'
+
+// ─── Check if Email is Already Registered ────────────────────────────────────
+export async function checkEmailExists(email: string): Promise<boolean> {
+  const clean = email.trim().toLowerCase()
+  if (!clean) return false
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', clean)
+      .maybeSingle()
+
+    if (error) return false
+    return !!data
+  } catch {
+    return false
+  }
+}
 
 // ─── Phone / OTP ─────────────────────────────────────────────────────────────
 export async function sendOtp(phone: string) {
@@ -27,10 +45,11 @@ export async function verifyOtp(identifier: string, token: string, type: 'sms' |
 
 // ─── Google OAuth ────────────────────────────────────────────────────────────
 export async function signInWithGoogle() {
+  const redirectUrl = (typeof window !== 'undefined' ? window.location.origin : '') || (import.meta as any)?.env?.VITE_AUTH_REDIRECT_URL
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: import.meta.env.VITE_AUTH_REDIRECT_URL,
+      redirectTo: redirectUrl,
       queryParams: { access_type: 'offline', prompt: 'consent' },
     },
   })
@@ -60,26 +79,25 @@ export async function getMyProfile(): Promise<UserRow | null> {
     .from('users')
     .select('*')
     .eq('id', user.id)
-    .single()
+    .maybeSingle()
 
   if (error) throw error
-  return data
+  return data as UserRow | null
 }
 
 // ─── Update user profile ─────────────────────────────────────────────────────
-export async function updateMyProfile(patch: Partial<UserRow>) {
+export async function updateMyProfile(patch: Partial<UserRow>): Promise<UserRow> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
 
-  const { data, error } = await supabase
-    .from('users')
+  const { data, error } = await (supabase.from('users') as any)
     .update(patch)
     .eq('id', user.id)
     .select()
     .single()
 
   if (error) throw error
-  return data
+  return data as UserRow
 }
 
 // ─── Subscribe to auth state changes ─────────────────────────────────────────
@@ -92,24 +110,22 @@ export async function saveFcmToken(token: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return
 
-  await supabase.from('users').update({ fcm_token: token }).eq('id', user.id)
+  await (supabase.from('users') as any).update({ fcm_token: token }).eq('id', user.id)
 }
 
 // ─── Set user role (consumer or creator) after role selection screen ─────────
-export async function setUserRole(role: 'consumer' | 'creator') {
+export async function setUserRole(role: UserRole) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
 
-  const { error } = await supabase
-    .from('users')
+  const { error } = await (supabase.from('users') as any)
     .update({ role })
     .eq('id', user.id)
   if (error) throw error
 
   if (role === 'creator') {
     const handle = `user_${user.id.replace(/-/g, '').slice(0, 8)}`
-    const { error: cpError } = await supabase
-      .from('creator_profiles')
+    const { error: cpError } = await (supabase.from('creator_profiles') as any)
       .upsert({ id: user.id, handle }, { onConflict: 'id', ignoreDuplicates: true })
     if (cpError) throw cpError
   }
@@ -125,6 +141,21 @@ export async function signInWithPassword(email: string, password: string) {
   return data
 }
 
+export async function sendSignUpVerificationLink(email: string, name?: string) {
+  const { data, error } = await supabase.auth.signInWithOtp({
+    email,
+    options: {
+      shouldCreateUser: true,
+      data: {
+        full_name: name || '',
+      },
+      emailRedirectTo: typeof window !== 'undefined' ? `${window.location.origin}/#reset` : undefined,
+    },
+  })
+  if (error) throw error
+  return data
+}
+
 export async function signUpWithPassword(email: string, password: string, name?: string) {
   const { data, error } = await supabase.auth.signUp({
     email,
@@ -133,6 +164,7 @@ export async function signUpWithPassword(email: string, password: string, name?:
       data: {
         full_name: name || '',
       },
+      emailRedirectTo: typeof window !== 'undefined' ? `${window.location.origin}/#reset` : undefined,
     },
   })
   if (error) throw error
@@ -164,5 +196,3 @@ export async function verifyPasswordResetOtp(email: string, token: string) {
   if (error) throw error
   return data
 }
-
-

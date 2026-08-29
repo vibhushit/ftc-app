@@ -7,7 +7,7 @@ import { EnvironmentSwitcher } from '@/components/ui/EnvironmentSwitcher'
 import { BottomNav } from '@/components/ui/BottomNav'
 import { SideNav } from '@/components/ui/SideNav'
 import { WelcomeScreen } from '@/screens/WelcomeScreen'
-import { PhoneScreen, OtpScreen, RoleScreen, MagicLinkSentScreen, ForgotPasswordScreen, ResetPasswordScreen } from '@/screens/AuthScreens'
+import { PhoneScreen, LoginScreen, SignUpScreen, OtpScreen, RoleScreen, MagicLinkSentScreen, ForgotPasswordScreen, ResetPasswordScreen } from '@/screens/AuthScreens'
 import { HomeScreen } from '@/screens/HomeScreen'
 import { DiscoverScreen } from '@/screens/DiscoverScreen'
 import { CreatorDetailScreen } from '@/screens/CreatorDetailScreen'
@@ -32,7 +32,7 @@ const WIDE_SCREENS = ['home', 'discover', 'inbox', 'me', 'saved', 'campaigns', '
 // Pre-auth / dedicated-wizard screens — these are the only ones where hiding
 // the app shell entirely is correct (there's no "workspace" to stay consistent with yet).
 const NO_SHELL_SCREENS = [
-  'welcome', 'phone', 'otp', 'magicLinkSent', 'forgotPassword', 'resetPassword', 'role',
+  'welcome', 'signup', 'login', 'phone', 'otp', 'magicLinkSent', 'forgotPassword', 'resetPassword', 'role',
   'creatorOnboard1', 'creatorOnboard2', 'creatorOnboard3', 'creatorOnboard4', 'creatorOnboard5', 'creatorOnboardReview',
 ]
 
@@ -50,6 +50,8 @@ export function App() {
   const renderScreen = () => {
     switch (screen) {
       case 'welcome':             return <WelcomeScreen />
+      case 'signup':              return <SignUpScreen />
+      case 'login':               return <LoginScreen />
       case 'phone':               return <PhoneScreen />
       case 'otp':                 return <OtpScreen />
       case 'magicLinkSent':       return <MagicLinkSentScreen />
