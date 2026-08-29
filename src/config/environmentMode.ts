@@ -5,16 +5,28 @@ export type EnvironmentMode = 'live' | 'sandbox'
 const STORAGE_KEY = 'ftc_environment_mode'
 const CHANGE_EVENT = 'ftc_env_mode_changed'
 
+export const DEFAULT_LIVE_API_URL = 'https://ftc-app-9n1s.onrender.com/api'
+
+/**
+ * Returns the effective API Base URL.
+ */
+export function getApiBaseUrl(): string {
+  if (typeof window !== 'undefined') {
+    const custom = localStorage.getItem('ftc_custom_api_url')
+    if (custom && custom.trim()) return custom.trim()
+  }
+  return import.meta.env.VITE_API_URL || DEFAULT_LIVE_API_URL
+}
+
 /**
  * Reads the current environment mode from localStorage.
- * Defaults to 'sandbox' in development/local unless explicitly set.
+ * Defaults to 'live' on findtoconnect.com, and 'sandbox' on local/preview unless toggled.
  */
 export function getEnvironmentMode(): EnvironmentMode {
   if (typeof window === 'undefined') return 'sandbox'
   const saved = localStorage.getItem(STORAGE_KEY)
   if (saved === 'live' || saved === 'sandbox') return saved
   
-  // Default to live on production domain, sandbox elsewhere
   if (window.location.hostname.includes('findtoconnect.com')) {
     return 'live'
   }
@@ -72,23 +84,40 @@ export function useEnvironmentMode(): [EnvironmentMode, (mode: EnvironmentMode) 
 }
 
 /**
- * Pings the backend health endpoint and returns latency in milliseconds.
+ * Pings the backend health endpoint with timeout and detailed error reporting.
  */
-export async function pingBackendHealth(apiUrl?: string): Promise<{ online: boolean; latencyMs: number; error?: string }> {
-  const base = apiUrl || import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
-  // Strip trailing /api to reach root /health
+export async function pingBackendHealth(apiUrl?: string): Promise<{
+  online: boolean
+  latencyMs: number
+  targetUrl: string
+  error?: string
+}> {
+  const base = apiUrl || getApiBaseUrl()
   const healthUrl = base.replace(/\/api\/?$/, '') + '/health'
+
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 12000)
 
   const start = performance.now()
   try {
-    const res = await fetch(healthUrl, { method: 'GET', cache: 'no-store' })
+    const res = await fetch(healthUrl, {
+      method: 'GET',
+      cache: 'no-store',
+      signal: controller.signal,
+    })
+    clearTimeout(timeoutId)
     const latency = Math.round(performance.now() - start)
     if (res.ok) {
-      return { online: true, latencyMs: latency }
+      return { online: true, latencyMs: latency, targetUrl: healthUrl }
     }
-    return { online: false, latencyMs: latency, error: `HTTP ${res.status}` }
+    return { online: false, latencyMs: latency, targetUrl: healthUrl, error: `HTTP ${res.status}: ${res.statusText}` }
   } catch (err: any) {
+    clearTimeout(timeoutId)
     const latency = Math.round(performance.now() - start)
-    return { online: false, latencyMs: latency, error: err?.message || 'Network unreachable' }
+    const isTimeout = err?.name === 'AbortError'
+    const errorMsg = isTimeout
+      ? 'Timeout (>12s) — Server might be in cold start spin-up'
+      : err?.message || 'Network unreachable'
+    return { online: false, latencyMs: latency, targetUrl: healthUrl, error: errorMsg }
   }
 }

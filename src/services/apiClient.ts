@@ -17,9 +17,9 @@ import type {
 } from '@/types/bindings'
 import { CREATORS } from '@/data/creators'
 import { compressImageToWebP } from '@/utils/imageCompressor'
-import { isLiveMode } from '@/config/environmentMode'
+import { isLiveMode, getApiBaseUrl } from '@/config/environmentMode'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
+const getBaseUrl = () => getApiBaseUrl()
 
 export interface ApiErrorEvent {
   endpoint: string
@@ -49,7 +49,7 @@ export const apiClient = {
       return { success: true }
     }
 
-    const endpoint = `${API_BASE_URL}/auth/phone`
+    const endpoint = `${getBaseUrl()}/auth/phone`
     try {
       const res = await fetch(endpoint, {
         method: 'POST',
@@ -91,7 +91,7 @@ export const apiClient = {
       }
     }
 
-    const endpoint = `${API_BASE_URL}/auth/verify`
+    const endpoint = `${getBaseUrl()}/auth/verify`
     try {
       const res = await fetch(endpoint, {
         method: 'POST',
@@ -120,7 +120,7 @@ export const apiClient = {
       return { success: true }
     }
 
-    const endpoint = `${API_BASE_URL}/auth/role`
+    const endpoint = `${getBaseUrl()}/auth/role`
     try {
       const res = await fetch(endpoint, {
         method: 'POST',
@@ -159,7 +159,7 @@ export const apiClient = {
     if (params?.minPrice) query.set('min_price', String(params.minPrice))
     if (params?.maxPrice) query.set('max_price', String(params.maxPrice))
 
-    const endpoint = `${API_BASE_URL}/creators${query.toString() ? `?${query.toString()}` : ''}`
+    const endpoint = `${getBaseUrl()}/creators${query.toString() ? `?${query.toString()}` : ''}`
     try {
       const res = await fetch(endpoint)
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`)
@@ -182,7 +182,7 @@ export const apiClient = {
       return found ?? null
     }
 
-    const endpoint = `${API_BASE_URL}/creators/${id}`
+    const endpoint = `${getBaseUrl()}/creators/${id}`
     try {
       const res = await fetch(endpoint)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -204,7 +204,7 @@ export const apiClient = {
       return { success: true, creator_id: 'c_' + Date.now() }
     }
 
-    const endpoint = `${API_BASE_URL}/creators/onboard`
+    const endpoint = `${getBaseUrl()}/creators/onboard`
     try {
       const res = await fetch(endpoint, {
         method: 'POST',
@@ -243,7 +243,7 @@ export const apiClient = {
       }
     }
 
-    const endpoint = `${API_BASE_URL}/bookings`
+    const endpoint = `${getBaseUrl()}/bookings`
     try {
       const res = await fetch(endpoint, {
         method: 'POST',
@@ -275,7 +275,7 @@ export const apiClient = {
       }
     }
 
-    const endpoint = `${API_BASE_URL}/chat/conversations/${payload.receiver_id}/messages`
+    const endpoint = `${getBaseUrl()}/chat/conversations/${payload.receiver_id}/messages`
     try {
       const res = await fetch(endpoint, {
         method: 'POST',
@@ -310,7 +310,7 @@ export const apiClient = {
       }
     }
 
-    const endpoint = `${API_BASE_URL}/chat/quotes`
+    const endpoint = `${getBaseUrl()}/chat/quotes`
     try {
       const res = await fetch(endpoint, {
         method: 'POST',
@@ -337,7 +337,7 @@ export const apiClient = {
       return URL.createObjectURL(compressedWebP)
     }
 
-    const endpoint = `${API_BASE_URL}/media/upload-url`
+    const endpoint = `${getBaseUrl()}/media/upload-url`
     try {
       const res = await fetch(endpoint, {
         method: 'POST',
@@ -371,7 +371,7 @@ export const apiClient = {
       return { available_balance: 42500, pending_escrow: 17500, total_earned: 185000, upi_id: 'rhea@upi' }
     }
 
-    const endpoint = `${API_BASE_URL}/payouts/balance`
+    const endpoint = `${getBaseUrl()}/payouts/balance`
     try {
       const res = await fetch(endpoint)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -392,7 +392,7 @@ export const apiClient = {
       return { success: true, message: `Withdrawal request for ₹${payload.amount} submitted in Sandbox mode` }
     }
 
-    const endpoint = `${API_BASE_URL}/payouts/withdraw`
+    const endpoint = `${getBaseUrl()}/payouts/withdraw`
     try {
       const res = await fetch(endpoint, {
         method: 'POST',
