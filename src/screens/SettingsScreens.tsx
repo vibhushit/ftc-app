@@ -1,10 +1,12 @@
 import { useState } from 'react'
-import { Check, Clock, Lock, Zap, Calendar as CalendarIcon, Shield, ChevronRight } from 'lucide-react'
+import { Check, Clock, Lock, Zap, Calendar as CalendarIcon, Shield, ChevronRight, Loader2 } from 'lucide-react'
 import { SimpleHeader } from '@/components/ui/SimpleHeader'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { inr } from '@/data/constants'
 import { cn } from '@/utils'
+import { supabaseAvailable } from '@/lib/supabase'
+import * as authApi from '@/lib/api/auth'
 
 /* ─── Settings Screen ─── */
 export function SettingsScreen() {
@@ -13,12 +15,26 @@ export function SettingsScreen() {
   const [name, setName] = useState(u.name ?? '')
   const [city, setCity] = useState(u.city ?? '')
   const [handle, setHandle] = useState(u.handle ?? '')
+  const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
 
-  const save = () => {
-    dispatch({ type: 'UPDATE_USER', patch: { name, city, handle } })
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+  const save = async () => {
+    setSaving(true)
+    setError('')
+    try {
+      if (supabaseAvailable) {
+        await authApi.updateMyProfile({ name: name.trim(), city: city.trim() })
+      }
+      dispatch({ type: 'UPDATE_USER', patch: { name: name.trim(), city: city.trim(), handle: handle.trim() } })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
+    } catch (e: any) {
+      console.error('[FTC] Failed to update profile:', e)
+      setError(e?.message || 'Failed to save changes to database')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -29,18 +45,49 @@ export function SettingsScreen() {
           <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-obsidian/50 mb-1">Profile details</div>
           <div>
             <label className="text-[11px] text-obsidian/60">Full name</label>
-            <input value={name} onChange={e => setName(e.target.value)} className="mt-1 w-full py-2.5 px-3 bg-bone rounded-xl text-[13px] outline-none" />
+            <input
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="e.g. Rhea Kapoor"
+              className="mt-1 w-full py-2.5 px-3 bg-bone rounded-xl text-[13px] outline-none focus:ring-1 focus:ring-obsidian"
+            />
           </div>
           <div>
             <label className="text-[11px] text-obsidian/60">City</label>
-            <input value={city} onChange={e => setCity(e.target.value)} className="mt-1 w-full py-2.5 px-3 bg-bone rounded-xl text-[13px] outline-none" />
+            <input
+              value={city}
+              onChange={e => setCity(e.target.value)}
+              placeholder="e.g. Delhi NCR, Mumbai"
+              className="mt-1 w-full py-2.5 px-3 bg-bone rounded-xl text-[13px] outline-none focus:ring-1 focus:ring-obsidian"
+            />
           </div>
           <div>
             <label className="text-[11px] text-obsidian/60">Handle</label>
-            <input value={handle} onChange={e => setHandle(e.target.value)} className="mt-1 w-full py-2.5 px-3 bg-bone rounded-xl text-[13px] outline-none" />
+            <input
+              value={handle}
+              onChange={e => setHandle(e.target.value)}
+              placeholder="e.g. @rhea.kapoor"
+              className="mt-1 w-full py-2.5 px-3 bg-bone rounded-xl text-[13px] outline-none focus:ring-1 focus:ring-obsidian"
+            />
           </div>
-          <button onClick={save} className="tap w-full mt-2 py-3 rounded-xl bg-obsidian text-paper font-semibold text-[13px]">
-            {saved ? 'Saved ✓' : 'Save changes'}
+
+          {error && <p className="text-[12px] text-danger font-medium">{error}</p>}
+
+          <button
+            onClick={save}
+            disabled={saving}
+            className={cn(
+              'tap w-full mt-2 py-3 rounded-xl font-semibold text-[13px] flex items-center justify-center gap-2 transition shadow-sm',
+              saved ? 'bg-success text-paper' : 'bg-obsidian text-paper hover:bg-obsidian/90 disabled:opacity-50'
+            )}
+          >
+            {saving ? (
+              <><Loader2 size={14} className="animate-spin" /> Saving to database…</>
+            ) : saved ? (
+              <><Check size={14} /> Saved to Database ✓</>
+            ) : (
+              'Save changes'
+            )}
           </button>
         </div>
       </div>

@@ -178,7 +178,7 @@ export function CompareScreen() {
               <X size={11} />
             </button>
             <img src={c.avatar} className="w-10 h-10 rounded-full object-cover mx-auto mb-1.5" alt="" />
-            <div className="font-display text-[12px] leading-tight">{c.name.split(' ')[0]}<br />{c.name.split(' ')[1]}</div>
+            <div className="font-display text-[12px] leading-tight">{c.name ? c.name.split(' ')[0] : ''}<br />{c.name && c.name.split(' ')[1] ? c.name.split(' ')[1] : ''}</div>
           </div>
         ))}
       </div>

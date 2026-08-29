@@ -425,7 +425,7 @@ export function CreatorDetailScreen() {
             <div className="w-12 h-12 rounded-2xl bg-obsidian grid place-items-center shrink-0"><MessageCircle size={22} className="text-acid" /></div>
             <div className="flex-1">
               <div className="font-display text-base leading-tight">Have a question first?</div>
-              <div className="text-[11px] text-obsidian/60 mt-0.5">Message {c.name.split(' ')[0]} or request a custom quote before you book.</div>
+              <div className="text-[11px] text-obsidian/60 mt-0.5">Message {c.name ? c.name.split(' ')[0] : 'Creator'} or request a custom quote before you book.</div>
             </div>
             <ChevronRight size={18} className="text-obsidian/40" />
           </button>

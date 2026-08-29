@@ -6,6 +6,8 @@ import { cn } from '@/utils'
 import { useUpsertCreatorProfile } from '@/hooks/useCreators'
 import { supabaseAvailable } from '@/lib/supabase'
 import * as authApi from '@/lib/api/auth'
+import { apiClient } from '@/services/apiClient'
+import { isLiveMode } from '@/config/environmentMode'
 import { OnboardShell } from './OnboardShell'
 
 export function CreatorOnboard5() {
@@ -14,7 +16,7 @@ export function CreatorOnboard5() {
   const [soc, setSoc] = useState({ ig: '', yt: '', be: '', li: '', web: '' })
   const [upi, setUpi] = useState('')
   const [consents, setConsents] = useState({ contract: false, conduct: false, tax: false, cancel: false })
-  const [open, setOpen] = useState<Record<string, boolean>>({})
+  const [submitting, setSubmitting] = useState(false)
   const allConsent = consents.contract && consents.conduct && consents.tax && consents.cancel
 
   const UPI_REGEX = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9]+$/
@@ -22,10 +24,22 @@ export function CreatorOnboard5() {
   const isValidIg = soc.ig.trim().length >= 2
 
   const submit = async () => {
-    if (supabaseAvailable && state.supabaseUserId) {
-      const ob = state.onboard
-      const handle = `@${ob.name.replace(/\s+/g, '.').toLowerCase()}`
-      try {
+    setSubmitting(true)
+    const ob = state.onboard
+    try {
+      await apiClient.onboardCreator({
+        name: ob.name || 'Creator',
+        bio: ob.bio || '',
+        discipline: ob.discipline || 'Photography',
+        sub_skills: ob.subSkills || [],
+        years_exp: ob.yearsExp || 2,
+        upi_id: upi,
+        instagram_handle: soc.ig,
+        portfolio_urls: ob.portfolio ?? [],
+      })
+
+      if (supabaseAvailable && state.supabaseUserId && isLiveMode()) {
+        const handle = `@${ob.name.replace(/\s+/g, '.').toLowerCase()}`
         await authApi.updateMyProfile({ name: ob.name, city: ob.city })
         await upsert.mutateAsync({
           id:           state.supabaseUserId,
@@ -47,11 +61,13 @@ export function CreatorOnboard5() {
           onboard_step: 'review',
           is_published: false,
         })
-      } catch (e) {
-        console.error('[FTC] onboard submit failed:', e)
       }
+    } catch (e) {
+      console.error('[FTC] onboard submit failed:', e)
+    } finally {
+      setSubmitting(false)
+      dispatch({ type: 'GO', screen: 'creatorOnboardReview' })
     }
-    dispatch({ type: 'GO', screen: 'creatorOnboardReview' })
   }
   type SocKey = keyof typeof soc
   type ConKey = keyof typeof consents

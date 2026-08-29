@@ -42,4 +42,3 @@ npm run dev
 ```
 
 Open the printed local URL — auth, bookings, etc. use static demo data.
-

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useAppStore } from '@/store/appStore'
 import { AuthProvider } from '@/components/AuthProvider'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { EnvironmentSwitcher } from '@/components/ui/EnvironmentSwitcher'
 import { BottomNav } from '@/components/ui/BottomNav'
 import { SideNav } from '@/components/ui/SideNav'
 import { WelcomeScreen } from '@/screens/WelcomeScreen'
@@ -107,6 +108,7 @@ export function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
+        <EnvironmentSwitcher />
         <div className="app-shell">
           {showSideNav && (
             <SideNav

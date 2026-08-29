@@ -47,7 +47,7 @@ export const FEATURE_FLAGS: FeatureFlags = {
 
   enableSponsorships:
     getLocalStorageOverride('enableSponsorships') ??
-    getEnvFlag('VITE_FEATURE_SPONSORSHIPS', true),
+    getEnvFlag('VITE_FEATURE_SPONSORSHIPS', false),
 
   enablePayouts:
     getLocalStorageOverride('enablePayouts') ??
