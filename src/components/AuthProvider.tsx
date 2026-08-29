@@ -25,13 +25,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session) => {
       if (!mounted) return
       if ((event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY') && session?.user) {
-        const currentScreen = useAppStore.getState().screen
-        const fromMagicLink = currentScreen === 'magicLinkSent' || currentScreen === 'welcome' || currentScreen === 'phone'
-        syncUser(session.user.id, session.user, false, fromMagicLink)
+        syncUser(session.user.id, session.user, false)
       } else if (event === 'SIGNED_OUT') {
         dispatch({ type: 'RESET' })
       }
-      // TOKEN_REFRESHED — silent, no UI change needed
     })
 
     return () => {
@@ -42,8 +39,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async function syncUser(
       userId: string,
       authUser: { email?: string | null; phone?: string | null; user_metadata?: Record<string, string> },
-      navigateHome: boolean,
-      navigateToRole = false,
+      isInitialMount: boolean
     ) {
       const { data: profile } = await supabase
         .from('users')
@@ -51,33 +47,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq('id', userId)
         .single()
 
-      const name = (profile?.name && profile.name !== 'User' ? profile.name : null)
-        ?? authUser.user_metadata?.full_name
-        ?? authUser.user_metadata?.name
-        ?? (authUser.email ? authUser.email.split('@')[0] : '')
-        ?? 'User'
+      const hasCustomName = profile?.name && profile.name.trim() !== '' && profile.name !== 'User'
+      const name = hasCustomName
+        ? profile!.name
+        : authUser.user_metadata?.full_name ?? authUser.user_metadata?.name ?? ''
+
+      const isCreator = profile?.role === 'creator' || profile?.role === 'both'
+      const hasCompletedOnboarding = hasCustomName || profile?.city || profile?.role === 'creator'
 
       dispatch({
-        type:      'SYNC_AUTH_USER',
+        type: 'SYNC_AUTH_USER',
         userId,
-        name,
-        phone:     profile?.phone ?? authUser.phone    ?? undefined,
-        email:     profile?.email ?? authUser.email    ?? undefined,
-        isCreator: profile?.role === 'creator' || profile?.role === 'both',
+        name: name || (authUser.email ? authUser.email.split('@')[0] : 'User'),
+        phone: profile?.phone ?? authUser.phone ?? undefined,
+        email: profile?.email ?? authUser.email ?? undefined,
+        isCreator,
       })
 
-      // Returning user with an existing profile → go straight to home
-      if (navigateHome && profile) {
+      // If this is a returning user who already completed onboarding/name setup
+      if (hasCompletedOnboarding) {
         dispatch({
-          type:      'COMPLETE_AUTH',
-          isCreator: profile.role === 'creator' || profile.role === 'both',
-          name,
-          city:      profile.city   ?? undefined,
-          phone:     profile.phone  ?? authUser.phone  ?? undefined,
-          email:     profile.email  ?? authUser.email  ?? undefined,
+          type: 'COMPLETE_AUTH',
+          isCreator,
+          name: name || 'User',
+          city: profile?.city ?? undefined,
+          phone: profile?.phone ?? authUser.phone ?? undefined,
+          email: profile?.email ?? authUser.email ?? undefined,
         })
-      } else if (navigateToRole) {
-        // New sign-in via magic link — navigate to role selection
+      } else {
+        // Brand new user or user without set profile details -> navigate to role selection
         dispatch({ type: 'GO', screen: 'role' })
       }
     }

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { ArrowLeft, ArrowRight, X, Mail, RotateCcw, Sparkles, CheckCircle2, UserCheck, Palette } from 'lucide-react'
+import { ArrowLeft, ArrowRight, X, Mail, RotateCcw, Sparkles, CheckCircle2, UserCheck, Palette, Lock, Eye, EyeOff, KeyRound } from 'lucide-react'
 import { BrandIcon } from '@/components/ui/BrandIcon'
 import { useAppStore } from '@/store/appStore'
 import { useShallow } from 'zustand/shallow'
@@ -22,44 +22,108 @@ function GoogleG({ size = 18 }: { size?: number }) {
 
 export function PhoneScreen() {
   const dispatch = useAppStore(s => s.dispatch)
-  const [val, setVal]         = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError]     = useState('')
-  const looksPhone = /^[+0-9][0-9\s\-]{5,}$/.test(val.trim())
-  const looksEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(val.trim())
-  const ok = looksPhone || looksEmail
+  const [authMode, setAuthMode] = useState<'password' | 'magic'>('password')
+  const [isSignUp, setIsSignUp] = useState(false)
+  const [email, setEmail]       = useState('')
+  const [password, setPassword] = useState('')
+  const [name, setName]         = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [loading, setLoading]   = useState(false)
+  const [error, setError]       = useState('')
+  const [forgotSent, setForgotSent] = useState(false)
 
-  const cont = async () => {
-    if (!ok || loading) return
+  const isEmailValid = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())
+  const isFormValid = authMode === 'magic'
+    ? isEmailValid || /^[+0-9][0-9\s\-]{5,}$/.test(email.trim())
+    : isEmailValid && password.length >= 6
+
+  // ── Password Auth Submit (Sign In or Sign Up) ───────────────────────────
+  const handlePasswordAuth = async () => {
+    if (!isFormValid || loading) return
     setError('')
     setLoading(true)
+
     try {
-      if (looksEmail && supabaseAvailable && isLiveMode()) {
-        await authApi.sendEmailOtp(val.trim())
-        dispatch({ type: 'SET_PENDING_PHONE', phone: val.trim() })
-        dispatch({ type: 'GO', screen: 'magicLinkSent' })
-      } else if (looksPhone && isLiveMode()) {
-        await apiClient.sendPhoneOtp(val.trim())
-        dispatch({ type: 'SET_PENDING_PHONE', phone: val.trim() })
-        dispatch({ type: 'GO', screen: 'otp' })
+      if (supabaseAvailable && isLiveMode()) {
+        if (isSignUp) {
+          const res = await authApi.signUpWithPassword(email.trim(), password, name.trim())
+          if (res.user && !res.session) {
+            // Confirmation email sent
+            dispatch({ type: 'SET_PENDING_PHONE', phone: email.trim() })
+            dispatch({ type: 'GO', screen: 'magicLinkSent' })
+            return
+          }
+        } else {
+          await authApi.signInWithPassword(email.trim(), password)
+        }
+        // AuthProvider onAuthStateChange will handle navigation & store sync
       } else {
-        // Sandbox mode or offline demo
-        dispatch({ type: 'SET_PENDING_PHONE', phone: val.trim() || 'demo@findtoconnect.com' })
+        // Sandbox mock login
+        dispatch({
+          type: 'COMPLETE_AUTH',
+          isCreator: false,
+          name: name.trim() || 'Demo User',
+          email: email.trim() || 'demo@findtoconnect.com',
+        })
         dispatch({ type: 'GO', screen: 'role' })
       }
     } catch (e: any) {
-      setError(e?.message || 'Failed to send verification. Please try again.')
+      setError(e?.message || 'Authentication failed. Check your password or try Magic Link.')
     } finally {
       setLoading(false)
     }
   }
 
-  const social = async (provider: 'google' | 'apple') => {
-    if (provider === 'google' && supabaseAvailable && isLiveMode()) {
+  // ── Passwordless Magic Link Submit ─────────────────────────────────────
+  const handleMagicAuth = async () => {
+    if (!isEmailValid || loading) return
+    setError('')
+    setLoading(true)
+
+    try {
+      if (supabaseAvailable && isLiveMode()) {
+        await authApi.sendEmailOtp(email.trim())
+        dispatch({ type: 'SET_PENDING_PHONE', phone: email.trim() })
+        dispatch({ type: 'GO', screen: 'magicLinkSent' })
+      } else {
+        dispatch({ type: 'SET_PENDING_PHONE', phone: email.trim() || 'demo@findtoconnect.com' })
+        dispatch({ type: 'GO', screen: 'role' })
+      }
+    } catch (e: any) {
+      setError(e?.message || 'Failed to send magic link. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // ── Forgot Password Reset ──────────────────────────────────────────────
+  const handleForgotPassword = async () => {
+    if (!isEmailValid) {
+      setError('Please enter your email address first to reset your password.')
+      return
+    }
+    setError('')
+    setLoading(true)
+    try {
+      if (supabaseAvailable && isLiveMode()) {
+        await authApi.resetPassword(email.trim())
+      }
+      setForgotSent(true)
+      setTimeout(() => setForgotSent(false), 5000)
+    } catch (e: any) {
+      setError(e?.message || 'Failed to send password reset email.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // ── Google OAuth ───────────────────────────────────────────────────────
+  const handleGoogleAuth = async () => {
+    if (supabaseAvailable && isLiveMode()) {
       try {
         await authApi.signInWithGoogle()
       } catch (err: any) {
-        setError(err?.message || 'Google sign in failed')
+        setError(err?.message || 'Google sign in failed. Ensure Google provider is configured in Supabase.')
       }
     } else {
       // Sandbox one-click simulated login
@@ -73,6 +137,7 @@ export function PhoneScreen() {
     }
   }
 
+  // ── Sandbox 1-Click QA Quick Login ─────────────────────────────────────
   const quickLogin = (role: 'client' | 'creator') => {
     if (role === 'client') {
       dispatch({
@@ -101,80 +166,189 @@ export function PhoneScreen() {
         <button onClick={() => dispatch({ type: 'GO', screen: 'welcome' })} className="tap w-9 h-9 -ml-1.5 grid place-items-center rounded-full">
           <X size={20} />
         </button>
-        <span className="flex-1 text-center font-display text-[17px] tracking-tight -ml-9">Log in or sign up</span>
+        <span className="flex-1 text-center font-display text-[17px] tracking-tight -ml-9">
+          {authMode === 'password' ? (isSignUp ? 'Create your account' : 'Sign in to FTC') : 'Passwordless sign in'}
+        </span>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-6 pt-8 pb-6 max-w-md mx-auto w-full">
-        <div className="flex justify-center mb-5"><BrandIcon size={48} /></div>
-        <h1 className="font-display text-[26px] tracking-tight text-center leading-tight mb-2">Welcome to FTC</h1>
-        <p className="text-[13px] text-obsidian/55 text-center mb-7">Enter your email or phone to receive a login code</p>
+      <div className="flex-1 overflow-y-auto px-6 pt-6 pb-8 max-w-md mx-auto w-full">
+        <div className="flex justify-center mb-4"><BrandIcon size={44} /></div>
+        <h1 className="font-display text-[25px] tracking-tight text-center leading-tight mb-1">
+          {authMode === 'password' ? (isSignUp ? 'Join FTC Network' : 'Welcome back') : 'Sign in with Link'}
+        </h1>
+        <p className="text-[13px] text-obsidian/55 text-center mb-5">
+          {authMode === 'password'
+            ? (isSignUp ? 'Create an account with email and password' : 'Enter your email and password to log in')
+            : 'We’ll email you a password-free sign-in link'}
+        </p>
 
-        {/* Input field */}
-        <div className="rounded-2xl border-2 border-obsidian/15 focus-within:border-obsidian px-4 py-3.5 transition bg-bone/30">
-          <input
-            autoFocus
-            value={val}
-            onChange={e => setVal(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && cont()}
-            placeholder="name@example.com or +91 98765 43210"
-            className="w-full bg-transparent outline-none text-[15px] placeholder:text-obsidian/40"
-          />
+        {/* Tab Switcher: Password vs Magic Link */}
+        <div className="flex p-1 rounded-xl bg-bone border border-line mb-5">
+          <button
+            onClick={() => { setAuthMode('password'); setError('') }}
+            className={cn(
+              'tap flex-1 py-2 rounded-lg text-[12px] font-medium transition flex items-center justify-center gap-1.5',
+              authMode === 'password' ? 'bg-paper text-obsidian shadow-xs font-semibold' : 'text-obsidian/60 hover:text-obsidian'
+            )}
+          >
+            <Lock size={13} />
+            <span>Password</span>
+          </button>
+          <button
+            onClick={() => { setAuthMode('magic'); setError('') }}
+            className={cn(
+              'tap flex-1 py-2 rounded-lg text-[12px] font-medium transition flex items-center justify-center gap-1.5',
+              authMode === 'magic' ? 'bg-paper text-obsidian shadow-xs font-semibold' : 'text-obsidian/60 hover:text-obsidian'
+            )}
+          >
+            <Mail size={13} />
+            <span>Magic Link</span>
+          </button>
         </div>
-        {error && <p className="mt-2 text-[12.5px] text-danger font-medium">{error}</p>}
 
+        {/* Input Form */}
+        <div className="space-y-3">
+          {authMode === 'password' && isSignUp && (
+            <div>
+              <label className="text-[11px] font-medium text-obsidian/60 block mb-1">Your name</label>
+              <div className="rounded-2xl border-2 border-obsidian/15 focus-within:border-obsidian px-4 py-3 bg-bone/30 transition">
+                <input
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  placeholder="e.g. Rhea Kapoor"
+                  className="w-full bg-transparent outline-none text-[14px] placeholder:text-obsidian/40"
+                />
+              </div>
+            </div>
+          )}
+
+          <div>
+            <label className="text-[11px] font-medium text-obsidian/60 block mb-1">Email address</label>
+            <div className="rounded-2xl border-2 border-obsidian/15 focus-within:border-obsidian px-4 py-3 bg-bone/30 transition">
+              <input
+                autoFocus
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && (authMode === 'password' ? handlePasswordAuth() : handleMagicAuth())}
+                placeholder="name@example.com"
+                className="w-full bg-transparent outline-none text-[14px] placeholder:text-obsidian/40"
+              />
+            </div>
+          </div>
+
+          {authMode === 'password' && (
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[11px] font-medium text-obsidian/60">Password</label>
+                {!isSignUp && (
+                  <button
+                    onClick={handleForgotPassword}
+                    type="button"
+                    className="tap text-[11px] font-medium text-iris hover:underline"
+                  >
+                    Forgot password?
+                  </button>
+                )}
+              </div>
+              <div className="rounded-2xl border-2 border-obsidian/15 focus-within:border-obsidian px-4 py-3 bg-bone/30 transition flex items-center gap-2">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handlePasswordAuth()}
+                  placeholder={isSignUp ? 'Min 6 characters' : 'Enter your password'}
+                  className="w-full bg-transparent outline-none text-[14px] placeholder:text-obsidian/40"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="tap text-obsidian/40 hover:text-obsidian shrink-0"
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {error && <p className="mt-2.5 text-[12px] text-danger font-medium">{error}</p>}
+        {forgotSent && (
+          <p className="mt-2.5 text-[12px] text-success font-medium flex items-center gap-1">
+            <CheckCircle2 size={13} /> Password reset link sent to your email!
+          </p>
+        )}
+
+        {/* Primary Action Button */}
         <button
-          onClick={cont}
-          disabled={!ok || loading}
-          className="tap w-full mt-4 py-4 rounded-2xl text-paper font-semibold text-[15px] transition disabled:opacity-40 shadow-sm"
+          onClick={authMode === 'password' ? handlePasswordAuth : handleMagicAuth}
+          disabled={!isFormValid || loading}
+          className="tap w-full mt-4 py-3.5 rounded-2xl text-paper font-semibold text-[14.5px] transition disabled:opacity-40 shadow-sm"
           style={{ background: 'linear-gradient(90deg,#7D61F2,#9B7BFF)' }}
         >
-          {loading ? 'Sending code…' : 'Continue with Email / Phone'}
+          {loading
+            ? 'Processing…'
+            : authMode === 'password'
+            ? (isSignUp ? 'Create account' : 'Sign in with Password')
+            : 'Send Sign-in Link'}
         </button>
 
+        {/* Sign In vs Sign Up Toggle for Password Mode */}
+        {authMode === 'password' && (
+          <div className="mt-3.5 text-center">
+            <button
+              onClick={() => { setIsSignUp(!isSignUp); setError('') }}
+              className="tap text-[12.5px] text-obsidian/60 hover:text-obsidian"
+            >
+              {isSignUp ? 'Already have an account? Sign in' : 'Don’t have an account? Sign up'}
+            </button>
+          </div>
+        )}
+
         {/* Divider */}
-        <div className="flex items-center gap-3 my-6">
+        <div className="flex items-center gap-3 my-5">
           <div className="flex-1 h-px bg-obsidian/10" />
-          <span className="text-[12px] font-medium text-obsidian/45">or continue with</span>
+          <span className="text-[11.5px] font-medium text-obsidian/45">or</span>
           <div className="flex-1 h-px bg-obsidian/10" />
         </div>
 
         {/* Google OAuth Button */}
         <button
-          onClick={() => social('google')}
+          onClick={handleGoogleAuth}
           className="tap w-full py-3.5 px-4 rounded-2xl border-2 border-line bg-paper flex items-center justify-center gap-3 active:bg-bone hover:border-obsidian/30 transition-all shadow-xs"
         >
-          <GoogleG size={20} />
-          <span className="text-[14px] font-medium text-obsidian">Continue with Google</span>
+          <GoogleG size={18} />
+          <span className="text-[13.5px] font-medium text-obsidian">Continue with Google</span>
         </button>
 
         {/* Sandbox Quick Test Presets */}
         {!isLiveMode() && (
-          <div className="mt-8 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30">
-            <div className="flex items-center gap-1.5 text-[11px] font-mono font-semibold text-amber-900 uppercase tracking-wider mb-2.5">
-              <Sparkles size={13} className="text-amber-600" />
-              <span>Sandbox 1-Click Login</span>
+          <div className="mt-6 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30">
+            <div className="flex items-center gap-1.5 text-[10.5px] font-mono font-semibold text-amber-900 uppercase tracking-wider mb-2">
+              <Sparkles size={12} className="text-amber-600" />
+              <span>Sandbox 1-Click Test</span>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => quickLogin('client')}
-                className="tap py-2.5 px-3 rounded-xl bg-paper border border-amber-500/40 text-[12px] font-medium text-obsidian hover:bg-amber-50 text-left flex items-center gap-2"
+                className="tap py-2 px-2.5 rounded-xl bg-paper border border-amber-500/40 text-[11.5px] font-medium text-obsidian hover:bg-amber-50 text-left flex items-center gap-1.5"
               >
-                <UserCheck size={14} className="text-iris shrink-0" />
+                <UserCheck size={13} className="text-iris shrink-0" />
                 <span className="truncate">Client: Rhea</span>
               </button>
               <button
                 onClick={() => quickLogin('creator')}
-                className="tap py-2.5 px-3 rounded-xl bg-paper border border-amber-500/40 text-[12px] font-medium text-obsidian hover:bg-amber-50 text-left flex items-center gap-2"
+                className="tap py-2 px-2.5 rounded-xl bg-paper border border-amber-500/40 text-[11.5px] font-medium text-obsidian hover:bg-amber-50 text-left flex items-center gap-1.5"
               >
-                <Palette size={14} className="text-iris shrink-0" />
+                <Palette size={13} className="text-iris shrink-0" />
                 <span className="truncate">Creator: Arjun</span>
               </button>
             </div>
           </div>
         )}
 
-        <div className="mt-6 text-center">
-          <button onClick={() => dispatch({ type: 'GO', screen: 'role' })} className="tap text-[12.5px] text-obsidian/45 hover:text-obsidian transition">
+        <div className="mt-5 text-center">
+          <button onClick={() => dispatch({ type: 'GO', screen: 'role' })} className="tap text-[12px] text-obsidian/45 hover:text-obsidian transition">
             Continue as guest →
           </button>
         </div>
