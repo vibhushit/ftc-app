@@ -6,7 +6,7 @@ import type { AuthChangeEvent } from '@supabase/supabase-js'
 /**
  * AuthProvider — runs once at the app root.
  * Listens to Supabase auth state and syncs it into the Zustand store.
- * In demo mode (no env vars) it's a no-op.
+ * Properly manages password recovery navigation vs standard sign-in.
  */
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const dispatch = useAppStore(s => s.dispatch)
@@ -15,17 +15,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!supabaseAvailable) return
     let mounted = true
 
+    // ── Check if URL hash indicates a password recovery session ──────────
+    if (typeof window !== 'undefined' && window.location.hash) {
+      const hash = window.location.hash
+      if (hash.includes('type=recovery') || hash.includes('#reset')) {
+        dispatch({ type: 'GO', screen: 'resetPassword' })
+      }
+    }
+
     // ── Check existing session on mount (returning user) ──────────────────
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!mounted || !session?.user) return
-      syncUser(session.user.id, session.user, true)
+      
+      const currentScreen = useAppStore.getState().screen
+      if (currentScreen === 'resetPassword') return
+      
+      syncUser(session.user.id, session.user)
     })
 
     // ── Subscribe to future auth events ───────────────────────────────────
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session) => {
       if (!mounted) return
-      if ((event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY') && session?.user) {
-        syncUser(session.user.id, session.user, false)
+
+      if (event === 'PASSWORD_RECOVERY') {
+        // User clicked recovery link in email -> direct to set new password screen
+        dispatch({ type: 'GO', screen: 'resetPassword' })
+        return
+      }
+
+      if (event === 'SIGNED_IN' && session?.user) {
+        const currentScreen = useAppStore.getState().screen
+        if (currentScreen === 'resetPassword') return
+        syncUser(session.user.id, session.user)
       } else if (event === 'SIGNED_OUT') {
         dispatch({ type: 'RESET' })
       }
@@ -38,8 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     async function syncUser(
       userId: string,
-      authUser: { email?: string | null; phone?: string | null; user_metadata?: Record<string, string> },
-      isInitialMount: boolean
+      authUser: { email?: string | null; phone?: string | null; user_metadata?: Record<string, string> }
     ) {
       const { data: profile } = await supabase
         .from('users')
@@ -64,7 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isCreator,
       })
 
-      // If this is a returning user who already completed onboarding/name setup
+      // If returning user with established profile
       if (hasCompletedOnboarding) {
         dispatch({
           type: 'COMPLETE_AUTH',
@@ -75,7 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           email: profile?.email ?? authUser.email ?? undefined,
         })
       } else {
-        // Brand new user or user without set profile details -> navigate to role selection
+        // Brand new user -> navigate to role selection
         dispatch({ type: 'GO', screen: 'role' })
       }
     }

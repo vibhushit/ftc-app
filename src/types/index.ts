@@ -17,7 +17,7 @@ export type Screen =
   | 'notifications' | 'safety' | 'legal'
   | 'onboardKyc' | 'compare'
   | 'wallet' | 'referral'
-  | 'magicLinkSent'
+  | 'magicLinkSent' | 'forgotPassword' | 'resetPassword'
 
 export type Tab = 'home' | 'discover' | 'inbox' | 'me'
 
@@ -290,6 +290,7 @@ export interface AppState {
   creatorAvailability: Record<number, string | string[]>
   pendingPhone: string | null
   supabaseUserId: string | null
+  hasCreatorProfile: boolean
 }
 
 export type AppAction =

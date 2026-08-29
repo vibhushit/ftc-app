@@ -189,7 +189,10 @@ export function HomeScreen() {
 
         {/* Creator CTA */}
         <div className="px-5 mb-6">
-          <button onClick={() => dispatch({ type: 'SET_ROLE', isCreator: true })} className="tap w-full p-5 rounded-3xl bg-acid relative overflow-hidden text-left">
+          <button
+            onClick={() => dispatch(state.hasCreatorProfile ? { type: 'SET_ROLE', isCreator: true } : { type: 'GO', screen: 'creatorOnboard1' })}
+            className="tap w-full p-5 rounded-3xl bg-acid relative overflow-hidden text-left shadow-sm"
+          >
             <div className="absolute top-0 right-0 w-40 h-40 dots-obsidian opacity-30 pointer-events-none" style={{ transform: 'translate(25%, -25%)' }} />
             <div className="relative flex items-center gap-4">
               <div className="w-14 h-14 rounded-2xl bg-obsidian grid place-items-center">
@@ -197,7 +200,11 @@ export function HomeScreen() {
               </div>
               <div className="flex-1">
                 <div className="font-display text-xl tracking-tight">Are you a <span className="italic">creator?</span></div>
-                <div className="text-[12px] text-obsidian/70">Switch to creator view — manage your pipeline, quotes & calendar.</div>
+                <div className="text-[12px] text-obsidian/70">
+                  {state.hasCreatorProfile
+                    ? 'Switch to creator view — manage your pipeline, quotes & calendar.'
+                    : 'Join FTC as a verified creator — list packages & earn directly.'}
+                </div>
               </div>
               <ChevronRight size={18} />
             </div>

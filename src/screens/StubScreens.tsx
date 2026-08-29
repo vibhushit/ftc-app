@@ -152,13 +152,23 @@ export function MeScreen() {
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => dispatch({ type: 'SET_ROLE', isCreator: !isC })}
-                  className="tap px-3 py-1.5 rounded-full bg-paper/10 text-paper text-[11px] font-semibold hover:bg-paper/20 transition flex items-center gap-1.5"
-                >
-                  <Sparkles size={12} className="text-acid" />
-                  {isC ? 'Switch to Client View' : 'Switch to Creator View'}
-                </button>
+                {state.hasCreatorProfile ? (
+                  <button
+                    onClick={() => dispatch({ type: 'SET_ROLE', isCreator: !isC })}
+                    className="tap px-3 py-1.5 rounded-full bg-paper/10 text-paper text-[11px] font-semibold hover:bg-paper/20 transition flex items-center gap-1.5"
+                  >
+                    <Sparkles size={12} className="text-acid" />
+                    {isC ? 'Switch to Client View' : 'Switch to Creator View'}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => go('creatorOnboard1')}
+                    className="tap px-3 py-1.5 rounded-full bg-acid text-obsidian text-[11px] font-semibold hover:bg-acid/90 transition flex items-center gap-1.5 shadow-sm"
+                  >
+                    <Sparkles size={12} className="text-obsidian" />
+                    Become a Creator
+                  </button>
+                )}
                 <button onClick={() => go('settings')} className="tap w-8 h-8 rounded-full bg-paper/10 grid place-items-center hover:bg-paper/20 transition">
                   <Settings size={14} />
                 </button>
@@ -265,12 +275,21 @@ export function MeScreen() {
           {/* Account Footer & Log Out */}
           <div className="mt-8 pt-6 border-t border-line flex flex-col sm:flex-row items-center justify-between gap-4 pb-8">
             <div className="flex items-center gap-3">
-              <button
-                onClick={() => dispatch({ type: 'SET_ROLE', isCreator: !isC })}
-                className="tap px-4 py-2.5 rounded-xl bg-iris text-paper text-[12.5px] font-semibold flex items-center gap-1.5 shadow-sm"
-              >
-                <Sparkles size={14} /> {isC ? 'Switch to Client View' : 'Switch to Creator View'}
-              </button>
+              {state.hasCreatorProfile ? (
+                <button
+                  onClick={() => dispatch({ type: 'SET_ROLE', isCreator: !isC })}
+                  className="tap px-4 py-2.5 rounded-xl bg-iris text-paper text-[12.5px] font-semibold flex items-center gap-1.5 shadow-sm"
+                >
+                  <Sparkles size={14} /> {isC ? 'Switch to Client View' : 'Switch to Creator View'}
+                </button>
+              ) : (
+                <button
+                  onClick={() => go('creatorOnboard1')}
+                  className="tap px-4 py-2.5 rounded-xl bg-acid text-obsidian text-[12.5px] font-semibold flex items-center gap-1.5 shadow-sm hover:bg-acid/90"
+                >
+                  <Sparkles size={14} /> Become a Creator
+                </button>
+              )}
               <button
                 onClick={() => dispatch({ type: 'RESET' })}
                 className="tap px-4 py-2.5 rounded-xl bg-paper border border-line text-[12.5px] font-semibold text-danger hover:bg-danger/10 transition flex items-center gap-1.5"
