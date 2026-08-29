@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useShallow } from 'zustand/shallow'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAppStore } from '@/store/appStore'
@@ -25,29 +26,49 @@ import {
   SavedScreen,
 } from '@/screens/StubScreens'
 import { cn } from '@/utils'
-import type { Tab } from '@/types'
+import type { Tab, Screen } from '@/types'
 
-const TAB_SCREENS = ['home', 'discover', 'inbox', 'me']
-const WIDE_SCREENS = ['home', 'discover', 'inbox', 'me', 'saved', 'campaigns', 'creator', 'booking', 'bookingDetail', 'campaignDetail', 'bookings', 'compare', 'chat', 'calendar']
-// Pre-auth / dedicated-wizard screens — these are the only ones where hiding
-// the app shell entirely is correct (there's no "workspace" to stay consistent with yet).
-const NO_SHELL_SCREENS = [
+const TAB_SCREENS: Screen[] = ['home', 'discover', 'inbox', 'me']
+const WIDE_SCREENS: Screen[] = ['home', 'discover', 'inbox', 'me', 'saved', 'campaigns', 'creator', 'booking', 'bookingDetail', 'campaignDetail', 'bookings', 'compare', 'chat', 'calendar']
+
+// Public screens accessible without authentication
+const PUBLIC_SCREENS: Screen[] = [
+  'welcome', 'signup', 'login', 'phone', 'otp', 'magicLinkSent', 'forgotPassword', 'resetPassword',
+]
+
+// Dedicated wizard screens where the app shell (sidebar/bottom nav) is hidden
+const NO_SHELL_SCREENS: Screen[] = [
   'welcome', 'signup', 'login', 'phone', 'otp', 'magicLinkSent', 'forgotPassword', 'resetPassword', 'role',
   'creatorOnboard1', 'creatorOnboard2', 'creatorOnboard3', 'creatorOnboard4', 'creatorOnboard5', 'creatorOnboardReview',
 ]
 
 export function App() {
-  const { screen, activeTab, dispatch } = useAppStore(useShallow(s => ({
+  const { screen, activeTab, isAuthed, dispatch } = useAppStore(useShallow(s => ({
     screen: s.screen,
     activeTab: s.activeTab,
+    isAuthed: s.isAuthed,
     dispatch: s.dispatch,
   })))
 
-  const showBottomNav = TAB_SCREENS.includes(screen)
-  const showSideNav = !NO_SHELL_SCREENS.includes(screen)
+  const isPublicScreen = PUBLIC_SCREENS.includes(screen)
+
+  // ─── Route Guard: If unauthenticated visitor tries to access protected screens ───
+  useEffect(() => {
+    if (!isAuthed && !isPublicScreen) {
+      dispatch({ type: 'RESET' })
+    }
+  }, [isAuthed, isPublicScreen, dispatch])
+
+  const showBottomNav = isAuthed && TAB_SCREENS.includes(screen)
+  const showSideNav = isAuthed && !NO_SHELL_SCREENS.includes(screen)
   const isWide = WIDE_SCREENS.includes(screen)
 
   const renderScreen = () => {
+    // Strict Guard: If not authenticated and attempting to view internal screen, render WelcomeScreen
+    if (!isAuthed && !isPublicScreen) {
+      return <WelcomeScreen />
+    }
+
     switch (screen) {
       case 'welcome':             return <WelcomeScreen />
       case 'signup':              return <SignUpScreen />
@@ -145,4 +166,3 @@ export function App() {
     </ErrorBoundary>
   )
 }
-

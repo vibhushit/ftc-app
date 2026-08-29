@@ -207,12 +207,14 @@ function parseInitialHash(defaultState: AppState): AppState {
     }
   }
 
-  if (screen) {
-    const tabMap: Record<string, Tab> = { home: 'home', discover: 'discover', inbox: 'inbox', me: 'me' }
+  // 3. Final Auth Guard: If not authenticated, only public screens are permitted
+  const PUBLIC_AUTH_SCREENS: Screen[] = ['welcome', 'signup', 'login', 'phone', 'otp', 'magicLinkSent', 'forgotPassword', 'resetPassword']
+  if (!baseState.isAuthed && !PUBLIC_AUTH_SCREENS.includes(baseState.screen)) {
+    try { localStorage.removeItem('ftc_saved_session') } catch {}
     return {
-      ...baseState,
-      screen,
-      activeTab: tabMap[screen] || baseState.activeTab,
+      ...defaultState,
+      screen: 'welcome',
+      isAuthed: false,
     }
   }
 

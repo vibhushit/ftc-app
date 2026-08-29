@@ -73,13 +73,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         syncUser(session.user.id, session.user)
       } else if (event === 'SIGNED_OUT') {
+        try { localStorage.removeItem('ftc_saved_session') } catch {}
         dispatch({ type: 'RESET' })
       }
     })
 
+    // ── 4. Cross-tab storage synchronization ─────────────────────────────────
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'ftc_saved_session' && !e.newValue) {
+        // Another tab logged out or cleared session
+        dispatch({ type: 'RESET' })
+      }
+    }
+    window.addEventListener('storage', handleStorageChange)
+
     return () => {
       mounted = false
       subscription.unsubscribe()
+      window.removeEventListener('storage', handleStorageChange)
     }
 
     async function syncUser(
