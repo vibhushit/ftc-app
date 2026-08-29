@@ -8,7 +8,7 @@ import { EnvironmentSwitcher } from '@/components/ui/EnvironmentSwitcher'
 import { BottomNav } from '@/components/ui/BottomNav'
 import { SideNav } from '@/components/ui/SideNav'
 import { WelcomeScreen } from '@/screens/WelcomeScreen'
-import { PhoneScreen, LoginScreen, SignUpScreen, OtpScreen, RoleScreen, MagicLinkSentScreen, ForgotPasswordScreen, ResetPasswordScreen } from '@/screens/AuthScreens'
+import { PhoneScreen, LoginScreen, SignUpScreen, OtpScreen, RoleScreen, ClientOnboardScreen, MagicLinkSentScreen, ForgotPasswordScreen, ResetPasswordScreen } from '@/screens/AuthScreens'
 import { HomeScreen } from '@/screens/HomeScreen'
 import { DiscoverScreen } from '@/screens/DiscoverScreen'
 import { CreatorDetailScreen } from '@/screens/CreatorDetailScreen'
@@ -38,7 +38,7 @@ const PUBLIC_SCREENS: Screen[] = [
 
 // Dedicated wizard screens where the app shell (sidebar/bottom nav) is hidden
 const NO_SHELL_SCREENS: Screen[] = [
-  'welcome', 'signup', 'login', 'phone', 'otp', 'magicLinkSent', 'forgotPassword', 'resetPassword', 'role',
+  'welcome', 'signup', 'login', 'phone', 'otp', 'magicLinkSent', 'forgotPassword', 'resetPassword', 'role', 'clientOnboard',
   'creatorOnboard1', 'creatorOnboard2', 'creatorOnboard3', 'creatorOnboard4', 'creatorOnboard5', 'creatorOnboardReview',
 ]
 
@@ -79,6 +79,7 @@ export function App() {
       case 'forgotPassword':      return <ForgotPasswordScreen />
       case 'resetPassword':       return <ResetPasswordScreen />
       case 'role':                return <RoleScreen />
+      case 'clientOnboard':       return <ClientOnboardScreen />
       case 'home':                return <HomeScreen />
       case 'discover':            return <DiscoverScreen />
       case 'inbox':               return <InboxScreen />

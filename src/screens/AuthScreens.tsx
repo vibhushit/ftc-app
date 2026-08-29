@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { ArrowLeft, ArrowRight, X, Mail, RotateCcw, Sparkles, CheckCircle2, UserCheck, Palette, Lock, Eye, EyeOff, KeyRound, ShieldCheck, Check } from 'lucide-react'
+import { ArrowLeft, ArrowRight, X, Mail, RotateCcw, Sparkles, CheckCircle2, UserCheck, Palette, Lock, Eye, EyeOff, KeyRound, ShieldCheck, Check, MapPin, Briefcase, Sparkle } from 'lucide-react'
 import { BrandIcon } from '@/components/ui/BrandIcon'
 import { useAppStore } from '@/store/appStore'
 import { useShallow } from 'zustand/shallow'
@@ -75,12 +75,13 @@ export function SignUpScreen() {
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-paper">
+    <div className="flex-1 flex flex-col bg-paper text-obsidian">
+      {/* Clean Minimal Header */}
       <div className="px-5 pt-3 pb-3 flex items-center justify-between border-b border-line">
         <button
           type="button"
           onClick={() => dispatch({ type: 'GO', screen: 'welcome' })}
-          className="tap w-9 h-9 -ml-1.5 grid place-items-center rounded-full z-10 hover:bg-bone transition cursor-pointer"
+          className="tap w-9 h-9 -ml-1.5 grid place-items-center rounded-full hover:bg-bone transition cursor-pointer"
         >
           <ArrowLeft size={20} />
         </button>
@@ -149,7 +150,7 @@ export function SignUpScreen() {
                 disabled={!isEmailValid || loading || cooldown > 0}
                 className="tap w-full mt-2 py-3.5 rounded-2xl bg-obsidian text-paper font-semibold text-[14.5px] flex items-center justify-center gap-2 transition disabled:opacity-40 shadow-sm"
               >
-                {loading ? 'Sending verification…' : cooldown > 0 ? `Resend in ${cooldown}s` : <><span>Continue →</span></>}
+                {loading ? 'Sending verification…' : cooldown > 0 ? `Resend in ${cooldown}s` : <><span>Continue</span> <ArrowRight size={16} /></>}
               </button>
             </div>
           ) : (
@@ -288,12 +289,13 @@ export function LoginScreen() {
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-paper">
+    <div className="flex-1 flex flex-col bg-paper text-obsidian">
+      {/* Header */}
       <div className="px-5 pt-3 pb-3 flex items-center justify-between border-b border-line">
         <button
           type="button"
           onClick={() => dispatch({ type: 'GO', screen: 'welcome' })}
-          className="tap w-9 h-9 -ml-1.5 grid place-items-center rounded-full z-10 hover:bg-bone transition cursor-pointer"
+          className="tap w-9 h-9 -ml-1.5 grid place-items-center rounded-full hover:bg-bone transition cursor-pointer"
         >
           <ArrowLeft size={20} />
         </button>
@@ -305,24 +307,23 @@ export function LoginScreen() {
 
       <div className="flex-1 overflow-y-auto px-6 pt-6 pb-8 max-w-md mx-auto w-full">
         <div className="flex justify-center mb-4"><BrandIcon size={44} /></div>
-        <h1 className="font-display text-[26px] tracking-tight text-center leading-tight mb-1">
+        <h1 className="font-display text-[28px] tracking-tight text-center leading-tight mb-1">
           Welcome back
         </h1>
-        <p className="text-[13px] text-obsidian/55 text-center mb-6">
-          Enter your email and password to log in to your account
+        <p className="text-[13px] text-obsidian/60 text-center mb-6">
+          Enter your email and password to access your account
         </p>
 
         {/* Input Form */}
         <div className="space-y-3.5">
           <div>
             <label className="text-[11px] font-medium text-obsidian/60 block mb-1">Email address</label>
-            <div className="rounded-2xl border-2 border-obsidian/15 focus-within:border-obsidian px-4 py-3.5 bg-bone/30 transition">
+            <div className="rounded-2xl border-2 border-obsidian/15 focus-within:border-obsidian px-4 py-3 bg-bone/30 transition">
               <input
                 autoFocus
                 type="email"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handlePasswordLogin()}
                 placeholder="name@example.com"
                 className="w-full bg-transparent outline-none text-[14px] placeholder:text-obsidian/40"
               />
@@ -333,43 +334,44 @@ export function LoginScreen() {
             <div className="flex items-center justify-between mb-1">
               <label className="text-[11px] font-medium text-obsidian/60">Password</label>
               <button
-                onClick={() => dispatch({ type: 'GO', screen: 'forgotPassword' })}
                 type="button"
-                className="tap text-[11px] font-medium text-iris hover:underline"
+                onClick={() => dispatch({ type: 'GO', screen: 'forgotPassword' })}
+                className="text-[11.5px] text-iris hover:underline font-medium"
               >
                 Forgot password?
               </button>
             </div>
-            <div className="rounded-2xl border-2 border-obsidian/15 focus-within:border-obsidian px-4 py-3.5 bg-bone/30 transition flex items-center gap-2">
+            <div className="rounded-2xl border-2 border-obsidian/15 focus-within:border-obsidian px-4 py-3 bg-bone/30 transition flex items-center gap-2">
               <input
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handlePasswordLogin()}
-                placeholder="Enter your password"
+                placeholder="••••••••"
                 className="w-full bg-transparent outline-none text-[14px] placeholder:text-obsidian/40"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="tap text-obsidian/40 hover:text-obsidian shrink-0"
+                className="tap text-obsidian/40 hover:text-obsidian transition"
               >
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             </div>
           </div>
+
+          {error && (
+            <p className="text-[12px] text-danger font-medium">{error}</p>
+          )}
+
+          <button
+            onClick={handlePasswordLogin}
+            disabled={!isFormValid || loading}
+            className="tap w-full mt-2 py-3.5 rounded-2xl bg-obsidian text-paper font-semibold text-[14.5px] flex items-center justify-center gap-2 transition disabled:opacity-40 shadow-sm"
+          >
+            {loading ? 'Signing in…' : <><span>Sign In</span> <ArrowRight size={16} /></>}
+          </button>
         </div>
-
-        {error && <p className="mt-2.5 text-[12px] text-danger font-medium">{error}</p>}
-
-        {/* Primary Login Button */}
-        <button
-          onClick={handlePasswordLogin}
-          disabled={!isFormValid || loading}
-          className="tap w-full mt-5 py-3.5 rounded-2xl bg-obsidian text-paper font-semibold text-[14.5px] transition disabled:opacity-40 shadow-sm"
-        >
-          {loading ? 'Signing in…' : 'Sign in with Password'}
-        </button>
 
         {/* Sign Up Link */}
         <div className="mt-4 text-center">
@@ -384,7 +386,7 @@ export function LoginScreen() {
         {/* Divider */}
         <div className="flex items-center gap-3 my-5">
           <div className="flex-1 h-px bg-obsidian/10" />
-          <span className="text-[11.5px] font-medium text-obsidian/45">or</span>
+          <span className="text-[11.5px] font-medium text-obsidian/40">or</span>
           <div className="flex-1 h-px bg-obsidian/10" />
         </div>
 
@@ -479,12 +481,13 @@ export function ForgotPasswordScreen() {
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-paper">
+    <div className="flex-1 flex flex-col bg-paper text-obsidian">
+      {/* Header */}
       <div className="px-5 py-4 flex items-center justify-between border-b border-line">
         <button
           type="button"
           onClick={() => dispatch({ type: 'GO', screen: 'login' })}
-          className="tap w-9 h-9 -ml-1.5 grid place-items-center rounded-full z-10 hover:bg-bone transition cursor-pointer"
+          className="tap w-9 h-9 -ml-1.5 grid place-items-center rounded-full hover:bg-bone transition cursor-pointer"
         >
           <ArrowLeft size={20} />
         </button>
@@ -638,12 +641,13 @@ export function ResetPasswordScreen() {
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-paper">
+    <div className="flex-1 flex flex-col bg-paper text-obsidian">
+      {/* Header */}
       <div className="px-5 py-4 flex items-center justify-between border-b border-line">
         <button
           type="button"
           onClick={() => dispatch({ type: 'GO', screen: 'login' })}
-          className="tap w-9 h-9 -ml-1.5 grid place-items-center rounded-full z-10 hover:bg-bone transition cursor-pointer"
+          className="tap w-9 h-9 -ml-1.5 grid place-items-center rounded-full hover:bg-bone transition cursor-pointer"
         >
           <X size={20} />
         </button>
@@ -669,28 +673,27 @@ export function ResetPasswordScreen() {
           <div className="space-y-3.5">
             <div>
               <label className="text-[11px] font-medium text-obsidian/60 block mb-1">New password</label>
-              <div className="rounded-2xl border-2 border-obsidian/15 focus-within:border-obsidian px-4 py-3.5 bg-bone/30 transition flex items-center gap-2">
+              <div className="rounded-2xl border-2 border-obsidian/15 focus-within:border-obsidian px-4 py-3 bg-bone/30 transition flex items-center gap-2">
                 <input
-                  autoFocus
                   type={showPass ? 'text' : 'password'}
                   value={newPassword}
                   onChange={e => setNewPassword(e.target.value)}
-                  placeholder="Enter new password"
+                  placeholder="••••••••"
                   className="w-full bg-transparent outline-none text-[14px] placeholder:text-obsidian/40"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPass(!showPass)}
-                  className="tap text-obsidian/40 hover:text-obsidian shrink-0"
+                  className="tap text-obsidian/40 hover:text-obsidian transition"
                 >
-                  {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                  {showPass ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
             </div>
 
             <div>
               <label className="text-[11px] font-medium text-obsidian/60 block mb-1">Confirm new password</label>
-              <div className="rounded-2xl border-2 border-obsidian/15 focus-within:border-obsidian px-4 py-3.5 bg-bone/30 transition flex items-center gap-2">
+              <div className="rounded-2xl border-2 border-obsidian/15 focus-within:border-obsidian px-4 py-3 bg-bone/30 transition flex items-center gap-2">
                 <input
                   type={showPass ? 'text' : 'password'}
                   value={confirmPassword}
@@ -746,12 +749,12 @@ export function ResetPasswordScreen() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   5. MAGIC LINK SENT & OTP SCREENS (Kept as graceful helpers)
+   5. MAGIC LINK SENT & OTP SCREENS
    ═══════════════════════════════════════════════════════════════════════════ */
 export function MagicLinkSentScreen() {
   const { dispatch, pendingPhone } = useAppStore(useShallow(s => ({ dispatch: s.dispatch, pendingPhone: s.pendingPhone })))
   return (
-    <div className="flex-1 flex flex-col bg-paper">
+    <div className="flex-1 flex flex-col bg-paper text-obsidian">
       <div className="px-6 py-4 flex items-center">
         <button onClick={() => dispatch({ type: 'GO', screen: 'login' })} className="tap w-10 h-10 -ml-2 grid place-items-center">
           <ArrowLeft size={20} />
@@ -780,19 +783,107 @@ export function MagicLinkSentScreen() {
 
 export function OtpScreen() {
   const { dispatch, pendingPhone } = useAppStore(useShallow(s => ({ dispatch: s.dispatch, pendingPhone: s.pendingPhone })))
+  const [code, setCode] = useState(['', '', '', '', '', ''])
+  const [loading, setLoading] = useState(false)
+  const [cooldown, setCooldown] = useState(45)
+  const [error, setError] = useState('')
+  const inputs = useRef<(HTMLInputElement | null)[]>([])
+
+  useEffect(() => {
+    inputs.current[0]?.focus()
+    const timer = setInterval(() => setCooldown(c => (c > 0 ? c - 1 : 0)), 1000)
+    return () => clearInterval(timer)
+  }, [])
+
+  const handleChange = (i: number, val: string) => {
+    if (val.length > 1) val = val[val.length - 1]
+    const next = [...code]
+    next[i] = val
+    setCode(next)
+    if (val && i < 5) inputs.current[i + 1]?.focus()
+  }
+
+  const handleKeyDown = (i: number, e: React.KeyboardEvent) => {
+    if (e.key === 'Backspace' && !code[i] && i > 0) inputs.current[i - 1]?.focus()
+  }
+
+  const submitOtp = useCallback(async (otpCode: string) => {
+    setLoading(true)
+    setError('')
+    try {
+      if (supabaseAvailable && isLiveMode()) {
+        const isEmail = (pendingPhone || '').includes('@')
+        await authApi.verifyOtp(pendingPhone || '', otpCode, isEmail ? 'email' : 'sms')
+      }
+      dispatch({ type: 'GO', screen: 'role' })
+    } catch (e: any) {
+      setError(e?.message || 'Invalid code. Try again.')
+      setCode(['', '', '', '', '', ''])
+      inputs.current[0]?.focus()
+    } finally {
+      setLoading(false)
+    }
+  }, [pendingPhone, dispatch])
+
+  useEffect(() => {
+    const full = code.join('')
+    if (full.length === 6) submitOtp(full)
+  }, [code, submitOtp])
+
   return (
-    <div className="flex-1 flex flex-col bg-paper items-center justify-center p-6 text-center">
-      <h2 className="font-display text-2xl mb-2">Verification Code</h2>
-      <p className="text-[13px] text-obsidian/60 mb-6">Sent to {pendingPhone}</p>
-      <button onClick={() => dispatch({ type: 'GO', screen: 'login' })} className="tap px-5 py-2.5 rounded-xl bg-obsidian text-paper text-[13px]">
-        Back to Login
-      </button>
+    <div className="flex-1 flex flex-col bg-paper text-obsidian">
+      <div className="px-6 py-4 flex items-center">
+        <button onClick={() => dispatch({ type: 'BACK' })} className="tap w-10 h-10 -ml-2 grid place-items-center">
+          <ArrowLeft size={20} />
+        </button>
+      </div>
+      <div className="flex-1 px-8 pt-4 pb-8 flex flex-col justify-between max-w-sm mx-auto w-full">
+        <div>
+          <h1 className="font-display text-4xl font-light tracking-tight leading-tight">
+            Enter the<br /><span className="italic">6-digit code</span>
+          </h1>
+          <p className="mt-3 text-[13px] text-obsidian/60">
+            Sent to <span className="font-semibold text-obsidian">{pendingPhone || '+91 98765 43210'}</span>
+          </p>
+
+          <div className="flex gap-2.5 mt-8 justify-between">
+            {code.map((c, i) => (
+              <input
+                key={i}
+                ref={el => { inputs.current[i] = el }}
+                type="text"
+                inputMode="numeric"
+                maxLength={1}
+                value={c}
+                onChange={e => handleChange(i, e.target.value)}
+                onKeyDown={e => handleKeyDown(i, e)}
+                className="w-12 h-14 rounded-2xl border-2 border-obsidian/15 bg-bone/30 text-center font-mono text-2xl focus:border-obsidian outline-none transition"
+              />
+            ))}
+          </div>
+
+          {error && <p className="mt-4 text-[12px] text-danger text-center">{error}</p>}
+
+          <div className="mt-6 flex items-center justify-between text-[12px]">
+            <span className="text-obsidian/50">Didn't receive it?</span>
+            {cooldown > 0 ? (
+              <span className="text-obsidian/40 font-mono">Resend in ${cooldown}s</span>
+            ) : (
+              <button onClick={() => setCooldown(45)} className="text-iris font-semibold flex items-center gap-1">
+                <RotateCcw size={12} /> Resend code
+              </button>
+            )}
+          </div>
+        </div>
+
+        {loading && <p className="text-center text-[12px] text-iris font-mono animate-pulse">Verifying code…</p>}
+      </div>
     </div>
   )
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   6. ROLE SELECTION SCREEN (Setup Flow: Client vs Creator)
+   6. ROLE INTENT SCREEN ("How will you use FTC?")
    ═══════════════════════════════════════════════════════════════════════════ */
 export function RoleScreen() {
   const dispatch = useAppStore(s => s.dispatch)
@@ -813,22 +904,28 @@ export function RoleScreen() {
         console.error('[FTC] setUserRole failed:', e)
       }
     }
-    setTimeout(() => role === 'client'
-      ? dispatch({ type: 'COMPLETE_AUTH', isCreator: false })
-      : dispatch({ type: 'GO', screen: 'creatorOnboard1' }), 350)
+    setTimeout(() => {
+      if (role === 'client') {
+        dispatch({ type: 'GO', screen: 'clientOnboard' })
+      } else {
+        dispatch({ type: 'GO', screen: 'creatorOnboard1' })
+      }
+    }, 250)
   }
 
   const isOn = (key: string) => sel === key || (sel === null && hover === key)
   const cardCls = (key: string, accent: string) => cn(
-    'tap w-full p-6 rounded-3xl text-left relative overflow-hidden border-2 transition-all duration-500',
-    isOn(key) ? (accent === 'dark' ? 'bg-obsidian text-paper border-obsidian shadow-2xl' : 'bg-iris text-paper border-iris shadow-2xl') : 'bg-paper text-obsidian border-line',
+    'tap w-full p-6 rounded-3xl text-left relative overflow-hidden border-2 transition-all duration-300',
+    isOn(key)
+      ? (accent === 'dark' ? 'bg-obsidian text-paper border-obsidian shadow-2xl' : 'bg-iris text-paper border-iris shadow-2xl')
+      : 'bg-paper text-obsidian border-line hover:border-obsidian/30',
     sel === key && 'ring-2 ring-offset-2 ring-obsidian',
   )
 
   return (
-    <div className="flex-1 flex flex-col bg-paper">
-      <div className="px-6 pt-4 pb-2">
-        <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-obsidian/50">Your intent</span>
+    <div className="flex-1 flex flex-col bg-paper text-obsidian">
+      <div className="px-6 pt-5 pb-2">
+        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-obsidian/50">Your intent</span>
       </div>
       <div className="flex-1 px-6 pt-2 pb-6 flex flex-col justify-between max-w-md mx-auto w-full">
         <div>
@@ -850,7 +947,7 @@ export function RoleScreen() {
                 <span className="font-display text-2xl font-light tracking-tight">I want to hire creators</span>
                 <span className="text-xl">💼</span>
               </div>
-              <p className={cn('text-[13px] leading-relaxed', isOn('client') ? 'text-paper/70' : 'text-obsidian/60')}>
+              <p className={cn('text-[13px] leading-relaxed', isOn('client') ? 'text-paper/80' : 'text-obsidian/60')}>
                 Discover verified photographers, videographers, editors, and stylists with escrow protection.
               </p>
             </button>
@@ -865,7 +962,7 @@ export function RoleScreen() {
                 <span className="font-display text-2xl font-light tracking-tight">I am a creator</span>
                 <span className="text-xl">🎨</span>
               </div>
-              <p className={cn('text-[13px] leading-relaxed', isOn('creator') ? 'text-paper/70' : 'text-obsidian/60')}>
+              <p className={cn('text-[13px] leading-relaxed', isOn('creator') ? 'text-paper/80' : 'text-obsidian/60')}>
                 Showcase your portfolio, receive client bookings, send custom quotes, and get paid with 0% platform fee.
               </p>
             </button>
@@ -875,6 +972,228 @@ export function RoleScreen() {
         <p className="text-center text-[11px] text-obsidian/40 font-mono">
           FindToConnect · Creative Services Network
         </p>
+      </div>
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   7. CLIENT ONBOARDING SCREEN (Option A: 1-Step 15-Second Feed Personalization)
+   ═══════════════════════════════════════════════════════════════════════════ */
+const POPULAR_CITIES = ['Delhi NCR', 'Mumbai', 'Bangalore', 'Pune', 'Hyderabad', 'Jaipur', 'Goa', 'Other']
+
+const CREATIVE_CATEGORIES = [
+  { id: 'photo', label: '📸 Photography', sub: 'Fashion, Portraits, Events' },
+  { id: 'video', label: '🎥 Video & Reels', sub: 'Short-form, Commercials' },
+  { id: 'wedding', label: '💍 Weddings', sub: 'Pre-wedding & Ceremony' },
+  { id: 'styling', label: '👗 Styling & MUA', sub: 'Fashion, Wardrobe, Makeup' },
+  { id: 'editing', label: '🎬 Editing & Post', sub: 'Color grading, VFX' },
+]
+
+export function ClientOnboardScreen() {
+  const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
+  const [name, setName] = useState(state.user.name || '')
+  const [city, setCity] = useState(state.user.city || 'Delhi NCR')
+  const [clientType, setClientType] = useState<'individual' | 'brand'>('individual')
+  const [interests, setInterests] = useState<string[]>(['photo', 'video'])
+  const [saving, setSaving] = useState(false)
+
+  const toggleInterest = (id: string) => {
+    setInterests(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  }
+
+  const finishClientOnboarding = async (skip = false) => {
+    setSaving(true)
+    const finalCity = skip ? (city || 'Delhi NCR') : city
+    const finalName = skip ? (name || 'Client') : (name.trim() || 'Client')
+
+    try {
+      if (supabaseAvailable && isLiveMode()) {
+        await authApi.updateMyProfile({
+          name: finalName,
+          city: finalCity,
+          role: 'consumer',
+        })
+      }
+    } catch (e) {
+      console.warn('[FTC] Client profile update failed:', e)
+    }
+
+    // Update filter preferences so the discovery feed pre-selects their city
+    dispatch({
+      type: 'UPDATE_FILTERS',
+      patch: { city: finalCity === 'Other' ? 'All' : finalCity },
+    })
+
+    // Complete onboarding & open Home Feed
+    dispatch({
+      type: 'COMPLETE_AUTH',
+      isCreator: false,
+      name: finalName,
+      city: finalCity,
+    })
+    dispatch({ type: 'GO_TAB', tab: 'home' })
+  }
+
+  return (
+    <div className="flex-1 relative flex flex-col bg-paper text-obsidian overflow-hidden">
+      {/* Top Header with Progress & Skip */}
+      <div className="px-5 pt-4 pb-3 flex items-center justify-between border-b border-line shrink-0">
+        <button onClick={() => dispatch({ type: 'GO', screen: 'role' })} className="tap w-10 h-10 -ml-2 grid place-items-center">
+          <ArrowLeft size={20} />
+        </button>
+        <div className="flex items-center gap-1">
+          <div className="h-1.5 rounded-full w-8 bg-obsidian transition-all" />
+        </div>
+        <button
+          type="button"
+          onClick={() => finishClientOnboarding(true)}
+          className="tap text-[12px] font-medium text-obsidian/60 hover:text-obsidian transition"
+        >
+          Skip for now →
+        </button>
+      </div>
+
+      {/* Scrollable Form Body with pb-32 so content is never hidden behind footer */}
+      <div className="app-scroll pb-32 px-5 pt-5 max-w-md mx-auto w-full">
+        <div className="mb-5">
+          <h2 className="font-display text-2xl font-light tracking-tight leading-tight">
+            Tell us what you're <span className="italic">looking for</span>
+          </h2>
+          <p className="text-[13px] text-obsidian/60 mt-1">
+            We'll tailor your discovery feed with verified creators in your area.
+          </p>
+        </div>
+
+        <div className="space-y-6">
+          {/* 1. Name or Brand */}
+          <div>
+            <label className="text-[11px] font-mono uppercase tracking-[0.14em] text-obsidian/60 block mb-1.5">
+              Your Name or Brand Name
+            </label>
+            <div className="rounded-2xl border-2 border-obsidian/12 focus-within:border-obsidian px-4 py-3.5 bg-bone/30 transition">
+              <input
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="e.g. Rhea Kapoor or Studio 9"
+                className="w-full bg-transparent outline-none text-[14px] placeholder:text-obsidian/40"
+              />
+            </div>
+          </div>
+
+          {/* 2. Client Profile Type */}
+          <div>
+            <label className="text-[11px] font-mono uppercase tracking-[0.14em] text-obsidian/60 block mb-2">
+              You are hiring as
+            </label>
+            <div className="grid grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={() => setClientType('individual')}
+                className={cn(
+                  'tap p-3.5 rounded-2xl border-2 text-left transition flex items-center gap-3',
+                  clientType === 'individual'
+                    ? 'border-obsidian bg-obsidian text-paper shadow-sm'
+                    : 'border-line bg-paper text-obsidian hover:border-obsidian/25'
+                )}
+              >
+                <span className="text-xl">👤</span>
+                <div>
+                  <div className="font-medium text-[13px]">Individual</div>
+                  <div className={cn('text-[11px]', clientType === 'individual' ? 'text-paper/70' : 'text-obsidian/50')}>Personal shoots</div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setClientType('brand')}
+                className={cn(
+                  'tap p-3.5 rounded-2xl border-2 text-left transition flex items-center gap-3',
+                  clientType === 'brand'
+                    ? 'border-obsidian bg-obsidian text-paper shadow-sm'
+                    : 'border-line bg-paper text-obsidian hover:border-obsidian/25'
+                )}
+              >
+                <span className="text-xl">🏢</span>
+                <div>
+                  <div className="font-medium text-[13px]">Brand / Agency</div>
+                  <div className={cn('text-[11px]', clientType === 'brand' ? 'text-paper/70' : 'text-obsidian/50')}>Commercial jobs</div>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* 3. Primary City */}
+          <div>
+            <label className="text-[11px] font-mono uppercase tracking-[0.14em] text-obsidian/60 block mb-2">
+              Primary City
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {POPULAR_CITIES.map(c => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setCity(c)}
+                  className={cn(
+                    'tap px-3.5 py-2.5 rounded-xl text-[12.5px] font-medium border transition',
+                    city === c
+                      ? 'bg-obsidian text-paper border-obsidian shadow-xs'
+                      : 'bg-bone/40 text-obsidian/75 border-line hover:border-obsidian/30'
+                  )}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 4. Creative Needs */}
+          <div>
+            <label className="text-[11px] font-mono uppercase tracking-[0.14em] text-obsidian/60 block mb-2">
+              What do you hire most? (Select all that apply)
+            </label>
+            <div className="space-y-2">
+              {CREATIVE_CATEGORIES.map(cat => {
+                const active = interests.includes(cat.id)
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => toggleInterest(cat.id)}
+                    className={cn(
+                      'tap w-full p-3.5 rounded-2xl border-2 text-left transition flex items-center justify-between',
+                      active
+                        ? 'border-iris bg-iris/5 text-obsidian shadow-xs'
+                        : 'border-line bg-paper hover:border-obsidian/20'
+                    )}
+                  >
+                    <div>
+                      <div className="font-medium text-[13.5px]">{cat.label}</div>
+                      <div className="text-[11.5px] text-obsidian/50">{cat.sub}</div>
+                    </div>
+                    <div className={cn(
+                      'w-5 h-5 rounded-full border grid place-items-center text-paper text-[11px] font-bold transition',
+                      active ? 'bg-iris border-iris' : 'border-obsidian/20 bg-paper'
+                    )}>
+                      {active && '✓'}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Pinned Bottom Footer Bar - Always 100% visible on all devices */}
+      <div className="absolute bottom-0 inset-x-0 px-5 pb-6 pt-4 bg-paper border-t border-line shadow-lg">
+        <button
+          onClick={() => finishClientOnboarding(false)}
+          disabled={saving}
+          className="tap w-full py-4 rounded-2xl bg-obsidian text-paper font-semibold text-[14.5px] flex items-center justify-center gap-2 shadow-sm hover:opacity-95 transition"
+        >
+          {saving ? 'Personalizing…' : <><span>Personalize & Browse Creators</span> <ArrowRight size={16} /></>}
+        </button>
       </div>
     </div>
   )
