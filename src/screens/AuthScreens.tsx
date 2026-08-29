@@ -624,6 +624,10 @@ export function ResetPasswordScreen() {
 
     try {
       if (supabaseAvailable && isLiveMode()) {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session) {
+          throw new Error('Your reset session has expired or was already used. Please request a new link.')
+        }
         await authApi.updateUserPassword(newPassword)
         // Cleanly sign out temporary recovery token so user logs in cleanly
         await supabase.auth.signOut()
@@ -634,7 +638,12 @@ export function ResetPasswordScreen() {
         dispatch({ type: 'GO', screen: 'login' })
       }, 1600)
     } catch (e: any) {
-      setError(e?.message || 'Failed to update password. Please try again or request a new reset link.')
+      const msg = e?.message || ''
+      if (msg.toLowerCase().includes('auth session missing') || msg.toLowerCase().includes('expired') || msg.toLowerCase().includes('jwt')) {
+        setError('Your password link has expired or was already opened. Please request a new link.')
+      } else {
+        setError(msg || 'Failed to update password. Please try again.')
+      }
     } finally {
       setLoading(false)
     }
@@ -721,7 +730,20 @@ export function ResetPasswordScreen() {
               </div>
             </div>
 
-            {error && <p className="text-[12px] text-danger font-medium">{error}</p>}
+            {error && (
+              <div className="space-y-2">
+                <p className="text-[12px] text-danger font-medium">{error}</p>
+                {error.includes('expired') && (
+                  <button
+                    type="button"
+                    onClick={() => dispatch({ type: 'GO', screen: 'forgotPassword' })}
+                    className="tap w-full py-2.5 rounded-xl bg-iris/10 text-iris text-[12.5px] font-semibold hover:bg-iris/20 transition flex items-center justify-center gap-1.5"
+                  >
+                    Request a new link →
+                  </button>
+                )}
+              </div>
+            )}
             {success && (
               <p className="text-[12.5px] text-success font-semibold flex items-center justify-center gap-1.5 bg-success/10 py-2.5 rounded-xl">
                 <CheckCircle2 size={16} /> Password saved! Redirecting to login…

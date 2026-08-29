@@ -24,12 +24,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!supabaseAvailable) return
     let mounted = true
 
-    const isRecoveryHash = typeof window !== 'undefined' && !!window.location.hash && (
-      window.location.hash.includes('type=recovery') || window.location.hash.includes('#reset')
-    )
+    const rawHash = typeof window !== 'undefined' ? window.location.hash : ''
+    const isRecoveryHash = rawHash.includes('type=recovery') ||
+      rawHash.includes('#reset') ||
+      rawHash.includes('type=signup') ||
+      rawHash.includes('type=magiclink') ||
+      rawHash.includes('type=invite') ||
+      (rawHash.includes('access_token=') && !rawHash.includes('error='))
 
-    // ── 1. Check if URL hash indicates a password recovery session ──────────
-    if (isRecoveryHash) {
+    const isLinkExpired = rawHash.includes('error=') || rawHash.includes('error_code=otp_expired')
+
+    // ── 1. Check if URL hash indicates an expired link or active auth session ──
+    if (isLinkExpired) {
+      console.warn('[FTC] Email auth link expired or invalid.')
+      dispatch({ type: 'GO', screen: 'forgotPassword' })
+    } else if (isRecoveryHash) {
       dispatch({ type: 'GO', screen: 'resetPassword' })
     }
 
@@ -40,7 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Unauthenticated visitor -> stay on welcome/auth
         const cur = useAppStore.getState().screen
         const isAuthScreen = ['welcome', 'signup', 'login', 'phone', 'otp', 'magicLinkSent', 'forgotPassword', 'resetPassword'].includes(cur)
-        if (!isAuthScreen) {
+        if (!isAuthScreen && !isRecoveryHash) {
           // If session expired or unauthenticated trying to access internal screen
           dispatch({ type: 'RESET' })
         }
@@ -49,7 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const currentScreen = useAppStore.getState().screen
       if (currentScreen === 'resetPassword' || isRecoveryHash) {
-        // Recovery in progress — don't auto-redirect to home
+        // Recovery/Password setup in progress — don't auto-redirect to home
         return
       }
 
