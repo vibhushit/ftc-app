@@ -1,7 +1,7 @@
 use axum::{
     async_trait,
     extract::FromRequestParts,
-    http::{header, request::Parts, StatusCode},
+    http::{header, request::Parts},
 };
 use jsonwebtoken::{decode, DecodingKey, Validation};
 use serde::{Deserialize, Serialize};

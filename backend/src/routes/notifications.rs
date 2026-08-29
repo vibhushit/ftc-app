@@ -1,33 +1,38 @@
-use axum::{routing::{get, post}, Json, Router};
+use axum::{
+    extract::Path,
+    routing::{get, post},
+    Json, Router,
+};
 use serde_json::{json, Value};
+use crate::state::AppState;
 
-pub fn router() -> Router {
+pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/", get(get_notifications))
-        .route("/mark-read", post(mark_notifications_read))
+        .route("/", get(list_notifications))
+        .route("/:id/read", post(mark_notification_read))
 }
 
-async fn get_notifications() -> Json<Value> {
-    tracing::info!("🔔 GET /api/notifications -> Fetching in-app notifications");
+async fn list_notifications() -> Json<Value> {
+    tracing::info!("🔔 GET /api/notifications -> Fetching active alerts");
     Json(json!([
         {
-            "id": "notif_101",
-            "title": "Booking Confirmed 🎉",
-            "message": "Rhea Kapoor accepted your booking request for Oct 24.",
-            "read": false,
-            "created_at": "10 mins ago"
+            "id": "notif_1",
+            "title": "Booking Confirmed",
+            "message": "Aarav paid the ₹7,500 advance deposit for your Standard Shoot.",
+            "time": "10m ago",
+            "read": false
         },
         {
-            "id": "notif_102",
-            "title": "New Custom Quote Received 📜",
-            "message": "Custom quote received for Editorial Fashion Shoot (₹25,000).",
-            "read": false,
-            "created_at": "1 hour ago"
+            "id": "notif_2",
+            "title": "New Review",
+            "message": "Tanvi gave you a 5-star rating ⭐",
+            "time": "1d ago",
+            "read": true
         }
     ]))
 }
 
-async fn mark_notifications_read() -> Json<Value> {
-    tracing::info!("READ POST /api/notifications/mark-read -> Marking notifications as read");
-    Json(json!({ "success": true }))
+async fn mark_notification_read(Path(id): Path<String>) -> Json<Value> {
+    tracing::info!("🔔 POST /api/notifications/{}/read", id);
+    Json(json!({ "success": true, "notification_id": id }))
 }

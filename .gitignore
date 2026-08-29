@@ -13,6 +13,8 @@ IMPLEMENTATION_PLAN.md
 PRODUCT.md
 SUPABASE_SETUP.md
 README_INTERNALS.md
+DEPLOYMENT_AND_DOMAIN_SETUP.md
+CONFIG_CHANGELOG.md
 backend/docs/
 walkthrough.md
 implementation_plan.md

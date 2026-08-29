@@ -8,15 +8,22 @@ import { CreatorPipelineHome } from './CreatorPipelineHome'
 
 import { useEffect, useState } from 'react'
 import { apiClient } from '@/services/apiClient'
+import { useEnvironmentMode } from '@/config/environmentMode'
 import type { Creator } from '@/types/bindings'
 
 export function HomeScreen() {
   const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
+  const [mode] = useEnvironmentMode()
   const [creators, setCreators] = useState<Creator[]>([])
 
   useEffect(() => {
-    apiClient.getCreators().then(setCreators).catch(err => console.warn('Failed to load API creators:', err))
-  }, [])
+    apiClient.getCreators()
+      .then(setCreators)
+      .catch(err => {
+        console.warn(`[HomeScreen] Failed to load creators (${mode} mode):`, err)
+        setCreators([])
+      })
+  }, [mode])
 
   if (state.isCreator) return <CreatorPipelineHome />
 

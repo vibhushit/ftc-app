@@ -5,8 +5,9 @@ use axum::{
 };
 use serde_json::{json, Value};
 use crate::models::booking::{Booking, CreateBookingPayload};
+use crate::state::AppState;
 
-pub fn router() -> Router {
+pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list_bookings).post(create_booking))
         .route("/:id", get(get_booking_detail))

@@ -13,49 +13,71 @@ import type {
   Transaction,
   WithdrawPayload,
   Review,
-  CreateReviewPayload
+  CreateReviewPayload,
 } from '@/types/bindings'
 import { CREATORS } from '@/data/creators'
 import { compressImageToWebP } from '@/utils/imageCompressor'
+import { isLiveMode } from '@/config/environmentMode'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
 
+export interface ApiErrorEvent {
+  endpoint: string
+  method: string
+  status?: number
+  message: string
+  timestamp: string
+}
+
+function notifyApiError(error: ApiErrorEvent) {
+  console.error(`[FTC Live API Error] ${error.method} ${error.endpoint}:`, error.message)
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('ftc_api_error', { detail: error }))
+  }
+}
+
 /**
  * Decoupled API Service Layer
- * Complete API surface for Authentication, Creators, Bookings, Messaging, Payouts & Reviews.
+ * In LIVE MODE: Queries the Rust Axum backend & PostgreSQL database directly.
+ * In SANDBOX MODE: Operates purely in-memory using local seed data for instant offline testing.
  */
 export const apiClient = {
   // ─── AUTHENTICATION ──────────────────────────────────────────────────────────
   async sendPhoneOtp(phone: string): Promise<{ success: boolean }> {
+    if (!isLiveMode()) {
+      console.log('[Sandbox] Simulated OTP sent to:', phone)
+      return { success: true }
+    }
+
+    const endpoint = `${API_BASE_URL}/auth/phone`
     try {
-      console.log(`[API Client] POST ${API_BASE_URL}/auth/phone`, { phone })
-      const res = await fetch(`${API_BASE_URL}/auth/phone`, {
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone }),
       })
-      if (!res.ok) throw new Error(`HTTP error ${res.status}`)
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => res.statusText)
+        throw new Error(`HTTP ${res.status}: ${errorText}`)
+      }
       return await res.json()
-    } catch (err) {
-      console.warn('[API Client] Auth API fallback:', err)
-      return { success: true }
+    } catch (err: any) {
+      notifyApiError({
+        endpoint: '/auth/phone',
+        method: 'POST',
+        status: err?.status,
+        message: err?.message || 'Failed to send OTP',
+        timestamp: new Date().toLocaleTimeString(),
+      })
+      throw err
     }
   },
 
   async verifyOtp(phone: string, code: string): Promise<AuthResponse> {
-    try {
-      console.log(`[API Client] POST ${API_BASE_URL}/auth/verify`, { phone, code })
-      const res = await fetch(`${API_BASE_URL}/auth/verify`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, code }),
-      })
-      if (!res.ok) throw new Error(`HTTP error ${res.status}`)
-      return await res.json()
-    } catch (err) {
-      console.warn('[API Client] Verify OTP fallback:', err)
+    if (!isLiveMode()) {
+      console.log('[Sandbox] Simulated OTP verification for:', phone)
       return {
-        token: 'mock_jwt_token',
+        token: 'sandbox_jwt_token_ftc',
         user: {
           id: 'u_101',
           phone,
@@ -68,79 +90,143 @@ export const apiClient = {
         },
       }
     }
+
+    const endpoint = `${API_BASE_URL}/auth/verify`
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, code }),
+      })
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => res.statusText)
+        throw new Error(`HTTP ${res.status}: ${errorText}`)
+      }
+      return await res.json()
+    } catch (err: any) {
+      notifyApiError({
+        endpoint: '/auth/verify',
+        method: 'POST',
+        status: err?.status,
+        message: err?.message || 'Failed to verify OTP',
+        timestamp: new Date().toLocaleTimeString(),
+      })
+      throw err
+    }
   },
 
   async selectRole(role: string): Promise<{ success: boolean }> {
+    if (!isLiveMode()) {
+      return { success: true }
+    }
+
+    const endpoint = `${API_BASE_URL}/auth/role`
     try {
-      console.log(`[API Client] POST ${API_BASE_URL}/auth/role`, { role })
-      const res = await fetch(`${API_BASE_URL}/auth/role`, {
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ role }),
       })
-      if (!res.ok) throw new Error(`HTTP error ${res.status}`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
       return await res.json()
-    } catch (err) {
-      console.warn('[API Client] Role API fallback:', err)
-      return { success: true }
+    } catch (err: any) {
+      notifyApiError({
+        endpoint: '/auth/role',
+        method: 'POST',
+        message: err?.message || 'Failed to update role',
+        timestamp: new Date().toLocaleTimeString(),
+      })
+      throw err
     }
   },
 
   // ─── CREATORS & DISCOVERY ─────────────────────────────────────────────────────
-  async getCreators(): Promise<Creator[]> {
+  async getCreators(params?: { discipline?: string; city?: string; minPrice?: number; maxPrice?: number }): Promise<Creator[]> {
+    if (!isLiveMode()) {
+      let list = CREATORS as unknown as Creator[]
+      if (params?.discipline) {
+        list = list.filter(c => c.discipline.toLowerCase() === params.discipline?.toLowerCase())
+      }
+      if (params?.city) {
+        list = list.filter(c => c.city.toLowerCase() === params.city?.toLowerCase())
+      }
+      return list
+    }
+
+    const query = new URLSearchParams()
+    if (params?.discipline) query.set('discipline', params.discipline)
+    if (params?.city) query.set('city', params.city)
+    if (params?.minPrice) query.set('min_price', String(params.minPrice))
+    if (params?.maxPrice) query.set('max_price', String(params.maxPrice))
+
+    const endpoint = `${API_BASE_URL}/creators${query.toString() ? `?${query.toString()}` : ''}`
     try {
-      console.log(`[API Client] GET ${API_BASE_URL}/creators`)
-      const res = await fetch(`${API_BASE_URL}/creators`)
-      if (!res.ok) throw new Error(`HTTP error ${res.status}`)
+      const res = await fetch(endpoint)
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`)
       const data = await res.json()
-      console.log(`[API Client] Received ${data.length} creators from Rust backend`)
       return data
-    } catch (err) {
-      console.warn('[API Client] Rust backend offline, using fallback creators:', err)
-      return CREATORS as unknown as Creator[]
+    } catch (err: any) {
+      notifyApiError({
+        endpoint: '/creators',
+        method: 'GET',
+        message: err?.message || 'Failed to fetch creators from live database',
+        timestamp: new Date().toLocaleTimeString(),
+      })
+      throw err
     }
   },
 
   async getCreatorById(id: string): Promise<Creator | null> {
+    if (!isLiveMode()) {
+      const found = (CREATORS as unknown as Creator[]).find(c => c.id === id)
+      return found ?? null
+    }
+
+    const endpoint = `${API_BASE_URL}/creators/${id}`
     try {
-      console.log(`[API Client] GET ${API_BASE_URL}/creators/${id}`)
-      const res = await fetch(`${API_BASE_URL}/creators/${id}`)
-      if (!res.ok) throw new Error(`HTTP error ${res.status}`)
+      const res = await fetch(endpoint)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
       return await res.json()
-    } catch (err) {
-      const list = await this.getCreators()
-      return list.find(c => c.id === id) ?? null
+    } catch (err: any) {
+      notifyApiError({
+        endpoint: `/creators/${id}`,
+        method: 'GET',
+        message: err?.message || `Creator with ID '${id}' not found`,
+        timestamp: new Date().toLocaleTimeString(),
+      })
+      throw err
     }
   },
 
-  async onboardCreator(payload: CreatorOnboardPayload): Promise<{ success: boolean; creatorId: string }> {
+  async onboardCreator(payload: CreatorOnboardPayload): Promise<{ success: boolean; creator_id: string }> {
+    if (!isLiveMode()) {
+      console.log('[Sandbox] Simulated creator onboarding:', payload)
+      return { success: true, creator_id: 'c_' + Date.now() }
+    }
+
+    const endpoint = `${API_BASE_URL}/creators/onboard`
     try {
-      console.log(`[API Client] POST ${API_BASE_URL}/creators/onboard`, payload)
-      const res = await fetch(`${API_BASE_URL}/creators/onboard`, {
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
-      if (!res.ok) throw new Error(`HTTP error ${res.status}`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
       return await res.json()
-    } catch (err) {
-      console.warn('[API Client] Backend offline, returning mock onboarding result')
-      return { success: true, creatorId: 'c_' + Date.now() }
+    } catch (err: any) {
+      notifyApiError({
+        endpoint: '/creators/onboard',
+        method: 'POST',
+        message: err?.message || 'Failed to onboard creator to live database',
+        timestamp: new Date().toLocaleTimeString(),
+      })
+      throw err
     }
   },
 
   // ─── BOOKINGS & ESCROW ────────────────────────────────────────────────────────
   async createBooking(payload: CreateBookingPayload): Promise<Booking> {
-    try {
-      console.log(`[API Client] POST ${API_BASE_URL}/bookings`, payload)
-      const res = await fetch(`${API_BASE_URL}/bookings`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      if (!res.ok) throw new Error(`HTTP error ${res.status}`)
-      return await res.json()
-    } catch (err) {
+    if (!isLiveMode()) {
       return {
         id: 'FTC' + Math.floor(1000 + Math.random() * 9000),
         creator_id: payload.creator_id,
@@ -156,35 +242,30 @@ export const apiClient = {
         location_type: payload.location_type,
       }
     }
-  },
 
-  async updateBookingStatus(id: string, status: string): Promise<{ success: boolean }> {
+    const endpoint = `${API_BASE_URL}/bookings`
     try {
-      console.log(`[API Client] POST ${API_BASE_URL}/bookings/${id}/status`, { status })
-      const res = await fetch(`${API_BASE_URL}/bookings/${id}/status`, {
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify(payload),
       })
-      if (!res.ok) throw new Error(`HTTP error ${res.status}`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
       return await res.json()
-    } catch (err) {
-      return { success: true }
+    } catch (err: any) {
+      notifyApiError({
+        endpoint: '/bookings',
+        method: 'POST',
+        message: err?.message || 'Failed to create live booking',
+        timestamp: new Date().toLocaleTimeString(),
+      })
+      throw err
     }
   },
 
   // ─── MESSAGING & QUOTES ──────────────────────────────────────────────────────
   async sendMessage(payload: ChatMessagePayload): Promise<ChatMessage> {
-    try {
-      console.log(`[API Client] POST ${API_BASE_URL}/chat/messages`, payload)
-      const res = await fetch(`${API_BASE_URL}/chat/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      if (!res.ok) throw new Error(`HTTP error ${res.status}`)
-      return await res.json()
-    } catch (err) {
+    if (!isLiveMode()) {
       return {
         id: 'm_' + Date.now(),
         sender_id: 'self',
@@ -193,19 +274,29 @@ export const apiClient = {
         timestamp: 'Just now',
       }
     }
-  },
 
-  async sendQuote(payload: CreateQuotePayload): Promise<CustomQuote> {
+    const endpoint = `${API_BASE_URL}/chat/conversations/${payload.receiver_id}/messages`
     try {
-      console.log(`[API Client] POST ${API_BASE_URL}/chat/quotes`, payload)
-      const res = await fetch(`${API_BASE_URL}/chat/quotes`, {
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
-      if (!res.ok) throw new Error(`HTTP error ${res.status}`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
       return await res.json()
-    } catch (err) {
+    } catch (err: any) {
+      notifyApiError({
+        endpoint: `/chat/conversations/${payload.receiver_id}/messages`,
+        method: 'POST',
+        message: err?.message || 'Failed to send live message',
+        timestamp: new Date().toLocaleTimeString(),
+      })
+      throw err
+    }
+  },
+
+  async sendQuote(payload: CreateQuotePayload): Promise<CustomQuote> {
+    if (!isLiveMode()) {
       return {
         id: 'q_' + Date.now(),
         creator_id: 'self',
@@ -218,14 +309,37 @@ export const apiClient = {
         created_at: new Date().toISOString(),
       }
     }
+
+    const endpoint = `${API_BASE_URL}/chat/quotes`
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      return await res.json()
+    } catch (err: any) {
+      notifyApiError({
+        endpoint: '/chat/quotes',
+        method: 'POST',
+        message: err?.message || 'Failed to submit quote',
+        timestamp: new Date().toLocaleTimeString(),
+      })
+      throw err
+    }
   },
 
   // ─── MEDIA UPLOAD ────────────────────────────────────────────────────────────
   async uploadPortfolioImage(file: File): Promise<string> {
     const compressedWebP = await compressImageToWebP(file, 1920, 0.82)
+    if (!isLiveMode()) {
+      return URL.createObjectURL(compressedWebP)
+    }
+
+    const endpoint = `${API_BASE_URL}/media/upload-url`
     try {
-      console.log(`[API Client] Requesting presigned URL for ${compressedWebP.name} (${compressedWebP.size} bytes)`)
-      const res = await fetch(`${API_BASE_URL}/media/upload-url`, {
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ file_name: compressedWebP.name, file_size: compressedWebP.size }),
@@ -240,35 +354,61 @@ export const apiClient = {
       })
 
       return public_url
-    } catch (err) {
-      return URL.createObjectURL(compressedWebP)
+    } catch (err: any) {
+      notifyApiError({
+        endpoint: '/media/upload-url',
+        method: 'POST',
+        message: err?.message || 'Failed to upload image to storage',
+        timestamp: new Date().toLocaleTimeString(),
+      })
+      throw err
     }
   },
 
   // ─── PAYOUTS & FINANCIALS ─────────────────────────────────────────────────────
   async getPayoutBalance(): Promise<PayoutBalance> {
-    try {
-      console.log(`[API Client] GET ${API_BASE_URL}/payouts/balance`)
-      const res = await fetch(`${API_BASE_URL}/payouts/balance`)
-      if (!res.ok) throw new Error(`HTTP error ${res.status}`)
-      return await res.json()
-    } catch (err) {
+    if (!isLiveMode()) {
       return { available_balance: 42500, pending_escrow: 17500, total_earned: 185000, upi_id: 'rhea@upi' }
+    }
+
+    const endpoint = `${API_BASE_URL}/payouts/balance`
+    try {
+      const res = await fetch(endpoint)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      return await res.json()
+    } catch (err: any) {
+      notifyApiError({
+        endpoint: '/payouts/balance',
+        method: 'GET',
+        message: err?.message || 'Failed to fetch payout balance',
+        timestamp: new Date().toLocaleTimeString(),
+      })
+      throw err
     }
   },
 
   async withdrawPayout(payload: WithdrawPayload): Promise<{ success: boolean; message: string }> {
+    if (!isLiveMode()) {
+      return { success: true, message: `Withdrawal request for ₹${payload.amount} submitted in Sandbox mode` }
+    }
+
+    const endpoint = `${API_BASE_URL}/payouts/withdraw`
     try {
-      console.log(`[API Client] POST ${API_BASE_URL}/payouts/withdraw`, payload)
-      const res = await fetch(`${API_BASE_URL}/payouts/withdraw`, {
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
-      if (!res.ok) throw new Error(`HTTP error ${res.status}`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
       return await res.json()
-    } catch (err) {
-      return { success: true, message: `Withdrawal request for ₹${payload.amount} submitted for admin review` }
+    } catch (err: any) {
+      notifyApiError({
+        endpoint: '/payouts/withdraw',
+        method: 'POST',
+        message: err?.message || 'Failed to request withdrawal',
+        timestamp: new Date().toLocaleTimeString(),
+      })
+      throw err
     }
-  }
+  },
 }

@@ -1,8 +1,9 @@
-use axum::{routing::{get, post, put}, Json, Router};
+use axum::{routing::{get, post}, Json, Router};
 use serde_json::{json, Value};
 use crate::models::user::{PhoneAuthPayload, VerifyOtpPayload};
+use crate::state::AppState;
 
-pub fn router() -> Router {
+pub fn router() -> Router<AppState> {
     Router::new()
         .route("/phone", post(send_phone_otp))
         .route("/verify", post(verify_otp))
