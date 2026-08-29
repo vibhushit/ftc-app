@@ -4,7 +4,7 @@ import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { pic } from '@/data/constants'
 import { cn } from '@/utils'
-import { compressImageToWebP } from '@/utils/imageCompressor'
+import { apiClient } from '@/services/apiClient'
 import { OnboardShell } from './OnboardShell'
 
 export function CreatorOnboard3() {
@@ -27,13 +27,12 @@ export function CreatorOnboard3() {
     const selectedFiles = Array.from(files).slice(0, remainingSlots)
 
     try {
-      const compressedWebPFiles = await Promise.all(
-        selectedFiles.map(file => compressImageToWebP(file, 1920, 0.82))
+      const uploadedUrls = await Promise.all(
+        selectedFiles.map(file => apiClient.uploadPortfolioImage(file))
       )
-      const newUrls = compressedWebPFiles.map(file => URL.createObjectURL(file))
-      addPics(newUrls)
+      addPics(uploadedUrls)
     } catch (err) {
-      console.warn('Image compression failed:', err)
+      console.warn('Portfolio upload failed:', err)
     } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''

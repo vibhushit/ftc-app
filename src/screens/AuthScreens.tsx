@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { ArrowLeft, ArrowRight, X, Mail, RotateCcw } from 'lucide-react'
+import { ArrowLeft, ArrowRight, X, Mail, RotateCcw, Sparkles, CheckCircle2, UserCheck, Palette } from 'lucide-react'
 import { BrandIcon } from '@/components/ui/BrandIcon'
 import { useAppStore } from '@/store/appStore'
 import { useShallow } from 'zustand/shallow'
@@ -7,6 +7,7 @@ import { cn } from '@/utils'
 import { supabaseAvailable } from '@/lib/supabase'
 import * as authApi from '@/lib/api/auth'
 import { apiClient } from '@/services/apiClient'
+import { isLiveMode } from '@/config/environmentMode'
 
 function GoogleG({ size = 18 }: { size?: number }) {
   return (
@@ -33,79 +34,147 @@ export function PhoneScreen() {
     setError('')
     setLoading(true)
     try {
-      if (looksEmail && supabaseAvailable) {
+      if (looksEmail && supabaseAvailable && isLiveMode()) {
         await authApi.sendEmailOtp(val.trim())
         dispatch({ type: 'SET_PENDING_PHONE', phone: val.trim() })
         dispatch({ type: 'GO', screen: 'magicLinkSent' })
-      } else {
-        // Send phone OTP to Rust API backend
+      } else if (looksPhone && isLiveMode()) {
         await apiClient.sendPhoneOtp(val.trim())
         dispatch({ type: 'SET_PENDING_PHONE', phone: val.trim() })
+        dispatch({ type: 'GO', screen: 'otp' })
+      } else {
+        // Sandbox mode or offline demo
+        dispatch({ type: 'SET_PENDING_PHONE', phone: val.trim() || 'demo@findtoconnect.com' })
         dispatch({ type: 'GO', screen: 'role' })
       }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to send code. Try again.')
+    } catch (e: any) {
+      setError(e?.message || 'Failed to send verification. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
-  const social = (who: string) => {
-    if (who === 'google' && supabaseAvailable) {
-      authApi.signInWithGoogle().catch(console.error)
+  const social = async (provider: 'google' | 'apple') => {
+    if (provider === 'google' && supabaseAvailable && isLiveMode()) {
+      try {
+        await authApi.signInWithGoogle()
+      } catch (err: any) {
+        setError(err?.message || 'Google sign in failed')
+      }
     } else {
+      // Sandbox one-click simulated login
+      dispatch({
+        type: 'COMPLETE_AUTH',
+        isCreator: false,
+        name: 'Google User',
+        email: 'user@gmail.com',
+      })
       dispatch({ type: 'GO', screen: 'role' })
     }
   }
+
+  const quickLogin = (role: 'client' | 'creator') => {
+    if (role === 'client') {
+      dispatch({
+        type: 'COMPLETE_AUTH',
+        isCreator: false,
+        name: 'Rhea Kapoor',
+        email: 'rhea@findtoconnect.com',
+        city: 'Delhi',
+      })
+      dispatch({ type: 'GO_TAB', tab: 'home' })
+    } else {
+      dispatch({
+        type: 'COMPLETE_AUTH',
+        isCreator: true,
+        name: 'Arjun Verma',
+        email: 'arjun@findtoconnect.com',
+        city: 'Mumbai',
+      })
+      dispatch({ type: 'GO_TAB', tab: 'home' })
+    }
+  }
+
   return (
     <div className="flex-1 flex flex-col bg-paper">
-      <div className="px-5 pt-1 pb-3 flex items-center border-b border-line">
+      <div className="px-5 pt-3 pb-3 flex items-center border-b border-line">
         <button onClick={() => dispatch({ type: 'GO', screen: 'welcome' })} className="tap w-9 h-9 -ml-1.5 grid place-items-center rounded-full">
           <X size={20} />
         </button>
         <span className="flex-1 text-center font-display text-[17px] tracking-tight -ml-9">Log in or sign up</span>
       </div>
-      <div className="flex-1 overflow-y-auto px-6 pt-8 pb-6">
+
+      <div className="flex-1 overflow-y-auto px-6 pt-8 pb-6 max-w-md mx-auto w-full">
         <div className="flex justify-center mb-5"><BrandIcon size={48} /></div>
-        <h1 className="font-display text-[26px] tracking-tight text-center leading-tight mb-7">Welcome to FTC</h1>
-        <div className="rounded-2xl border-2 border-obsidian/15 focus-within:border-obsidian px-4 py-3.5 transition">
+        <h1 className="font-display text-[26px] tracking-tight text-center leading-tight mb-2">Welcome to FTC</h1>
+        <p className="text-[13px] text-obsidian/55 text-center mb-7">Enter your email or phone to receive a login code</p>
+
+        {/* Input field */}
+        <div className="rounded-2xl border-2 border-obsidian/15 focus-within:border-obsidian px-4 py-3.5 transition bg-bone/30">
           <input
             autoFocus
             value={val}
             onChange={e => setVal(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && cont()}
-            placeholder="Phone number or email"
+            placeholder="name@example.com or +91 98765 43210"
             className="w-full bg-transparent outline-none text-[15px] placeholder:text-obsidian/40"
           />
         </div>
         {error && <p className="mt-2 text-[12.5px] text-danger font-medium">{error}</p>}
-        <p className="mt-3 text-[12.5px] text-obsidian/55 leading-relaxed">
-          We'll send a confirmation code by text or email. Message and data rates may apply.
-        </p>
-        <button className="tap mt-1 text-[12.5px] font-semibold text-obsidian underline">Privacy Policy</button>
+
         <button
           onClick={cont}
           disabled={!ok || loading}
-          className="tap w-full mt-5 py-4 rounded-2xl text-paper font-semibold text-[15px] transition disabled:opacity-40"
+          className="tap w-full mt-4 py-4 rounded-2xl text-paper font-semibold text-[15px] transition disabled:opacity-40 shadow-sm"
           style={{ background: 'linear-gradient(90deg,#7D61F2,#9B7BFF)' }}
         >
-          {loading ? 'Sending code…' : 'Continue'}
+          {loading ? 'Sending code…' : 'Continue with Email / Phone'}
         </button>
+
+        {/* Divider */}
         <div className="flex items-center gap-3 my-6">
           <div className="flex-1 h-px bg-obsidian/10" />
-          <span className="text-[12px] font-medium text-obsidian/45">or</span>
+          <span className="text-[12px] font-medium text-obsidian/45">or continue with</span>
           <div className="flex-1 h-px bg-obsidian/10" />
         </div>
-        <div className="flex items-center justify-center gap-3">
-          <button onClick={() => social('google')} className="tap w-20 h-16 rounded-2xl border-2 border-line bg-paper grid place-items-center active:bg-bone">
-            <GoogleG size={24} />
-          </button>
-          <button onClick={() => social('apple')} className="tap w-20 h-16 rounded-2xl border-2 border-line bg-paper grid place-items-center active:bg-bone">
-            <svg width={20} height={20} viewBox="0 0 24 24" fill="currentColor"><path d="M16.365 1.43c0 1.14-.493 2.27-1.177 3.08-.744.9-1.99 1.57-2.987 1.49-.12-1.15.43-2.35 1.07-3.08.71-.84 1.99-1.46 3.09-1.49zM20.5 17.2c-.42.96-.62 1.39-1.16 2.24-.76 1.18-1.83 2.65-3.16 2.66-1.18.01-1.48-.77-3.08-.76-1.6.01-1.93.77-3.11.76-1.33-.01-2.34-1.34-3.1-2.52-2.13-3.3-2.36-7.17-1.04-9.23.94-1.47 2.42-2.33 3.81-2.33 1.42 0 2.31.78 3.48.78 1.14 0 1.83-.78 3.48-.78 1.24 0 2.55.67 3.49 1.83-3.07 1.68-2.57 6.06.39 7.35z"/></svg>
-          </button>
-        </div>
+
+        {/* Google OAuth Button */}
+        <button
+          onClick={() => social('google')}
+          className="tap w-full py-3.5 px-4 rounded-2xl border-2 border-line bg-paper flex items-center justify-center gap-3 active:bg-bone hover:border-obsidian/30 transition-all shadow-xs"
+        >
+          <GoogleG size={20} />
+          <span className="text-[14px] font-medium text-obsidian">Continue with Google</span>
+        </button>
+
+        {/* Sandbox Quick Test Presets */}
+        {!isLiveMode() && (
+          <div className="mt-8 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30">
+            <div className="flex items-center gap-1.5 text-[11px] font-mono font-semibold text-amber-900 uppercase tracking-wider mb-2.5">
+              <Sparkles size={13} className="text-amber-600" />
+              <span>Sandbox 1-Click Login</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => quickLogin('client')}
+                className="tap py-2.5 px-3 rounded-xl bg-paper border border-amber-500/40 text-[12px] font-medium text-obsidian hover:bg-amber-50 text-left flex items-center gap-2"
+              >
+                <UserCheck size={14} className="text-iris shrink-0" />
+                <span className="truncate">Client: Rhea</span>
+              </button>
+              <button
+                onClick={() => quickLogin('creator')}
+                className="tap py-2.5 px-3 rounded-xl bg-paper border border-amber-500/40 text-[12px] font-medium text-obsidian hover:bg-amber-50 text-left flex items-center gap-2"
+              >
+                <Palette size={14} className="text-iris shrink-0" />
+                <span className="truncate">Creator: Arjun</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="mt-6 text-center">
-          <button onClick={() => dispatch({ type: 'GO', screen: 'role' })} className="tap text-[12.5px] text-obsidian/45">
+          <button onClick={() => dispatch({ type: 'GO', screen: 'role' })} className="tap text-[12.5px] text-obsidian/45 hover:text-obsidian transition">
             Continue as guest →
           </button>
         </div>
@@ -137,40 +206,44 @@ export function MagicLinkSentScreen() {
           <ArrowLeft size={20} />
         </button>
       </div>
-      <div className="flex-1 flex flex-col items-center justify-center px-8 text-center">
+      <div className="flex-1 flex flex-col items-center justify-center px-8 text-center max-w-sm mx-auto w-full">
         <div className="w-20 h-20 rounded-full bg-iris/10 grid place-items-center mb-6">
           <Mail size={36} className="text-iris" />
         </div>
         <h1 className="font-display text-3xl tracking-tight leading-tight">
-          Check your<br /><span className="italic">email.</span>
+          Check your<br /><span className="italic">email inbox.</span>
         </h1>
-        <p className="mt-4 text-[14px] text-obsidian/60 leading-relaxed max-w-xs">
-          We sent a sign-in link to <span className="font-semibold text-obsidian">{pendingPhone}</span>.<br />
-          Open it on this device to continue.
+        <p className="mt-4 text-[14px] text-obsidian/60 leading-relaxed">
+          We sent a sign-in magic link to <span className="font-semibold text-obsidian">{pendingPhone}</span>.
         </p>
-        <div className="mt-6 w-full max-w-xs p-4 rounded-2xl bg-bone border border-line text-left space-y-3">
-          <div className="text-[10px] font-mono uppercase tracking-wider text-obsidian/50">What to do</div>
+
+        <div className="mt-6 w-full p-4 rounded-2xl bg-bone border border-line text-left space-y-3">
+          <div className="text-[10px] font-mono uppercase tracking-wider text-obsidian/50">Next steps</div>
           {[
-            'Open your email app',
-            'Find the email from FTC',
-            'Tap \u201cSign in to FTC\u201d',
+            'Open your email inbox',
+            'Find the email from FTC (FindToConnect)',
+            'Tap “Sign in to FTC” to automatically log in',
           ].map((s, i) => (
             <div key={i} className="flex items-center gap-3 text-[13px]">
               <div className="w-5 h-5 rounded-full bg-iris text-paper text-[10px] font-bold grid place-items-center shrink-0">{i + 1}</div>
-              {s}
+              <span>{s}</span>
             </div>
           ))}
         </div>
+
         {resent && (
-          <p className="mt-4 text-[12.5px] text-success font-medium">Email resent!</p>
+          <p className="mt-4 text-[12.5px] text-success font-medium flex items-center gap-1.5">
+            <CheckCircle2 size={14} /> Magic link resent!
+          </p>
         )}
+
         <button
           onClick={resend}
           disabled={resending}
           className="tap mt-5 flex items-center gap-2 text-[13px] font-medium text-iris disabled:opacity-50"
         >
-          <RotateCcw size={14} />
-          {resending ? 'Sending…' : 'Resend email'}
+          <RotateCcw size={14} className={cn(resending && 'animate-spin')} />
+          {resending ? 'Sending…' : 'Resend email link'}
         </button>
       </div>
     </div>
@@ -183,13 +256,16 @@ export function OtpScreen() {
   const [loading, setLoading] = useState(false)
   const [error, setError]   = useState('')
   const inputs = useRef<(HTMLInputElement | null)[]>([])
+
   useEffect(() => { inputs.current[0]?.focus() }, [])
+
   const handle = (i: number, v: string) => {
     v = v.replace(/\D/g, '').slice(0, 1)
     const next = [...otp]; next[i] = v; setOtp(next)
     if (v && i < 5) inputs.current[i + 1]?.focus()
     if (!v && i > 0) inputs.current[i - 1]?.focus()
   }
+
   const handlePaste = (e: React.ClipboardEvent) => {
     const digits = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
     if (digits.length < 4) return
@@ -205,34 +281,36 @@ export function OtpScreen() {
     setError('')
     setLoading(true)
     try {
-      if (supabaseAvailable && pendingPhone) {
+      if (supabaseAvailable && pendingPhone && isLiveMode()) {
         const isEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(pendingPhone)
         await authApi.verifyOtp(pendingPhone, otp.join(''), isEmail ? 'email' : 'sms')
-        // AuthProvider will sync the user and navigate to role
-        dispatch({ type: 'GO', screen: 'role' })
       } else {
+        dispatch({ type: 'COMPLETE_AUTH', isCreator: false })
         dispatch({ type: 'GO', screen: 'role' })
       }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Invalid code. Please try again.')
+    } catch (e: any) {
+      setError(e?.message || 'Invalid code. Please try again.')
       setLoading(false)
     }
   }
+
   return (
     <div className="flex-1 flex flex-col bg-paper">
       <div className="px-6 py-4 flex items-center justify-between">
         <button onClick={() => dispatch({ type: 'BACK' })} className="tap w-10 h-10 -ml-2 grid place-items-center">
           <ArrowLeft size={20} />
         </button>
-        <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-obsidian/50">Step 2 of 2</span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-obsidian/50">Verification</span>
       </div>
-      <div className="flex-1 px-6 pt-4">
+
+      <div className="flex-1 px-6 pt-4 max-w-sm mx-auto w-full">
         <h1 className="font-display text-4xl font-light tracking-tight leading-tight">
-          Enter the<br /><span className="italic">code.</span>
+          Enter 6-digit<br /><span className="italic">code.</span>
         </h1>
         <p className="mt-3 text-obsidian/60 text-[14px]">
-          {pendingPhone ? `Sent to ${pendingPhone}` : 'Sent via SMS.'}
+          {pendingPhone ? `Sent to ${pendingPhone}` : 'Sent to your device.'}
         </p>
+
         <div className="mt-10 flex gap-2 justify-between">
           {otp.map((v, i) => (
             <input
@@ -248,15 +326,17 @@ export function OtpScreen() {
           ))}
         </div>
         {error && <p className="mt-3 text-[12.5px] text-danger font-medium">{error}</p>}
+
         <div className="mt-4 flex items-center justify-between text-[12px]">
           <span className="text-obsidian/50">Didn't receive?</span>
           <button
-            onClick={() => { if (pendingPhone && supabaseAvailable) authApi.sendOtp(pendingPhone) }}
-            className="text-iris font-medium"
+            onClick={() => { if (pendingPhone && supabaseAvailable) authApi.sendEmailOtp(pendingPhone) }}
+            className="text-iris font-medium hover:underline"
           >Resend code</button>
         </div>
       </div>
-      <div className="px-6 pb-10">
+
+      <div className="px-6 pb-10 max-w-sm mx-auto w-full">
         <button
           disabled={!allFilled || loading}
           onClick={verify}
@@ -273,14 +353,15 @@ export function RoleScreen() {
   const dispatch = useAppStore(s => s.dispatch)
   const [hover, setHover] = useState<string | null>(null)
   const [sel, setSel] = useState<string | null>(null)
-  const choose = async (role: string) => {
+
+  const choose = async (role: 'client' | 'creator') => {
     setSel(role)
     try {
       await apiClient.selectRole(role)
     } catch (e) {
       console.warn('[FTC] selectRole API failed:', e)
     }
-    if (supabaseAvailable) {
+    if (supabaseAvailable && isLiveMode()) {
       try {
         await authApi.setUserRole(role === 'creator' ? 'creator' : 'consumer')
       } catch (e) {
@@ -291,44 +372,64 @@ export function RoleScreen() {
       ? dispatch({ type: 'COMPLETE_AUTH', isCreator: false })
       : dispatch({ type: 'GO', screen: 'creatorOnboard1' }), 350)
   }
+
   const isOn = (key: string) => sel === key || (sel === null && hover === key)
   const cardCls = (key: string, accent: string) => cn(
     'tap w-full p-6 rounded-3xl text-left relative overflow-hidden border-2 transition-all duration-500',
     isOn(key) ? (accent === 'dark' ? 'bg-obsidian text-paper border-obsidian shadow-2xl' : 'bg-iris text-paper border-iris shadow-2xl') : 'bg-paper text-obsidian border-line',
     sel === key && 'ring-2 ring-offset-2 ring-obsidian',
   )
+
   return (
-    <div className="flex-1 flex flex-col bg-paper min-h-0">
-      <div className="flex-1 overflow-y-auto min-h-0 px-6 pt-10 pb-10">
-        <BrandIcon size={36} />
-        <h1 className="font-display text-4xl font-light tracking-tight leading-tight mt-8">
-          How will you<br /><span className="italic">use FTC?</span>
-        </h1>
-        <p className="mt-3 text-obsidian/60 text-[14px]">Pick one — you can switch later.</p>
-        <div className="space-y-4 mt-10">
-          <button onClick={() => choose('client')} onMouseEnter={() => setHover('client')} onMouseLeave={() => setHover(null)} className={cardCls('client', 'dark')}>
-            <div className={cn('absolute top-0 right-0 w-32 h-32 dots-acid pointer-events-none transition', isOn('client') ? 'opacity-20' : 'opacity-0')} />
-            <div className={cn('text-5xl mb-4', isOn('client') ? 'opacity-100' : 'opacity-60')}>🎯</div>
-            <div className="font-display text-2xl font-light">I want to hire</div>
-            <div className={cn('text-[13px] mt-1 transition-colors', isOn('client') ? 'text-paper/70' : 'text-obsidian/60')}>
-              Photographers, designers, tattoo artists — book them for projects and events.
-            </div>
-            <div className={cn('mt-5 flex items-center gap-1 text-[13px] font-medium transition-colors', isOn('client') ? 'text-acid' : 'text-iris')}>
-              {sel === 'client' ? 'Setting you up…' : <><span>Continue as client</span> <ArrowRight size={14} /></>}
-            </div>
-          </button>
-          <button onClick={() => choose('creator')} onMouseEnter={() => setHover('creator')} onMouseLeave={() => setHover(null)} className={cardCls('creator', 'iris')}>
-            <div className={cn('absolute top-0 right-0 w-32 h-32 dots-acid pointer-events-none transition', isOn('creator') ? 'opacity-20' : 'opacity-0')} />
-            <div className={cn('text-5xl mb-4', isOn('creator') ? 'opacity-100' : 'opacity-60')}>✨</div>
-            <div className="font-display text-2xl font-light">I want to be hired</div>
-            <div className={cn('text-[13px] mt-1 transition-colors', isOn('creator') ? 'text-paper/70' : 'text-obsidian/60')}>
-              Showcase your work, get discovered by brands, take bookings with protected payments.
-            </div>
-            <div className={cn('mt-5 flex items-center gap-1 text-[13px] font-medium transition-colors', isOn('creator') ? 'text-acid' : 'text-iris')}>
-              {sel === 'creator' ? "Let's build your profile…" : <><span>Apply as creator</span> <ArrowRight size={14} /></>}
-            </div>
-          </button>
+    <div className="flex-1 flex flex-col bg-paper">
+      <div className="px-6 pt-4 pb-2">
+        <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-obsidian/50">Your intent</span>
+      </div>
+      <div className="flex-1 px-6 pt-2 pb-6 flex flex-col justify-between max-w-md mx-auto w-full">
+        <div>
+          <h1 className="font-display text-4xl font-light tracking-tight leading-tight">
+            How will you<br />use <span className="italic">FTC?</span>
+          </h1>
+          <p className="mt-3 text-[14px] text-obsidian/60">
+            Select your primary role. You can switch between hiring and offering services anytime.
+          </p>
+
+          <div className="mt-8 space-y-4">
+            <button
+              onMouseEnter={() => setHover('client')}
+              onMouseLeave={() => setHover(null)}
+              onClick={() => choose('client')}
+              className={cardCls('client', 'dark')}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-display text-2xl font-light tracking-tight">I want to hire creators</span>
+                <span className="text-xl">💼</span>
+              </div>
+              <p className={cn('text-[13px] leading-relaxed', isOn('client') ? 'text-paper/70' : 'text-obsidian/60')}>
+                Discover verified photographers, videographers, editors, and stylists with escrow protection.
+              </p>
+            </button>
+
+            <button
+              onMouseEnter={() => setHover('creator')}
+              onMouseLeave={() => setHover(null)}
+              onClick={() => choose('creator')}
+              className={cardCls('creator', 'iris')}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-display text-2xl font-light tracking-tight">I am a creator</span>
+                <span className="text-xl">🎨</span>
+              </div>
+              <p className={cn('text-[13px] leading-relaxed', isOn('creator') ? 'text-paper/70' : 'text-obsidian/60')}>
+                Showcase your portfolio, receive client bookings, send custom quotes, and get paid with 0% platform fee.
+              </p>
+            </button>
+          </div>
         </div>
+
+        <p className="text-center text-[11px] text-obsidian/40 font-mono">
+          FindToConnect · Creative Services Network
+        </p>
       </div>
     </div>
   )
