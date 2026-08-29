@@ -228,15 +228,17 @@ export function LoginScreen() {
       if (supabaseAvailable && isLiveMode()) {
         await authApi.signInWithPassword(email.trim(), password)
       } else {
-        // Sandbox mock login
+        // Sandbox mock login -> follow the real signup/login flow to Role selection
+        const username = email.trim().split('@')[0] || 'User'
+        const formattedName = username.charAt(0).toUpperCase() + username.slice(1)
         dispatch({
-          type: 'COMPLETE_AUTH',
+          type: 'SYNC_AUTH_USER',
+          userId: 'mock-user-id',
+          name: formattedName,
+          email: email.trim(),
           isCreator: false,
-          name: 'Rhea Kapoor',
-          email: email.trim() || 'rhea@findtoconnect.com',
-          city: 'Delhi',
         })
-        dispatch({ type: 'GO_TAB', tab: 'home' })
+        dispatch({ type: 'GO', screen: 'role' })
       }
     } catch (e: any) {
       setError(e?.message || 'Invalid email or password. Please try again or use Forgot Password.')
