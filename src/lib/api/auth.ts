@@ -5,14 +5,24 @@ import type { UserRow, UserRole } from '@/lib/database.types'
 export async function checkEmailExists(email: string): Promise<boolean> {
   const clean = email.trim().toLowerCase()
   if (!clean) return false
+
   try {
-    const { data, error } = await supabase
-      .from('users')
+    // 1. Primary: Use dedicated RPC function that safely queries auth.users
+    const { data, error } = await (supabase.rpc as any)('check_email_exists', { lookup_email: clean })
+    if (!error && typeof data === 'boolean') {
+      return data
+    }
+  } catch {
+    // Fallback below
+  }
+
+  try {
+    // 2. Fallback: Query public.users table
+    const { data } = await (supabase.from('users') as any)
       .select('id')
       .eq('email', clean)
       .maybeSingle()
 
-    if (error) return false
     return !!data
   } catch {
     return false

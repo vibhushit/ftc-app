@@ -457,6 +457,12 @@ export function ForgotPasswordScreen() {
 
     try {
       if (supabaseAvailable && isLiveMode()) {
+        const userExists = await authApi.checkEmailExists(email.trim())
+        if (!userExists) {
+          setError('No account found with this email. Please check your spelling or sign up.')
+          setLoading(false)
+          return
+        }
         await authApi.resetPassword(email.trim())
       }
       setSent(true)
@@ -518,7 +524,20 @@ export function ForgotPasswordScreen() {
                 </div>
               </div>
 
-              {error && <p className="text-[12px] text-danger font-medium">{error}</p>}
+              {error && (
+                <div className="space-y-2">
+                  <p className="text-[12px] text-danger font-medium">{error}</p>
+                  {error.includes('No account found') && (
+                    <button
+                      type="button"
+                      onClick={() => dispatch({ type: 'GO', screen: 'signup' })}
+                      className="tap w-full py-2.5 rounded-xl bg-iris/10 text-iris text-[12.5px] font-semibold hover:bg-iris/20 transition flex items-center justify-center gap-1.5"
+                    >
+                      Create a new account →
+                    </button>
+                  )}
+                </div>
+              )}
 
               <button
                 onClick={sendReset}
