@@ -147,21 +147,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       userId: string,
       authUser: { email?: string | null; phone?: string | null; user_metadata?: Record<string, string> }
     ) {
-      const { data } = await supabase
+      const { data: userRow } = await supabase
         .from('users')
         .select('name, email, phone, role, city')
         .eq('id', userId)
         .maybeSingle()
 
-      const profile = data as UserProfileRecord | null
+      const profile = userRow as UserProfileRecord | null
 
       const hasCustomName = Boolean(profile?.name && profile.name.trim() !== '' && profile.name !== 'User')
       const name = hasCustomName
         ? (profile?.name || '')
         : authUser.user_metadata?.full_name ?? authUser.user_metadata?.name ?? ''
 
-      const isCreator = profile?.role === 'creator' || profile?.role === 'both'
-      const hasCompletedOnboarding = hasCustomName || Boolean(profile?.city) || profile?.role === 'creator'
+      // Check if user has an established creator profile
+      const { data: creatorProfile } = await supabase
+        .from('creator_profiles')
+        .select('id, is_published')
+        .eq('id', userId)
+        .maybeSingle()
+
+      const isCreator = profile?.role === 'creator' || profile?.role === 'both' || Boolean(creatorProfile)
+
+      // Only mark onboarding complete if creator profile exists or consumer has finished preferences (city)
+      const hasCompletedOnboarding = isCreator
+        ? Boolean(creatorProfile)
+        : (profile?.role === 'consumer' && Boolean(profile?.city))
 
       dispatch({
         type: 'SYNC_AUTH_USER',

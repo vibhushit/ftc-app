@@ -20,17 +20,13 @@ export function getApiBaseUrl(): string {
 
 /**
  * Reads the current environment mode from localStorage.
- * Defaults to 'live' on findtoconnect.com, and 'sandbox' on local/preview unless toggled.
+ * Defaults to 'live' across all environments.
  */
 export function getEnvironmentMode(): EnvironmentMode {
-  if (typeof window === 'undefined') return 'sandbox'
+  if (typeof window === 'undefined') return 'live'
   const saved = localStorage.getItem(STORAGE_KEY)
   if (saved === 'live' || saved === 'sandbox') return saved
-  
-  if (window.location.hostname.includes('findtoconnect.com')) {
-    return 'live'
-  }
-  return 'sandbox'
+  return 'live'
 }
 
 /**

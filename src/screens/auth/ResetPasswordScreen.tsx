@@ -62,14 +62,26 @@ export function ResetPasswordScreen() {
         }
 
         await authApi.updateUserPassword(newPassword)
-        // Cleanly sign out temporary recovery token so user logs in cleanly
-        await supabase.auth.signOut()
       }
       setSuccess(true)
-      setTimeout(() => {
-        dispatch({ type: 'RESET' })
-        dispatch({ type: 'GO', screen: 'login' })
-      }, 1600)
+      setTimeout(async () => {
+        if (supabaseAvailable && isLiveMode()) {
+          try {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (user) {
+              const { data: userProfile } = await (supabase.from('users') as any).select('role, city').eq('id', user.id).maybeSingle()
+              const p = userProfile as { role?: string; city?: string } | null
+              if (p?.role === 'creator' || (p?.role === 'consumer' && p?.city)) {
+                dispatch({ type: 'COMPLETE_AUTH', isCreator: p.role === 'creator', name: user.user_metadata?.name || 'User', city: p.city })
+                dispatch({ type: 'GO_TAB', tab: 'home' })
+                return
+              }
+            }
+          } catch {}
+        }
+        // Direct to role selection
+        dispatch({ type: 'GO', screen: 'role' })
+      }, 1400)
     } catch (e: any) {
       const msg = e?.message || ''
       if (msg.toLowerCase().includes('auth session missing') || msg.toLowerCase().includes('expired') || msg.toLowerCase().includes('jwt')) {
