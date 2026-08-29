@@ -147,3 +147,22 @@ export async function resetPassword(email: string) {
   return true
 }
 
+export async function updateUserPassword(newPassword: string) {
+  const { data, error } = await supabase.auth.updateUser({
+    password: newPassword,
+  })
+  if (error) throw error
+  return data
+}
+
+export async function verifyPasswordResetOtp(email: string, token: string) {
+  const { data, error } = await supabase.auth.verifyOtp({
+    email,
+    token,
+    type: 'recovery',
+  })
+  if (error) throw error
+  return data
+}
+
+

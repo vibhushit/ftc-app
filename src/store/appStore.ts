@@ -45,6 +45,7 @@ const DEFAULT_STATE: AppState = {
   creatorAvailability: { 27: 'booked', 30: 'booked' },
   pendingPhone: null,
   supabaseUserId: null,
+  hasCreatorProfile: false,
 }
 
 function reduce(state: AppState, action: AppAction): AppState {
@@ -92,6 +93,7 @@ function reduce(state: AppState, action: AppAction): AppState {
       return {
         ...state, isAuthed: true,
         isCreator: action.isCreator ?? state.isCreator,
+        hasCreatorProfile: action.isCreator ?? state.hasCreatorProfile,
         user: {
           ...state.user,
           name:  action.name  ?? state.user.name,
@@ -102,7 +104,7 @@ function reduce(state: AppState, action: AppAction): AppState {
         screen: 'home', activeTab: 'home',
       }
     case 'MARK_CREATOR':
-      return { ...state, isCreator: true }
+      return { ...state, isCreator: true, hasCreatorProfile: true }
     case 'SET_SPONSOR_ROLE':
       return { ...state, sponsorRole: action.role }
     case 'ADD_CAMPAIGN':
@@ -114,6 +116,10 @@ function reduce(state: AppState, action: AppAction): AppState {
     case 'UPDATE_DEAL':
       return { ...state, deals: state.deals.map(d => d.id === action.id ? { ...d, ...action.patch } : d) }
     case 'SET_ROLE':
+      if (action.isCreator && !state.hasCreatorProfile) {
+        // Not a registered creator yet -> route to Onboarding
+        return { ...state, prevScreen: state.screen, screen: 'creatorOnboard1' }
+      }
       return { ...state, isCreator: action.isCreator, screen: 'home', activeTab: 'home', prevScreen: null, crmTab: 'inquiry' }
     case 'UPDATE_USER':
       return { ...state, user: { ...state.user, ...action.patch } }
@@ -141,6 +147,7 @@ function reduce(state: AppState, action: AppAction): AppState {
         isAuthed: true,
         supabaseUserId: action.userId,
         isCreator: action.isCreator ?? state.isCreator,
+        hasCreatorProfile: action.isCreator ?? state.hasCreatorProfile,
         user: {
           ...state.user,
           name:  action.name  || state.user.name,
