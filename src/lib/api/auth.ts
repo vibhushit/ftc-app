@@ -142,17 +142,36 @@ export async function signInWithPassword(email: string, password: string) {
 }
 
 export async function sendSignUpVerificationLink(email: string, name?: string) {
-  const { data, error } = await supabase.auth.signInWithOtp({
+  const redirectUrl = typeof window !== 'undefined' ? `${window.location.origin}/#reset` : undefined
+  
+  // Use signUp with initial token to check duplicates and send activation link
+  const { data, error } = await supabase.auth.signUp({
     email,
+    password: `FTC_Initial_${Math.random().toString(36).slice(2)}!2026`,
     options: {
-      shouldCreateUser: true,
       data: {
         full_name: name || '',
       },
-      emailRedirectTo: typeof window !== 'undefined' ? `${window.location.origin}/#reset` : undefined,
+      emailRedirectTo: redirectUrl,
     },
   })
-  if (error) throw error
+
+  if (error) {
+    if (
+      error.message.toLowerCase().includes('already registered') ||
+      error.message.toLowerCase().includes('already exists') ||
+      error.message.toLowerCase().includes('user already')
+    ) {
+      throw new Error('This email is already registered. Please sign in instead.')
+    }
+    throw error
+  }
+
+  // If email confirmation is enabled and user already exists, Supabase returns empty identities
+  if (data?.user && (!data.user.identities || data.user.identities.length === 0)) {
+    throw new Error('This email is already registered. Please sign in instead.')
+  }
+
   return data
 }
 

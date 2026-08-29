@@ -76,13 +76,18 @@ export function SignUpScreen() {
 
   return (
     <div className="flex-1 flex flex-col bg-paper">
-      <div className="px-5 pt-3 pb-3 flex items-center border-b border-line">
-        <button onClick={() => dispatch({ type: 'GO', screen: 'welcome' })} className="tap w-9 h-9 -ml-1.5 grid place-items-center rounded-full">
+      <div className="px-5 pt-3 pb-3 flex items-center justify-between border-b border-line">
+        <button
+          type="button"
+          onClick={() => dispatch({ type: 'GO', screen: 'welcome' })}
+          className="tap w-9 h-9 -ml-1.5 grid place-items-center rounded-full z-10 hover:bg-bone transition cursor-pointer"
+        >
           <ArrowLeft size={20} />
         </button>
-        <span className="flex-1 text-center font-display text-[17px] tracking-tight -ml-9">
+        <span className="font-display text-[17px] tracking-tight">
           Create Account
         </span>
+        <div className="w-9" />
       </div>
 
       <div className="flex-1 overflow-y-auto px-6 pt-6 pb-8 max-w-md mx-auto w-full flex flex-col justify-between">
@@ -282,13 +287,18 @@ export function LoginScreen() {
 
   return (
     <div className="flex-1 flex flex-col bg-paper">
-      <div className="px-5 pt-3 pb-3 flex items-center border-b border-line">
-        <button onClick={() => dispatch({ type: 'GO', screen: 'welcome' })} className="tap w-9 h-9 -ml-1.5 grid place-items-center rounded-full">
+      <div className="px-5 pt-3 pb-3 flex items-center justify-between border-b border-line">
+        <button
+          type="button"
+          onClick={() => dispatch({ type: 'GO', screen: 'welcome' })}
+          className="tap w-9 h-9 -ml-1.5 grid place-items-center rounded-full z-10 hover:bg-bone transition cursor-pointer"
+        >
           <ArrowLeft size={20} />
         </button>
-        <span className="flex-1 text-center font-display text-[17px] tracking-tight -ml-9">
+        <span className="font-display text-[17px] tracking-tight">
           Sign In
         </span>
+        <div className="w-9" />
       </div>
 
       <div className="flex-1 overflow-y-auto px-6 pt-6 pb-8 max-w-md mx-auto w-full">
@@ -462,13 +472,18 @@ export function ForgotPasswordScreen() {
 
   return (
     <div className="flex-1 flex flex-col bg-paper">
-      <div className="px-5 py-4 flex items-center border-b border-line">
-        <button onClick={() => dispatch({ type: 'GO', screen: 'login' })} className="tap w-9 h-9 -ml-1.5 grid place-items-center rounded-full">
+      <div className="px-5 py-4 flex items-center justify-between border-b border-line">
+        <button
+          type="button"
+          onClick={() => dispatch({ type: 'GO', screen: 'login' })}
+          className="tap w-9 h-9 -ml-1.5 grid place-items-center rounded-full z-10 hover:bg-bone transition cursor-pointer"
+        >
           <ArrowLeft size={20} />
         </button>
-        <span className="flex-1 text-center font-display text-[17px] tracking-tight -ml-9">
+        <span className="font-display text-[17px] tracking-tight">
           Reset Password
         </span>
+        <div className="w-9" />
       </div>
 
       <div className="flex-1 overflow-y-auto px-6 pt-8 pb-8 max-w-sm mx-auto w-full flex flex-col justify-between">
@@ -603,13 +618,18 @@ export function ResetPasswordScreen() {
 
   return (
     <div className="flex-1 flex flex-col bg-paper">
-      <div className="px-5 py-4 flex items-center border-b border-line">
-        <button onClick={() => dispatch({ type: 'GO', screen: 'login' })} className="tap w-9 h-9 -ml-1.5 grid place-items-center rounded-full">
+      <div className="px-5 py-4 flex items-center justify-between border-b border-line">
+        <button
+          type="button"
+          onClick={() => dispatch({ type: 'GO', screen: 'login' })}
+          className="tap w-9 h-9 -ml-1.5 grid place-items-center rounded-full z-10 hover:bg-bone transition cursor-pointer"
+        >
           <X size={20} />
         </button>
-        <span className="flex-1 text-center font-display text-[17px] tracking-tight -ml-9">
+        <span className="font-display text-[17px] tracking-tight">
           Create New Password
         </span>
+        <div className="w-9" />
       </div>
 
       <div className="flex-1 overflow-y-auto px-6 pt-8 pb-8 max-w-sm mx-auto w-full flex flex-col justify-between">

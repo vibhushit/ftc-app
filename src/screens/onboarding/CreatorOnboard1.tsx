@@ -37,7 +37,7 @@ export function CreatorOnboard1() {
       step={1} total={5}
       title="Let's start with the basics"
       sub="This is what clients see first. Keep it real."
-      onBack={() => dispatch({ type: 'BACK' })}
+      onBack={() => dispatch({ type: 'GO', screen: 'role' })}
       cta="Continue"
       ctaDisabled={!isReady}
       ctaAction={() => {
