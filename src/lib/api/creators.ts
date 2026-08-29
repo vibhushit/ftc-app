@@ -92,8 +92,7 @@ export async function getCreatorById(id: string): Promise<CreatorWithUser | null
 export async function getCreatorByHandle(handle: string): Promise<CreatorWithUser | null> {
   const clean = handle.startsWith('@') ? handle : `@${handle}`
   try {
-    const { data, error } = await supabase
-      .from('creator_profiles')
+    const { data } = await (supabase.from('creator_profiles') as any)
       .select('*, users!inner(name, avatar_url, email, phone)')
       .ilike('handle', clean)
       .maybeSingle()
@@ -106,8 +105,7 @@ export async function getCreatorByHandle(handle: string): Promise<CreatorWithUse
 
 // ─── Onboarding ───────────────────────────────────────────────────────────────
 export async function upsertCreatorProfile(patch: Partial<CreatorProfileRow> & { id: string }) {
-  const { data, error } = await supabase
-    .from('creator_profiles')
+  const { data, error } = await (supabase.from('creator_profiles') as any)
     .upsert(patch, { onConflict: 'id' })
     .select()
     .single()
@@ -117,16 +115,14 @@ export async function upsertCreatorProfile(patch: Partial<CreatorProfileRow> & {
 }
 
 export async function setOnboardStep(id: string, step: OnboardStep) {
-  const { error } = await supabase
-    .from('creator_profiles')
+  const { error } = await (supabase.from('creator_profiles') as any)
     .update({ onboard_step: step })
     .eq('id', id)
   if (error) throw error
 }
 
 export async function publishCreatorProfile(id: string) {
-  const { data, error } = await supabase
-    .from('creator_profiles')
+  const { data, error } = await (supabase.from('creator_profiles') as any)
     .update({ is_published: true, onboard_step: 'live' })
     .eq('id', id)
     .select()
@@ -135,14 +131,13 @@ export async function publishCreatorProfile(id: string) {
   if (error) throw error
 
   // Promote user role
-  await supabase.from('users').update({ role: 'creator' }).eq('id', id)
+  await (supabase.from('users') as any).update({ role: 'creator' }).eq('id', id)
   return data
 }
 
 // ─── Availability calendar ────────────────────────────────────────────────────
 export async function getAvailability(creatorId: string, fromDate: string, toDate: string) {
-  const { data, error } = await supabase
-    .from('availability_slots')
+  const { data, error } = await (supabase.from('availability_slots') as any)
     .select('slot_date, slot_hour, status')
     .eq('creator_id', creatorId)
     .gte('slot_date', fromDate)
@@ -153,15 +148,13 @@ export async function getAvailability(creatorId: string, fromDate: string, toDat
 }
 
 export async function blockDay(creatorId: string, date: string) {
-  const { error } = await supabase
-    .from('availability_slots')
+  const { error } = await (supabase.from('availability_slots') as any)
     .upsert({ creator_id: creatorId, slot_date: date, slot_hour: null, status: 'blocked' }, { onConflict: 'creator_id,slot_date,slot_hour' })
   if (error) throw error
 }
 
 export async function unblockDay(creatorId: string, date: string) {
-  const { error } = await supabase
-    .from('availability_slots')
+  const { error } = await (supabase.from('availability_slots') as any)
     .delete()
     .eq('creator_id', creatorId)
     .eq('slot_date', date)
@@ -170,23 +163,20 @@ export async function unblockDay(creatorId: string, date: string) {
 
 // ─── Portfolio media ──────────────────────────────────────────────────────────
 export async function addPortfolioUrl(creatorId: string, url: string) {
-  const { data: profile } = await supabase
-    .from('creator_profiles')
+  const { data: profile } = await (supabase.from('creator_profiles') as any)
     .select('portfolio_urls')
     .eq('id', creatorId)
     .single()
 
   const current = profile?.portfolio_urls ?? []
-  await supabase
-    .from('creator_profiles')
+  await (supabase.from('creator_profiles') as any)
     .update({ portfolio_urls: [...current, url] })
     .eq('id', creatorId)
 }
 
 // ─── Services / packages ──────────────────────────────────────────────────────
 export async function getCreatorServices(creatorId: string) {
-  const { data, error } = await supabase
-    .from('services')
+  const { data, error } = await (supabase.from('services') as any)
     .select('*')
     .eq('creator_id', creatorId)
     .eq('is_active', true)
@@ -196,12 +186,11 @@ export async function getCreatorServices(creatorId: string) {
 }
 
 export async function removePortfolioUrl(creatorId: string, url: string) {
-  const { data: profile } = await supabase
-    .from('creator_profiles')
+  const { data: profile } = await (supabase.from('creator_profiles') as any)
     .select('portfolio_urls')
     .eq('id', creatorId)
     .single()
 
   const updated = (profile?.portfolio_urls ?? []).filter((u: string) => u !== url)
-  await supabase.from('creator_profiles').update({ portfolio_urls: updated }).eq('id', creatorId)
+  await (supabase.from('creator_profiles') as any).update({ portfolio_urls: updated }).eq('id', creatorId)
 }

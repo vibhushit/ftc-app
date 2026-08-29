@@ -73,7 +73,7 @@ export function DiscoverScreen() {
 
   const results = useMemo((): Creator[] => {
     if (supabaseAvailable && dbData && dbData.length > 0) {
-      let list: Creator[] = (dbData as Parameters<typeof dbToCreator>[0][]).map(dbToCreator)
+      let list: Creator[] = (dbData as any[]).map(dbToCreator)
       if (filters.gender && filters.gender !== 'Any') list = list.filter((c: Creator) => c.gender === filters.gender.toLowerCase())
       return list
     }

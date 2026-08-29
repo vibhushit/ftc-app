@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Check, Lock, FileText, Upload, MessageCircle, Star, HelpCircle, Shield } from 'lucide-react'
+import { Check, Lock, FileText, Upload, MessageCircle, Star, HelpCircle } from 'lucide-react'
 import { SimpleHeader } from '@/components/ui/SimpleHeader'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'

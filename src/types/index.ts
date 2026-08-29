@@ -291,6 +291,7 @@ export interface AppState {
   pendingPhone: string | null
   supabaseUserId: string | null
   hasCreatorProfile: boolean
+  onboardOrigin?: 'me' | 'role'
 }
 
 export type AppAction =
@@ -312,6 +313,7 @@ export type AppAction =
   | { type: 'RESET_FILTERS' }
   | { type: 'SET_VIEW_MODE'; mode: 'list' | 'map' }
   | { type: 'SET_ONBOARD'; patch: Partial<OnboardState> }
+  | { type: 'START_CREATOR_ONBOARD'; origin: 'me' | 'role' }
   | { type: 'COMPLETE_AUTH'; isCreator: boolean; name?: string; city?: string; phone?: string; email?: string }
   | { type: 'MARK_CREATOR' }
   | { type: 'SET_SPONSOR_ROLE'; role: 'creator' | 'brand' }

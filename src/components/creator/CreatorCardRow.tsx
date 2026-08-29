@@ -46,7 +46,7 @@ export const CreatorCardRow = memo(function CreatorCardRow({ c, onOpen, isSaved,
             <span className="flex items-center gap-1"><MapPin size={10} />{area}, {zoneOfArea(area) || c.city}</span>
             <span className="tnum text-obsidian/50">· {distance} km</span>
             {c.travelMode && (
-              <span className="text-obsidian/50">· {(TRAVEL_MODES[c.travelMode] ?? TRAVEL_MODES.both).short}</span>
+              <span className="text-obsidian/50">· {((TRAVEL_MODES as Record<string, any>)[c.travelMode] ?? TRAVEL_MODES.both).short}</span>
             )}
             {c.availableToday && (
               <span className="flex items-center gap-0.5 text-success font-semibold">

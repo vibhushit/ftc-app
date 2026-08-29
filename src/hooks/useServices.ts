@@ -52,8 +52,7 @@ export function useCreateService() {
     mutationFn: async (input: Omit<ServiceRow, 'id' | 'creator_id' | 'created_at' | 'updated_at'>) => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
-      const { data, error } = await supabase
-        .from('services')
+      const { data, error } = await (supabase.from('services') as any)
         .insert({ ...input, creator_id: user.id })
         .select()
         .single()
@@ -72,8 +71,7 @@ export function useUpdateService() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ id, patch }: { id: string; patch: Partial<ServiceRow> }) => {
-      const { data, error } = await supabase
-        .from('services')
+      const { data, error } = await (supabase.from('services') as any)
         .update(patch)
         .eq('id', id)
         .select()
@@ -93,8 +91,7 @@ export function useDeactivateService() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('services')
+      const { error } = await (supabase.from('services') as any)
         .update({ is_active: false })
         .eq('id', id)
       if (error) throw error
@@ -111,7 +108,7 @@ export function useReorderServices() {
   return useMutation({
     mutationFn: async (ordered: { id: string; sort_order: number }[]) => {
       const updates = ordered.map(({ id, sort_order }) =>
-        supabase.from('services').update({ sort_order }).eq('id', id)
+        (supabase.from('services') as any).update({ sort_order }).eq('id', id)
       )
       await Promise.all(updates)
     },

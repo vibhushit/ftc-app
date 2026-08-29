@@ -18,10 +18,6 @@ export function CreatorOnboard2() {
   const [discipline, setDiscipline] = useState(ob.discipline)
   const [subs, setSubs] = useState<string[]>(ob.subSkills ?? [])
   const [years, setYears] = useState(ob.yearsExp ?? 3)
-  const [ooOn, setOoOn] = useState(false)
-  const [ooName, setOoName] = useState('1:1 Strategy Call')
-  const [ooMins, setOoMins] = useState(30)
-  const [ooPrice, setOoPrice] = useState(999)
 
   const subOptions = discipline ? (DISCIPLINE_CONFIG[discipline]?.sub ?? []) : []
   const isDiscValid = !!discipline
@@ -42,8 +38,7 @@ export function CreatorOnboard2() {
       ctaDisabled={!ready}
       ctaAction={() => {
         if (!ready) return
-        const oo = ooOn ? { name: ooName, mins: ooMins, price: ooPrice, type: 'Video call', today: false } : null
-        dispatch({ type: 'SET_ONBOARD', patch: { discipline, subSkills: subs, yearsExp: years, oneOnOne: oo } })
+        dispatch({ type: 'SET_ONBOARD', patch: { discipline, subSkills: subs, yearsExp: years } })
         dispatch({ type: 'GO', screen: 'creatorOnboard3' })
       }}
     >

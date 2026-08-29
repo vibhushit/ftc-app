@@ -15,7 +15,8 @@ export function CreatorOnboard5() {
   const upsert = useUpsertCreatorProfile()
   const [soc, setSoc] = useState({ ig: '', yt: '', be: '', li: '', web: '' })
   const [upi, setUpi] = useState('')
-  const [consents, setConsents] = useState({ contract: false, conduct: false, tax: false, cancel: false })
+  const [consents, setConsents] = useState<Record<string, boolean>>({ contract: false, conduct: false, tax: false, cancel: false })
+  const [openAccordions, setOpenAccordions] = useState<Record<string, boolean>>({})
   const [submitting, setSubmitting] = useState(false)
   const allConsent = consents.contract && consents.conduct && consents.tax && consents.cancel
 
@@ -93,8 +94,8 @@ export function CreatorOnboard5() {
       title="Socials & paperwork"
       sub="Link every platform you're active on. Then sign four quick agreements that protect both sides."
       onBack={() => dispatch({ type: 'GO', screen: 'creatorOnboard4' })}
-      cta={upsert.isPending ? 'Submitting…' : 'Submit for review'}
-      ctaDisabled={!isValidIg || !isValidUpi || !allConsent || upsert.isPending}
+      cta={submitting || upsert.isPending ? 'Submitting…' : 'Submit for review'}
+      ctaDisabled={!isValidIg || !isValidUpi || !allConsent || submitting || upsert.isPending}
       ctaAction={submit}
     >
       <div className="space-y-5">
@@ -162,13 +163,13 @@ export function CreatorOnboard5() {
           <div className="space-y-2">
             {AGREEMENTS.map(a => (
               <div key={a.k} className={cn('rounded-2xl border-2 overflow-hidden transition', consents[a.k] ? 'border-iris bg-iris-tint' : 'border-line bg-bone')}>
-                <button onClick={() => setOpen(o => ({ ...o, [a.k]: !o[a.k] }))} className="tap w-full flex items-center gap-2.5 px-4 py-3.5 text-left">
+                <button onClick={() => setOpenAccordions(o => ({ ...o, [a.k]: !o[a.k] }))} className="tap w-full flex items-center gap-2.5 px-4 py-3.5 text-left">
                   <span>📋</span>
                   <span className="flex-1 text-[13px] font-semibold">{a.title}</span>
                   {consents[a.k] && <span className="flex items-center gap-1 text-[11px] text-success font-semibold"><Check size={12} /> Agreed</span>}
-                  <ChevronDown size={16} className={cn('text-obsidian/40 transition-transform', open[a.k] && 'rotate-180')} />
+                  <ChevronDown size={16} className={cn('text-obsidian/40 transition-transform', openAccordions[a.k] && 'rotate-180')} />
                 </button>
-                {open[a.k] && (
+                {openAccordions[a.k] && (
                   <div className="px-4 pb-2">
                     <div className="space-y-1.5 mb-3">
                       {a.points.map((p, i) => (

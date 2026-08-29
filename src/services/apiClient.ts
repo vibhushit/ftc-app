@@ -1,7 +1,6 @@
 import type {
   Creator,
   Booking,
-  User,
   CustomQuote,
   ChatMessage,
   ChatMessagePayload,
@@ -10,10 +9,7 @@ import type {
   CreatorOnboardPayload,
   AuthResponse,
   PayoutBalance,
-  Transaction,
   WithdrawPayload,
-  Review,
-  CreateReviewPayload,
 } from '@/types/bindings'
 import { CREATORS } from '@/data/creators'
 import { compressImageToWebP } from '@/utils/imageCompressor'

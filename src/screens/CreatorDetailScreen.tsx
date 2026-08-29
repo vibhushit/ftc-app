@@ -9,8 +9,6 @@ import { useCreator, useCreatorServices } from '@/hooks/useCreators'
 import type { CreatorWithUser } from '@/lib/database.types'
 import type { Tier, Verification, Gender, TravelMode, TravelRadius, Creator } from '@/types'
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
 function dbToCreatorFull(db: CreatorWithUser): Creator {
   return {
     id:           db.id,
@@ -85,7 +83,7 @@ export function CreatorDetailScreen() {
       subSkills: ob.subSkills?.length ? ob.subSkills : ['Commercial', 'Editorial'],
       city: ob.city || state.user.city || 'Delhi',
       area: ob.area || '',
-      avatar: state.user.avatar || pic(state.user.name + '-av', 200, 200),
+      avatar: (state.user as any).avatar || pic(state.user.name + '-av', 200, 200),
       portfolio: ob.portfolio?.length ? ob.portfolio : [pic('my-1', 1200, 1500), pic('my-2', 1200, 1200)],
       rating: 5.0,
       reviews: 0,
@@ -103,7 +101,7 @@ export function CreatorDetailScreen() {
       availability: [],
       repeatRate: 0.9,
       travelRadius: 'city',
-      gender: 'prefer_not_to_say',
+      gender: 'female' as Gender,
       trustScore: 80,
       availableToday: true,
       travelMode: 'both',
@@ -133,17 +131,18 @@ export function CreatorDetailScreen() {
 
   type Pkg = { name: string; price: number; duration: string; revisions: number; delivery: string; inclusions: string[] }
   const packages: Pkg[] = dbServices && dbServices.length > 0
-    ? dbServices.map(s => ({ name: s.name, price: s.price, duration: s.duration, revisions: s.revisions, delivery: `${s.delivery_days} days`, inclusions: s.inclusions }))
+    ? dbServices.map((s: any) => ({ name: s.name, price: s.price, duration: s.duration, revisions: s.revisions, delivery: `${s.delivery_days} days`, inclusions: s.inclusions }))
     : [
         { name: 'Starter',  price: c.startingAt,                     duration: '2 hours', revisions: 1, delivery: '7 days',  inclusions: ['Up to 30 edited photos', 'Digital delivery', '1 location'] },
         { name: 'Standard', price: Math.round(c.startingAt * 2.5),   duration: '4 hours', revisions: 2, delivery: '10 days', inclusions: ['Up to 80 edited photos', 'Digital + print', '2 locations'] },
         { name: 'Premium',  price: Math.round(c.startingAt * 6),     duration: '8 hours', revisions: 4, delivery: '14 days', inclusions: ['Unlimited photos', 'Album + print', 'Multiple locations'] },
       ]
 
+  const activePackage = packages[selectedPkg] ?? packages[0] ?? { name: 'Starter', price: c.startingAt, duration: '2 hours', revisions: 1, delivery: '7 days', inclusions: [] }
   const isSaved = state.saved.includes(c.id)
   const bookDateLabel = selectedDate === null ? '' : ((23 + selectedDate) > 30 ? 'May ' + (23 + selectedDate - 30) : 'Apr ' + (23 + selectedDate))
   const bookReady = selectedDate !== null && !!selectedTime
-  const dep = depositInfo(packages[selectedPkg].price)
+  const dep = depositInfo(activePackage.price)
 
   const packagesBlock = (
     <div className="px-5 py-5 border-b border-line">
@@ -235,12 +234,12 @@ export function CreatorDetailScreen() {
       {bookReady && (
         <div className="flex items-center gap-1.5 mb-2 text-[11px] text-obsidian/60">
           <CalendarCheck size={12} className="text-success" />
-          {bookDateLabel} · {selectedTime} · {packages[selectedPkg].name}
+          {bookDateLabel} · {selectedTime} · {activePackage.name}
         </div>
       )}
       <button
         disabled={!bookReady}
-        onClick={() => dispatch({ type: 'START_BOOKING', draft: { creatorId: c.id, creatorName: c.name, creatorAvatar: c.avatar, packageName: packages[selectedPkg].name, packagePrice: packages[selectedPkg].price, date: bookDateLabel, time: selectedTime ?? '', location: c.area, notes: '' } })}
+        onClick={() => dispatch({ type: 'START_BOOKING', draft: { creatorId: c.id, creatorName: c.name, creatorAvatar: c.avatar, packageName: activePackage.name, packagePrice: activePackage.price, date: bookDateLabel, time: selectedTime ?? '', location: c.area, notes: '' } })}
         className={cn('tap w-full py-3.5 rounded-2xl font-semibold text-[14px] flex items-center justify-center gap-2', bookReady ? 'bg-obsidian text-paper' : 'bg-bone text-obsidian/40')}
       >
         {!bookReady ? 'Select date & time' : `${dep.full ? 'Book' : 'Reserve'} · ${inr(dep.advance)}`}
@@ -486,7 +485,7 @@ export function CreatorDetailScreen() {
         {bookReady && (
           <div className="flex items-center gap-1.5 mb-2 text-[11px] text-obsidian/60">
             <CalendarCheck size={12} className="text-success" />
-            {bookDateLabel} · {selectedTime} · {packages[selectedPkg].name}
+            {bookDateLabel} · {selectedTime} · {activePackage.name}
           </div>
         )}
         <div className="flex gap-2">
@@ -495,7 +494,7 @@ export function CreatorDetailScreen() {
           </button>
           <button
             disabled={!bookReady}
-            onClick={() => dispatch({ type: 'START_BOOKING', draft: { creatorId: c.id, creatorName: c.name, creatorAvatar: c.avatar, packageName: packages[selectedPkg].name, packagePrice: packages[selectedPkg].price, date: bookDateLabel, time: selectedTime ?? '', location: c.area, notes: '' } })}
+            onClick={() => dispatch({ type: 'START_BOOKING', draft: { creatorId: c.id, creatorName: c.name, creatorAvatar: c.avatar, packageName: activePackage.name, packagePrice: activePackage.price, date: bookDateLabel, time: selectedTime ?? '', location: c.area, notes: '' } })}
             className={cn('tap flex-1 py-3.5 rounded-2xl font-semibold text-[14px] flex items-center justify-center gap-2', bookReady ? 'bg-obsidian text-paper' : 'bg-bone text-obsidian/40')}
           >
             {!bookReady ? 'Select date & time' : `${dep.full ? 'Book' : 'Reserve'} · ${inr(dep.advance)}`}

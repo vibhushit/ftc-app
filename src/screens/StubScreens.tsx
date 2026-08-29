@@ -2,7 +2,7 @@ import { useState } from 'react'
 import {
   CalendarCheck, Bookmark, Bell, MessageCircle, Star, Shield, FileText,
   Settings, Calendar, Wallet, Link2, MapPin, Edit3, Sparkles, Copy,
-  Check, LogOut, ChevronRight, Share2, ExternalLink, ArrowLeft, Edit3 as EditIcon, SlidersHorizontal, Trash2
+  Check, LogOut, ChevronRight, ExternalLink, ArrowLeft, X
 } from 'lucide-react'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
@@ -30,7 +30,7 @@ export function InboxList() {
           <div className="font-display text-3xl tracking-tight leading-none">Inbox</div>
         </div>
         <button className="tap w-9 h-9 rounded-full bg-bone grid place-items-center">
-          <EditIcon size={15} />
+          <Edit3 size={15} />
         </button>
       </div>
       <div className="app-scroll pb-nav flex-1">
@@ -90,6 +90,7 @@ export function InboxScreen() {
 export function MeScreen() {
   const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
   const [copied, setCopied] = useState(false)
+  const [showCreatorModal, setShowCreatorModal] = useState(false)
   const u = state.user ?? {}
   const name: string = (u as any).name ?? 'Rhea Kapoor'
   const handle: string = (u as any).handle ?? '@rhea'
@@ -104,6 +105,11 @@ export function MeScreen() {
     } catch {}
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  const startCreatorOnboarding = () => {
+    setShowCreatorModal(false)
+    dispatch({ type: 'START_CREATOR_ONBOARD', origin: 'me' })
   }
 
   const clientMenu = [
@@ -162,7 +168,7 @@ export function MeScreen() {
                   </button>
                 ) : (
                   <button
-                    onClick={() => go('creatorOnboard1')}
+                    onClick={() => setShowCreatorModal(true)}
                     className="tap px-3 py-1.5 rounded-full bg-acid text-obsidian text-[11px] font-semibold hover:bg-acid/90 transition flex items-center gap-1.5 shadow-sm"
                   >
                     <Sparkles size={12} className="text-obsidian" />
@@ -237,17 +243,17 @@ export function MeScreen() {
               </div>
             </div>
           ) : (
-            <button onClick={() => go('creatorOnboard1')} className="tap w-full mt-2 p-5 rounded-2xl bg-acid text-left relative overflow-hidden shadow-md">
+            <button onClick={() => setShowCreatorModal(true)} className="tap w-full mt-2 p-5 rounded-2xl bg-acid text-left relative overflow-hidden shadow-md">
               <div className="absolute top-0 right-0 w-36 h-36 dots-obsidian opacity-20 pointer-events-none" style={{ transform: 'translate(25%,-25%)' }} />
               <div className="relative flex items-center gap-4">
                 <div className="w-12 h-12 rounded-2xl bg-obsidian grid place-items-center shrink-0 shadow">
                   <Sparkles size={24} className="text-acid" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-display text-xl leading-tight">Become an FTC Verified Creator</div>
-                  <div className="text-[12.5px] text-obsidian/75 mt-0.5">Build your profile, list packages, and accept escrow-protected bookings in ~7 minutes.</div>
+                  <div className="font-display text-xl leading-tight text-obsidian">Become an FTC Verified Creator</div>
+                  <div className="text-[12.5px] text-obsidian/75 mt-0.5">Build your profile, list packages, and accept escrow-protected bookings in ~3 minutes.</div>
                 </div>
-                <ChevronRight size={20} className="shrink-0" />
+                <ChevronRight size={20} className="shrink-0 text-obsidian" />
               </div>
             </button>
           )}
@@ -284,7 +290,7 @@ export function MeScreen() {
                 </button>
               ) : (
                 <button
-                  onClick={() => go('creatorOnboard1')}
+                  onClick={() => setShowCreatorModal(true)}
                   className="tap px-4 py-2.5 rounded-xl bg-acid text-obsidian text-[12.5px] font-semibold flex items-center gap-1.5 shadow-sm hover:bg-acid/90"
                 >
                   <Sparkles size={14} /> Become a Creator
@@ -301,6 +307,72 @@ export function MeScreen() {
           </div>
         </div>
       </div>
+
+      {/* Become a Creator Value Sheet / Modal */}
+      {showCreatorModal && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-obsidian/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-paper border border-line rounded-t-3xl sm:rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative overflow-hidden animate-in slide-in-from-bottom duration-300">
+            {/* Close Button */}
+            <button
+              onClick={() => setShowCreatorModal(false)}
+              className="tap absolute top-5 right-5 w-8 h-8 rounded-full bg-bone hover:bg-obsidian/10 grid place-items-center text-obsidian/60 hover:text-obsidian transition"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="w-14 h-14 rounded-2xl bg-iris/10 text-iris grid place-items-center mb-4">
+              <Sparkles size={28} />
+            </div>
+
+            <h2 className="font-display text-2xl font-light tracking-tight text-obsidian">
+              Start earning on <span className="italic font-normal">FTC</span>
+            </h2>
+            <p className="text-[13px] text-obsidian/60 mt-1 leading-relaxed">
+              Showcase your creative work, accept bookings directly, and get paid with guaranteed escrow protection.
+            </p>
+
+            <div className="my-6 space-y-3.5 bg-bone/40 p-4 rounded-2xl border border-line">
+              <div className="flex items-start gap-3 text-[13px]">
+                <span className="text-lg leading-none shrink-0">⚡</span>
+                <div>
+                  <span className="font-semibold text-obsidian">0% Commission:</span>
+                  <span className="text-obsidian/70"> Keep 100% of your earnings on direct bookings.</span>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 text-[13px]">
+                <span className="text-lg leading-none shrink-0">🛡️</span>
+                <div>
+                  <span className="font-semibold text-obsidian">Escrow Security:</span>
+                  <span className="text-obsidian/70"> Client funds are locked in escrow before you begin work.</span>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 text-[13px]">
+                <span className="text-lg leading-none shrink-0">🔗</span>
+                <div>
+                  <span className="font-semibold text-obsidian">Personal Booking Link:</span>
+                  <span className="text-obsidian/70"> Share your link-in-bio on Instagram for 1-click booking.</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2.5">
+              <button
+                onClick={startCreatorOnboarding}
+                className="tap w-full py-4 rounded-2xl bg-obsidian text-paper font-semibold text-[14.5px] flex items-center justify-center gap-2 shadow-sm hover:opacity-95 transition"
+              >
+                <span>Start Creator Profile Setup (3 mins)</span>
+                <ChevronRight size={16} />
+              </button>
+              <button
+                onClick={() => setShowCreatorModal(false)}
+                className="tap w-full py-2.5 text-[13px] font-medium text-obsidian/50 hover:text-obsidian transition"
+              >
+                Maybe Later
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Check, Clock, Lock, Zap, Calendar as CalendarIcon, Shield, ChevronRight, Loader2 } from 'lucide-react'
+import { Check, Clock, Lock, Zap, Loader2 } from 'lucide-react'
 import { SimpleHeader } from '@/components/ui/SimpleHeader'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
@@ -306,7 +306,7 @@ const PAYOUT_TXNS = [
 ]
 
 export function PayoutsScreen() {
-  const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
+  const dispatch = useAppStore(s => s.dispatch)
   const [stmt, setStmt] = useState(false)
 
   return (

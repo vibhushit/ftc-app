@@ -1,4 +1,4 @@
-import { Calendar, ChevronRight, Clock, Plus, Bell } from 'lucide-react'
+import { ChevronRight, Clock, Plus, Bell } from 'lucide-react'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { inr } from '@/data/constants'

@@ -46,6 +46,7 @@ const DEFAULT_STATE: AppState = {
   pendingPhone: null,
   supabaseUserId: null,
   hasCreatorProfile: false,
+  onboardOrigin: 'role',
 }
 
 function reduce(state: AppState, action: AppAction): AppState {
@@ -89,6 +90,8 @@ function reduce(state: AppState, action: AppAction): AppState {
       return { ...state, viewMode: action.mode }
     case 'SET_ONBOARD':
       return { ...state, onboard: { ...state.onboard, ...action.patch } }
+    case 'START_CREATOR_ONBOARD':
+      return { ...state, prevScreen: state.screen, screen: 'creatorOnboard1', onboardOrigin: action.origin }
     case 'COMPLETE_AUTH':
       return {
         ...state, isAuthed: true,
@@ -118,9 +121,9 @@ function reduce(state: AppState, action: AppAction): AppState {
     case 'SET_ROLE':
       if (action.isCreator && !state.hasCreatorProfile) {
         // Not a registered creator yet -> route to Onboarding
-        return { ...state, prevScreen: state.screen, screen: 'creatorOnboard1' }
+        return { ...state, prevScreen: state.screen, screen: 'creatorOnboard1', onboardOrigin: 'me' }
       }
-      return { ...state, isCreator: action.isCreator, screen: 'home', activeTab: 'home', prevScreen: null, crmTab: 'inquiry' }
+      return { ...state, isCreator: action.isCreator, crmTab: 'inquiry' }
     case 'UPDATE_USER':
       return { ...state, user: { ...state.user, ...action.patch } }
     case 'SET_CRM_TAB':

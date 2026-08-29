@@ -1,8 +1,27 @@
+import { useState } from 'react'
 import { Clock, Check } from 'lucide-react'
 import { useAppStore } from '@/store/appStore'
+import { supabaseAvailable } from '@/lib/supabase'
+import * as authApi from '@/lib/api/auth'
+import { isLiveMode } from '@/config/environmentMode'
 
 export function CreatorOnboardReview() {
   const dispatch = useAppStore(s => s.dispatch)
+  const [finishing, setFinishing] = useState(false)
+
+  const handleFinish = async () => {
+    setFinishing(true)
+    try {
+      if (supabaseAvailable && isLiveMode()) {
+        await authApi.setUserRole('creator')
+      }
+    } catch (e) {
+      console.warn('[FTC] setUserRole creator failed:', e)
+    }
+    dispatch({ type: 'MARK_CREATOR' })
+    dispatch({ type: 'GO_TAB', tab: 'me' })
+  }
+
   return (
     <div className="flex-1 flex flex-col bg-obsidian text-paper relative overflow-hidden">
       <div className="absolute top-20 -right-20 w-80 h-80 dots-acid opacity-20 pointer-events-none" />
@@ -34,10 +53,11 @@ export function CreatorOnboardReview() {
       </div>
       <div className="relative px-6 pb-10 pt-4">
         <button
-          onClick={() => { dispatch({ type: 'MARK_CREATOR' }); dispatch({ type: 'GO_TAB', tab: 'me' }) }}
+          onClick={handleFinish}
+          disabled={finishing}
           className="tap w-full py-4 rounded-2xl bg-acid text-obsidian font-semibold text-[14px]"
         >
-          Back to app
+          {finishing ? 'Finalizing profile…' : 'Back to app'}
         </button>
       </div>
     </div>

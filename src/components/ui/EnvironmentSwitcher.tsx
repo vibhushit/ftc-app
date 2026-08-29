@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Radio, Database, Activity, RefreshCw, X, AlertTriangle, CheckCircle2, ChevronDown, HelpCircle, ExternalLink } from 'lucide-react'
+import { Radio, Database, Activity, RefreshCw, X, AlertTriangle, CheckCircle2, ChevronDown, HelpCircle } from 'lucide-react'
 import { useEnvironmentMode, pingBackendHealth, getApiBaseUrl, type EnvironmentMode } from '@/config/environmentMode'
 import type { ApiErrorEvent } from '@/services/apiClient'
 import { cn } from '@/utils'

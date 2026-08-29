@@ -21,12 +21,11 @@ export interface CreateBookingInput {
 }
 
 // ─── Create booking ───────────────────────────────────────────────────────────
-export async function createBooking(input: CreateBookingInput) {
+export async function createBooking(input: CreateBookingInput): Promise<BookingWithParties> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
 
-  const { data, error } = await supabase
-    .from('bookings')
+  const { data, error } = await (supabase.from('bookings') as any)
     .insert({
       consumer_id: user.id,
       ...input,
@@ -42,12 +41,11 @@ export async function createBooking(input: CreateBookingInput) {
 }
 
 // ─── My bookings (consumer) ───────────────────────────────────────────────────
-export async function getMyBookings(status?: BookingRow['status'][]) {
+export async function getMyBookings(status?: BookingRow['status'][]): Promise<BookingWithParties[]> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
-  let q = supabase
-    .from('bookings')
+  let q = (supabase.from('bookings') as any)
     .select('*, creator:creator_id(id, name, avatar_url), service:service_id(name, price, duration)')
     .eq('consumer_id', user.id)
     .order('created_at', { ascending: false })
@@ -60,12 +58,11 @@ export async function getMyBookings(status?: BookingRow['status'][]) {
 }
 
 // ─── My jobs (creator) ────────────────────────────────────────────────────────
-export async function getMyJobs(status?: BookingRow['status'][]) {
+export async function getMyJobs(status?: BookingRow['status'][]): Promise<BookingWithParties[]> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
-  let q = supabase
-    .from('bookings')
+  let q = (supabase.from('bookings') as any)
     .select('*, consumer:consumer_id(id, name, avatar_url), service:service_id(name, price, duration)')
     .eq('creator_id', user.id)
     .order('session_date', { ascending: true, nullsFirst: false })
@@ -79,8 +76,7 @@ export async function getMyJobs(status?: BookingRow['status'][]) {
 
 // ─── Get booking by ID ────────────────────────────────────────────────────────
 export async function getBookingById(id: string): Promise<BookingWithParties | null> {
-  const { data, error } = await supabase
-    .from('bookings')
+  const { data, error } = await (supabase.from('bookings') as any)
     .select('*, creator:creator_id(id, name, avatar_url), consumer:consumer_id(id, name, avatar_url), service:service_id(name, price, duration)')
     .eq('id', id)
     .single()
@@ -96,8 +92,7 @@ export async function updateBookingStatus(id: string, status: BookingRow['status
   if (status === 'completed')  patch.completed_at  = new Date().toISOString()
   if (status === 'cancelled')  patch.cancelled_at  = new Date().toISOString()
 
-  const { data, error } = await supabase
-    .from('bookings')
+  const { data, error } = await (supabase.from('bookings') as any)
     .update(patch)
     .eq('id', id)
     .select()

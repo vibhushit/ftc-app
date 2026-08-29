@@ -39,7 +39,7 @@ export async function uploadAvatar(userId: string, file: File) {
   const url = getPublicUrl('avatars', path)
 
   // Update user record
-  await supabase.from('users').update({ avatar_url: url }).eq('id', userId)
+  await (supabase.from('users') as any).update({ avatar_url: url }).eq('id', userId)
   return url
 }
 

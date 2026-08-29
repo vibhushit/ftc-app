@@ -35,8 +35,7 @@ export async function createCampaign(input: Omit<CampaignRow, 'id' | 'poster_id'
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
 
-  const { data, error } = await supabase
-    .from('campaigns')
+  const { data, error } = await (supabase.from('campaigns') as any)
     .insert({ ...input, poster_id: user.id })
     .select()
     .single()
@@ -56,8 +55,7 @@ export async function applyToCampaign(input: {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
 
-  const { data, error } = await supabase
-    .from('deals')
+  const { data, error } = await (supabase.from('deals') as any)
     .insert({
       campaign_id:  input.campaign_id,
       brand_id:     input.brand_id,
@@ -79,8 +77,7 @@ export async function getMyDeals(role: 'creator' | 'brand') {
   if (!user) return []
 
   const col = role === 'creator' ? 'creator_id' : 'brand_id'
-  const { data, error } = await supabase
-    .from('deals')
+  const { data, error } = await (supabase.from('deals') as any)
     .select('*, campaign:campaign_id(title, discipline, hero_url)')
     .eq(col, user.id)
     .order('applied_at', { ascending: false })
@@ -91,8 +88,7 @@ export async function getMyDeals(role: 'creator' | 'brand') {
 
 // ─── Update deal (stage, contract, deliverables) ─────────────────────────────
 export async function updateDeal(id: string, patch: Partial<DealRow>) {
-  const { data, error } = await supabase
-    .from('deals')
+  const { data, error } = await (supabase.from('deals') as any)
     .update(patch)
     .eq('id', id)
     .select()

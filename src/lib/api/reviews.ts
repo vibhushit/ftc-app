@@ -19,8 +19,7 @@ export async function submitReview(input: CreateReviewInput) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
 
-  const { data, error } = await supabase
-    .from('reviews')
+  const { data, error } = await (supabase.from('reviews') as any)
     .insert({ reviewer_id: user.id, ...input })
     .select()
     .single()
@@ -35,8 +34,7 @@ export async function submitReview(input: CreateReviewInput) {
 
 // ─── Reviews for a creator ────────────────────────────────────────────────────
 export async function getCreatorReviews(creatorId: string, limit = 20, offset = 0) {
-  const { data, error } = await supabase
-    .from('reviews')
+  const { data, error } = await (supabase.from('reviews') as any)
     .select('*, reviewer:reviewer_id(name, avatar_url)')
     .eq('reviewee_id', creatorId)
     .eq('is_public', true)
@@ -52,8 +50,7 @@ export async function getMyGivenReviews() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
-  const { data, error } = await supabase
-    .from('reviews')
+  const { data, error } = await (supabase.from('reviews') as any)
     .select('*, reviewee:reviewee_id(name, avatar_url)')
     .eq('reviewer_id', user.id)
     .order('created_at', { ascending: false })
@@ -64,19 +61,19 @@ export async function getMyGivenReviews() {
 
 // ─── Rating breakdown for a creator ──────────────────────────────────────────
 export async function getRatingBreakdown(creatorId: string) {
-  const { data, error } = await supabase
-    .from('reviews')
+  const { data, error } = await (supabase.from('reviews') as any)
     .select('rating')
     .eq('reviewee_id', creatorId)
     .eq('is_public', true)
 
   if (error) throw error
 
+  const list = (data ?? []) as { rating: number }[]
   const counts = [5, 4, 3, 2, 1].map(star => ({
     star,
-    count: data.filter(r => r.rating === star).length,
-    pct:   data.length ? Math.round(data.filter(r => r.rating === star).length / data.length * 100) : 0,
+    count: list.filter(r => r.rating === star).length,
+    pct:   list.length ? Math.round(list.filter(r => r.rating === star).length / list.length * 100) : 0,
   }))
-  const avg = data.length ? data.reduce((s, r) => s + r.rating, 0) / data.length : 0
-  return { counts, avg: parseFloat(avg.toFixed(2)), total: data.length }
+  const avg = list.length ? list.reduce((s, r) => s + r.rating, 0) / list.length : 0
+  return { counts, avg: parseFloat(avg.toFixed(2)), total: list.length }
 }

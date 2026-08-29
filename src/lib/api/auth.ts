@@ -123,17 +123,30 @@ export async function saveFcmToken(token: string) {
   await (supabase.from('users') as any).update({ fcm_token: token }).eq('id', user.id)
 }
 
-// ─── Set user role (consumer or creator) after role selection screen ─────────
+// ─── Set user role (consumer, creator, or both) ──────────────────────────────
 export async function setUserRole(role: UserRole) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
 
+  // Check current user profile to cleanly upgrade to 'both' if applicable
+  const { data: currentUser } = await (supabase.from('users') as any)
+    .select('role')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  let finalRole: UserRole = role
+  if (currentUser?.role === 'consumer' && role === 'creator') {
+    finalRole = 'both'
+  } else if (currentUser?.role === 'creator' && role === 'consumer') {
+    finalRole = 'both'
+  }
+
   const { error } = await (supabase.from('users') as any)
-    .update({ role })
+    .update({ role: finalRole })
     .eq('id', user.id)
   if (error) throw error
 
-  if (role === 'creator') {
+  if (role === 'creator' || finalRole === 'creator' || finalRole === 'both') {
     const handle = `user_${user.id.replace(/-/g, '').slice(0, 8)}`
     const { error: cpError } = await (supabase.from('creator_profiles') as any)
       .upsert({ id: user.id, handle }, { onConflict: 'id', ignoreDuplicates: true })
