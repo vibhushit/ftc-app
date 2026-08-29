@@ -47,18 +47,18 @@ export function CreatorOnboard4() {
   return (
     <OnboardShell
       step={4} total={5}
-      title="Verify your identity"
-      sub="Upload your government IDs to unlock bookings. Documents are encrypted — we only show the last 4 digits."
+      title="Verify your identity (Optional)"
+      sub="Upload government ID to get the Verified badge on your profile. You can complete this now or skip and verify later from settings."
       onBack={() => dispatch({ type: 'GO', screen: 'creatorOnboard3' })}
-      cta={allReq ? 'Submit for review' : 'Upload required documents'}
-      ctaDisabled={!allReq}
+      cta={allReq ? 'Continue with Verified ID ✓' : reqDone > 0 ? 'Continue with Partial ID' : 'Skip & Continue to Socials →'}
+      ctaDisabled={false}
       ctaAction={() => {
-        dispatch({ type: 'SET_ONBOARD', patch: { idVerified: true } })
+        dispatch({ type: 'SET_ONBOARD', patch: { idVerified: allReq } })
         dispatch({ type: 'GO', screen: 'creatorOnboard5' })
       }}
     >
-      <div className="flex items-center justify-between -mt-2 mb-2">
-        <span className="text-[11px] text-obsidian/50">You can complete ID verification later</span>
+      <div className="flex items-center justify-between -mt-2 mb-2 p-2.5 rounded-xl bg-bone border border-line">
+        <span className="text-[11.5px] text-obsidian/60">ID upload is optional for launch</span>
         <button
           type="button"
           onClick={() => {
@@ -67,7 +67,7 @@ export function CreatorOnboard4() {
           }}
           className="tap text-[12px] font-semibold text-iris hover:underline cursor-pointer"
         >
-          Skip for now →
+          Skip ID step →
         </button>
       </div>
       <input

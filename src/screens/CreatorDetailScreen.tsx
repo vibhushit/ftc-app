@@ -69,10 +69,48 @@ const SLOTS = ['9:00 AM', '11:00 AM', '1:00 PM', '3:00 PM', '5:00 PM', '7:00 PM'
 export function CreatorDetailScreen() {
   const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
   const id = state.selectedCreatorId
-  const isUUID = UUID_RE.test(id ?? '')
-  const { data: dbCreator, isLoading } = useCreator(isUUID ? id : null)
-  const { data: dbServices }           = useCreatorServices(isUUID ? id : null)
-  const c: Creator | undefined = dbCreator ? dbToCreatorFull(dbCreator) : (CREATORS.find(x => x.id === id))
+  const { data: dbCreator, isLoading } = useCreator(id)
+  const { data: dbServices }           = useCreatorServices(id)
+
+  let c: Creator | undefined = dbCreator ? dbToCreatorFull(dbCreator) : (CREATORS.find(x => x.id === id))
+
+  // Fallback for newly created creator viewing their own profile
+  if (!c && (id === state.supabaseUserId || id === state.user.handle || (state.isCreator && state.user.name))) {
+    const ob = state.onboard
+    c = {
+      id: id || state.supabaseUserId || 'my_profile',
+      name: ob.name || state.user.name || 'Creator',
+      handle: state.user.handle || `@${(ob.name || state.user.name || 'creator').toLowerCase().replace(/\s+/g, '_')}`,
+      discipline: ob.discipline || 'Photography',
+      subSkills: ob.subSkills?.length ? ob.subSkills : ['Commercial', 'Editorial'],
+      city: ob.city || state.user.city || 'Delhi',
+      area: ob.area || '',
+      avatar: state.user.avatar || pic(state.user.name + '-av', 200, 200),
+      portfolio: ob.portfolio?.length ? ob.portfolio : [pic('my-1', 1200, 1500), pic('my-2', 1200, 1200)],
+      rating: 5.0,
+      reviews: 0,
+      startingAt: ob.startingPrice || 8000,
+      yearsExp: ob.yearsExp || 3,
+      completed: 0,
+      rise: '+0%',
+      tier: 'Rising',
+      verification: 'phone',
+      isPro: false,
+      responseTime: '< 1 hr',
+      nextSlot: 'Today',
+      languages: ['Hindi', 'English'],
+      tagline: '',
+      availability: [],
+      repeatRate: 0.9,
+      travelRadius: 'city',
+      gender: 'prefer_not_to_say',
+      trustScore: 80,
+      availableToday: true,
+      travelMode: 'both',
+      oneOnOne: { name: '1:1 Call', mins: 30, price: 999, type: 'Video call', today: false },
+    }
+  }
+
   const [portfolioIdx, setPortfolioIdx] = useState(0)
   const [selectedPkg, setSelectedPkg] = useState(1)
   const [selectedDate, setSelectedDate] = useState<number | null>(null)

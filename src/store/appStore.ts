@@ -14,7 +14,7 @@ const DEFAULT_STATE: AppState = {
   prevScreen: null,
   isAuthed: false,
   isCreator: false,
-  user: { name: 'Rhea Kapoor', city: 'Delhi', locality: 'Hauz Khas', email: 'rhea@example.com', phone: '+91 98765 43210', handle: '@rhea', trustScore: 72 },
+  user: { name: '', city: '', locality: '', email: '', phone: '', handle: '', trustScore: 0 },
   selectedCreatorId: null,
   selectedClient: null,
   bookingDraft: null,

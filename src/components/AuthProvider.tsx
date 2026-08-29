@@ -6,7 +6,7 @@ import type { AuthChangeEvent } from '@supabase/supabase-js'
 /**
  * AuthProvider — runs once at the app root.
  * Listens to Supabase auth state and syncs it into the Zustand store.
- * Properly manages password recovery navigation vs standard sign-in.
+ * Properly locks password recovery navigation and prevents unauthenticated redirects.
  */
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const dispatch = useAppStore(s => s.dispatch)
@@ -15,37 +15,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!supabaseAvailable) return
     let mounted = true
 
-    // ── Check if URL hash indicates a password recovery session ──────────
-    if (typeof window !== 'undefined' && window.location.hash) {
-      const hash = window.location.hash
-      if (hash.includes('type=recovery') || hash.includes('#reset')) {
-        dispatch({ type: 'GO', screen: 'resetPassword' })
-      }
+    const isRecoveryHash = typeof window !== 'undefined' && window.location.hash && (
+      window.location.hash.includes('type=recovery') || window.location.hash.includes('#reset')
+    )
+
+    // ── 1. Check if URL hash indicates a password recovery session ──────────
+    if (isRecoveryHash) {
+      dispatch({ type: 'GO', screen: 'resetPassword' })
     }
 
-    // ── Check existing session on mount (returning user) ──────────────────
+    // ── 2. Check existing session on mount (returning user) ──────────────────
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!mounted || !session?.user) return
-      
+      if (!mounted) return
+      if (!session?.user) {
+        // Unauthenticated visitor -> stay on welcome/auth
+        const cur = useAppStore.getState().screen
+        if (cur !== 'welcome' && cur !== 'phone' && cur !== 'otp' && cur !== 'magicLinkSent' && cur !== 'forgotPassword' && cur !== 'resetPassword') {
+          // If session expired or logged out
+          dispatch({ type: 'RESET' })
+        }
+        return
+      }
+
       const currentScreen = useAppStore.getState().screen
-      if (currentScreen === 'resetPassword') return
-      
+      if (currentScreen === 'resetPassword' || isRecoveryHash) {
+        // Recovery in progress — don't auto-redirect to home
+        return
+      }
+
       syncUser(session.user.id, session.user)
     })
 
-    // ── Subscribe to future auth events ───────────────────────────────────
+    // ── 3. Subscribe to future auth events ───────────────────────────────────
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session) => {
       if (!mounted) return
 
       if (event === 'PASSWORD_RECOVERY') {
-        // User clicked recovery link in email -> direct to set new password screen
+        // User clicked recovery link in email -> direct strictly to set new password screen
         dispatch({ type: 'GO', screen: 'resetPassword' })
         return
       }
 
       if (event === 'SIGNED_IN' && session?.user) {
         const currentScreen = useAppStore.getState().screen
-        if (currentScreen === 'resetPassword') return
+        if (currentScreen === 'resetPassword' || isRecoveryHash) {
+          return
+        }
         syncUser(session.user.id, session.user)
       } else if (event === 'SIGNED_OUT') {
         dispatch({ type: 'RESET' })

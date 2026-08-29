@@ -31,28 +31,77 @@ export async function searchCreators(params: CreatorSearchParams = {}) {
 
 // ─── Profile by ID ────────────────────────────────────────────────────────────
 export async function getCreatorById(id: string): Promise<CreatorWithUser | null> {
-  const { data, error } = await supabase
-    .from('creator_profiles')
-    .select('*, users!inner(name, avatar_url, email, phone)')
-    .eq('id', id)
-    .eq('is_published', true)
-    .single()
+  try {
+    const { data, error } = await supabase
+      .from('creator_profiles')
+      .select('*, users!inner(name, avatar_url, email, phone)')
+      .eq('id', id)
+      .maybeSingle()
 
-  if (error) throw error
-  return data as unknown as CreatorWithUser
+    if (error) {
+      console.warn('[FTC] Supabase getCreatorById error:', error)
+    }
+    if (data) return data as unknown as CreatorWithUser
+  } catch (err) {
+    console.warn('[FTC] getCreatorById fetch failed:', err)
+  }
+
+  // Fallback to apiClient
+  try {
+    const fromApi = await apiClient.getCreatorById(id)
+    if (fromApi) {
+      return {
+        id: fromApi.id,
+        handle: fromApi.handle,
+        discipline: fromApi.discipline,
+        sub_skills: fromApi.sub_skills || [],
+        city: fromApi.city,
+        area: fromApi.locality || '',
+        starting_at: fromApi.starting_at,
+        avg_rating: fromApi.rating,
+        review_count: fromApi.review_count,
+        bio: fromApi.bio || '',
+        portfolio_urls: fromApi.portfolio_urls || [],
+        tier: 'Rising',
+        verification: fromApi.verified ? 'vetted' : 'phone',
+        is_pro: fromApi.verified,
+        response_time: '< 2 hrs',
+        next_slot: 'Today',
+        languages: ['Hindi', 'English'],
+        tagline: '',
+        repeat_rate: 90,
+        travel_radius: 'city',
+        gender: 'prefer_not_to_say',
+        trust_score: 85,
+        available_today: true,
+        travel_mode: 'both',
+        users: {
+          name: fromApi.name,
+          avatar_url: fromApi.avatar,
+          email: '',
+          phone: '',
+        },
+      } as unknown as CreatorWithUser
+    }
+  } catch {}
+
+  return null
 }
 
 // ─── Profile by handle ────────────────────────────────────────────────────────
 export async function getCreatorByHandle(handle: string): Promise<CreatorWithUser | null> {
-  const { data, error } = await supabase
-    .from('creator_profiles')
-    .select('*, users!inner(name, avatar_url, email, phone)')
-    .ilike('handle', handle)
-    .eq('is_published', true)
-    .single()
+  const clean = handle.startsWith('@') ? handle : `@${handle}`
+  try {
+    const { data, error } = await supabase
+      .from('creator_profiles')
+      .select('*, users!inner(name, avatar_url, email, phone)')
+      .ilike('handle', clean)
+      .maybeSingle()
 
-  if (error) throw error
-  return data as unknown as CreatorWithUser
+    if (data) return data as unknown as CreatorWithUser
+  } catch {}
+
+  return null
 }
 
 // ─── Onboarding ───────────────────────────────────────────────────────────────
