@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { AppState, AppAction, Filters, Screen, Tab } from '@/types'
 import { CAMPAIGNS, SEED_DEALS, SEED_CREATOR_BOOKINGS, SEED_QUOTES, DEFAULT_FILTERS } from '@/data/constants'
+import { isLiveMode } from '@/config/environmentMode'
 
 const TAB_SCREENS: Record<Tab, Screen> = {
   home: 'home',
@@ -8,6 +9,8 @@ const TAB_SCREENS: Record<Tab, Screen> = {
   inbox: 'inbox',
   me: 'me',
 }
+
+const isLive = isLiveMode()
 
 const DEFAULT_STATE: AppState = {
   screen: 'welcome',
@@ -24,7 +27,7 @@ const DEFAULT_STATE: AppState = {
   locPerm: 'prompt',
   selectedCampaignId: null,
   compareIds: [],
-  saved: ['c1', 'c3', 'c5'],
+  saved: isLive ? [] : ['c1', 'c3', 'c5'],
   filters: DEFAULT_FILTERS,
   viewMode: 'list',
   onboard: {
@@ -36,13 +39,13 @@ const DEFAULT_STATE: AppState = {
   drillIntoTab: false,
   sponsorRole: 'creator',
   selectedDealId: null,
-  campaigns: CAMPAIGNS,
-  deals: SEED_DEALS,
+  campaigns: isLive ? [] : CAMPAIGNS,
+  deals: isLive ? [] : SEED_DEALS,
   crmTab: 'inquiry',
-  creatorBookings: SEED_CREATOR_BOOKINGS,
-  quotes: SEED_QUOTES,
+  creatorBookings: isLive ? [] : SEED_CREATOR_BOOKINGS,
+  quotes: isLive ? [] : SEED_QUOTES,
   reviews: [],
-  creatorAvailability: { 27: 'booked', 30: 'booked' },
+  creatorAvailability: isLive ? {} : { 27: 'booked', 30: 'booked' },
   pendingPhone: null,
   supabaseUserId: null,
   hasCreatorProfile: false,

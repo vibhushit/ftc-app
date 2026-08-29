@@ -1,20 +1,20 @@
-import { Heart, Bell, Search, SlidersHorizontal, ChevronRight, Sparkles, MessageCircle } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Heart, Bell, Search, SlidersHorizontal, ChevronRight, MessageCircle, ArrowRight, ShieldCheck, Sparkles } from 'lucide-react'
 import { CreatorCardLarge } from '@/components/creator/CreatorCardLarge'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { CREATORS, DISCIPLINE_CONFIG } from '@/data/creators'
 import { CAMPAIGNS, pic, inr } from '@/data/constants'
 import { CreatorPipelineHome } from './CreatorPipelineHome'
-
-import { useEffect, useState } from 'react'
 import { apiClient } from '@/services/apiClient'
-import { useEnvironmentMode } from '@/config/environmentMode'
+import { useEnvironmentMode, isLiveMode } from '@/config/environmentMode'
 import type { Creator } from '@/types/bindings'
 
 export function HomeScreen() {
   const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
   const [mode] = useEnvironmentMode()
   const [creators, setCreators] = useState<Creator[]>([])
+  const isLive = isLiveMode()
 
   useEffect(() => {
     apiClient.getCreators()
@@ -27,9 +27,13 @@ export function HomeScreen() {
 
   if (state.isCreator) return <CreatorPipelineHome />
 
-  const featured = creators.length > 0 ? creators : CREATORS.filter(c => c.tier === 'Platinum').slice(0, 5)
-  const rising = CREATORS.filter(c => c.tier === 'Rising').slice(0, 4)
-  const liveCampaigns = CAMPAIGNS.slice(0, 3)
+  const featured = isLive
+    ? creators
+    : (creators.length > 0 ? creators : CREATORS.filter(c => c.tier === 'Platinum').slice(0, 5))
+  const rising = isLive
+    ? creators.slice(0, 4)
+    : CREATORS.filter(c => c.tier === 'Rising').slice(0, 4)
+  const liveCampaigns = isLive ? state.campaigns.slice(0, 3) : CAMPAIGNS.slice(0, 3)
 
   return (
     <div className="flex-1 flex flex-col bg-paper overflow-hidden">
@@ -88,33 +92,85 @@ export function HomeScreen() {
           </div>
         </div>
 
-        {/* Upcoming session card */}
+        {/* Active Booking Banner / Explore Banner */}
         <div className="px-5 mb-8">
-          <div className="rounded-3xl bg-obsidian text-paper p-5 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-40 h-40 dots-acid opacity-20 pointer-events-none" style={{ transform: 'translate(25%, -25%)' }} />
-            <div className="relative">
-              <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.14em] text-acid mb-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-acid animate-pulse" />
-                Your next session · in 3 days
+          {state.lastBooking ? (
+            <div className="rounded-3xl bg-obsidian text-paper p-5 relative overflow-hidden shadow-md">
+              <div className="absolute top-0 right-0 w-40 h-40 dots-acid opacity-20 pointer-events-none" style={{ transform: 'translate(25%, -25%)' }} />
+              <div className="relative">
+                <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.14em] text-acid mb-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-acid animate-pulse" />
+                  Upcoming Confirmed Booking
+                </div>
+                <div className="font-display text-2xl tracking-tight">{state.lastBooking.projectType} with {state.lastBooking.clientName}</div>
+                <div className="text-[12px] text-paper/70 mt-1">{state.lastBooking.date} · {inr(state.lastBooking.price)}</div>
+                <div className="flex items-center gap-3 mt-5">
+                  <img src={state.lastBooking.clientAvatar} className="w-10 h-10 rounded-full object-cover border-2 border-paper" alt="" />
+                  <div className="flex-1 flex gap-2">
+                    <button
+                      onClick={() => { dispatch({ type: 'OPEN_CLIENT_CHAT', client: { name: state.lastBooking!.clientName, avatar: state.lastBooking!.clientAvatar } }) }}
+                      className="tap flex-1 py-2.5 rounded-xl bg-paper/10 text-paper text-[12px] font-medium flex items-center justify-center gap-1 hover:bg-paper/15 transition cursor-pointer"
+                    >
+                      <MessageCircle size={13} /> Message
+                    </button>
+                    <button onClick={() => dispatch({ type: 'GO', screen: 'bookings' })} className="tap flex-1 py-2.5 rounded-xl bg-acid text-obsidian text-[12px] font-semibold flex items-center justify-center gap-1 hover:bg-acid/90 transition cursor-pointer">
+                      Details <ChevronRight size={13} />
+                    </button>
+                  </div>
+                </div>
               </div>
-              <div className="font-display text-2xl tracking-tight">Portrait shoot with Ananya</div>
-              <div className="text-[12px] text-paper/70 mt-1">Sun, Apr 27 · 10:00 AM · Bandra studio</div>
-              <div className="flex items-center gap-3 mt-5">
-                <img src={pic('Ananya Desai-av', 200, 200)} className="w-10 h-10 rounded-full object-cover border-2 border-paper" alt="" />
-                <div className="flex-1 flex gap-2">
+            </div>
+          ) : isLive ? (
+            <div className="rounded-3xl bg-obsidian text-paper p-6 relative overflow-hidden shadow-md">
+              <div className="absolute top-0 right-0 w-48 h-48 dots-acid opacity-15 pointer-events-none" style={{ transform: 'translate(25%, -25%)' }} />
+              <div className="relative">
+                <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.14em] text-acid mb-2">
+                  <ShieldCheck size={13} className="text-acid" /> 100% Escrow Protected
+                </div>
+                <div className="font-display text-2xl tracking-tight">
+                  Connect with verified creators
+                </div>
+                <p className="text-[12.5px] text-paper/70 mt-1 max-w-sm leading-relaxed">
+                  Browse top photographers and videographers across Delhi NCR & Mumbai. Transparent pricing with instant booking.
+                </p>
+                <div className="mt-5">
                   <button
-                    onClick={() => { dispatch({ type: 'OPEN_CREATOR', id: 'c1' }); dispatch({ type: 'GO', screen: 'chat' }) }}
-                    className="tap flex-1 py-2.5 rounded-xl bg-paper/10 text-paper text-[12px] font-medium flex items-center justify-center gap-1"
+                    onClick={() => dispatch({ type: 'GO', screen: 'discover' })}
+                    className="tap px-5 py-3 rounded-2xl bg-acid text-obsidian font-semibold text-[13px] inline-flex items-center gap-2 hover:bg-acid/90 transition cursor-pointer"
                   >
-                    <MessageCircle size={13} /> Message
-                  </button>
-                  <button onClick={() => dispatch({ type: 'GO', screen: 'bookings' })} className="tap flex-1 py-2.5 rounded-xl bg-acid text-obsidian text-[12px] font-medium flex items-center justify-center gap-1">
-                    Details <ChevronRight size={13} />
+                    <span>Browse Creators</span>
+                    <ArrowRight size={15} />
                   </button>
                 </div>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="rounded-3xl bg-obsidian text-paper p-5 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-40 h-40 dots-acid opacity-20 pointer-events-none" style={{ transform: 'translate(25%, -25%)' }} />
+              <div className="relative">
+                <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.14em] text-acid mb-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-acid animate-pulse" />
+                  Your next session · in 3 days
+                </div>
+                <div className="font-display text-2xl tracking-tight">Portrait shoot with Ananya</div>
+                <div className="text-[12px] text-paper/70 mt-1">Sun, Apr 27 · 10:00 AM · Bandra studio</div>
+                <div className="flex items-center gap-3 mt-5">
+                  <img src={pic('Ananya Desai-av', 200, 200)} className="w-10 h-10 rounded-full object-cover border-2 border-paper" alt="" />
+                  <div className="flex-1 flex gap-2">
+                    <button
+                      onClick={() => { dispatch({ type: 'OPEN_CREATOR', id: 'c1' }); dispatch({ type: 'GO', screen: 'chat' }) }}
+                      className="tap flex-1 py-2.5 rounded-xl bg-paper/10 text-paper text-[12px] font-medium flex items-center justify-center gap-1"
+                    >
+                      <MessageCircle size={13} /> Message
+                    </button>
+                    <button onClick={() => dispatch({ type: 'GO', screen: 'bookings' })} className="tap flex-1 py-2.5 rounded-xl bg-acid text-obsidian text-[12px] font-medium flex items-center justify-center gap-1">
+                      Details <ChevronRight size={13} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Featured creators */}

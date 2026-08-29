@@ -5,6 +5,7 @@ import { useAppStore } from '@/store/appStore'
 import { CREATORS } from '@/data/creators'
 import { pic, inr } from '@/data/constants'
 import { cn, shareOrCopy } from '@/utils'
+import { isLiveMode } from '@/config/environmentMode'
 import { useCreator, useCreatorServices } from '@/hooks/useCreators'
 import type { CreatorWithUser } from '@/lib/database.types'
 import type { Tier, Verification, Gender, TravelMode, TravelRadius, Creator } from '@/types'
@@ -70,7 +71,7 @@ export function CreatorDetailScreen() {
   const { data: dbCreator, isLoading } = useCreator(id)
   const { data: dbServices }           = useCreatorServices(id)
 
-  let c: Creator | undefined = dbCreator ? dbToCreatorFull(dbCreator) : (CREATORS.find(x => x.id === id))
+  let c: Creator | undefined = dbCreator ? dbToCreatorFull(dbCreator) : (!isLiveMode() ? CREATORS.find(x => x.id === id) : undefined)
 
   // Fallback for newly created creator viewing their own profile
   if (!c && (id === state.supabaseUserId || id === state.user.handle || (state.isCreator && state.user.name))) {

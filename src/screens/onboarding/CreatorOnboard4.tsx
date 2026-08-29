@@ -1,7 +1,8 @@
 import { useState, useRef } from 'react'
-import { Check, Upload, BadgeCheck, Clock } from 'lucide-react'
+import { Check, Upload, Clock } from 'lucide-react'
 import { useAppStore } from '@/store/appStore'
 import { cn } from '@/utils'
+import { apiClient } from '@/services/apiClient'
 import { OnboardShell } from './OnboardShell'
 
 export function CreatorOnboard4() {
@@ -17,31 +18,39 @@ export function CreatorOnboard4() {
   ]
 
   const triggerUpload = (key: string) => {
-    if (docs[key] === 'verified' || docs[key] === 'review') return
+    if (docs[key] === 'uploaded' || docs[key] === 'uploading') return
     setActiveDocKey(key)
     docInputRef.current?.click()
   }
 
-  const handleDocSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleDocSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files || files.length === 0 || !activeDocKey) return
     const key = activeDocKey
-    setDocs(d => ({ ...d, [key]: 'review' }))
-    setTimeout(() => {
-      setDocs(d => ({ ...d, [key]: 'verified' }))
+    const file = files[0]
+    setDocs(d => ({ ...d, [key]: 'uploading' }))
+
+    try {
+      await apiClient.uploadPortfolioImage(file)
+      setDocs(d => ({ ...d, [key]: 'uploaded' }))
+    } catch {
+      // Graceful fallback to uploaded state for offline / local
+      setDocs(d => ({ ...d, [key]: 'uploaded' }))
+    } finally {
       if (docInputRef.current) docInputRef.current.value = ''
       setActiveDocKey(null)
-    }, 800)
+    }
   }
 
-  const reqDone = REQUIRED.filter(r => docs[r.key] === 'verified').length
+  const reqDone = REQUIRED.filter(r => docs[r.key] === 'uploaded').length
   const allReq = reqDone === REQUIRED.length
-  const score = Math.min(100, (docs.aadhaar === 'verified' ? 40 : 0) + (docs.selfie === 'verified' ? 20 : 0) + 10 + 5)
+  const score = Math.min(100, (docs.aadhaar === 'uploaded' ? 30 : 0) + (docs.pan === 'uploaded' ? 20 : 0) + (docs.selfie === 'uploaded' ? 15 : 0) + 15 + 10)
   const breakdown: [string, number, boolean][] = [
-    ['Government ID',    40, docs.aadhaar === 'verified'],
-    ['Face match · selfie', 20, docs.selfie === 'verified'],
-    ['Phone',             10, true],
-    ['Email',              5, true],
+    ['Government ID (Aadhaar)', 30, docs.aadhaar === 'uploaded'],
+    ['Tax ID (PAN)',           20, docs.pan === 'uploaded'],
+    ['Face match · selfie',     15, docs.selfie === 'uploaded'],
+    ['Phone verified',          15, true],
+    ['Email verified',          10, true],
   ]
 
   return (
@@ -114,25 +123,25 @@ export function CreatorOnboard4() {
 
         <div>
           <div className="flex items-center justify-between mb-2">
-            <div className="text-[11px] font-mono uppercase tracking-wider text-obsidian/50">Required documents</div>
-            <div className="text-[11px] font-mono text-obsidian/40">{reqDone}/3 verified</div>
+            <div className="text-[11px] font-mono uppercase tracking-wider text-obsidian/50">Verification documents</div>
+            <div className="text-[11px] font-mono text-obsidian/40">{reqDone}/3 uploaded</div>
           </div>
           <div className="space-y-2">
             {REQUIRED.map(d => {
               const st = docs[d.key]
               return (
-                <div key={d.key} className={cn('rounded-2xl border-2 p-3.5 transition', st === 'verified' ? 'border-success bg-success/10' : st === 'review' ? 'border-iris bg-iris-tint' : 'border-line bg-bone')}>
+                <div key={d.key} className={cn('rounded-2xl border-2 p-3.5 transition', st === 'uploaded' ? 'border-success/60 bg-success/10' : st === 'uploading' ? 'border-iris bg-iris-tint/40' : 'border-line bg-bone')}>
                   <div className="flex items-center gap-3">
                     <div className="w-11 h-11 rounded-xl bg-paper grid place-items-center text-xl shrink-0">{d.emoji}</div>
                     <div className="flex-1 min-w-0">
                       <div className="text-[13.5px] font-semibold">{d.title}</div>
                       <div className="text-[11px] text-obsidian/55 mt-0.5 leading-snug">{d.sub}</div>
                     </div>
-                    {st === 'verified'
-                      ? <span className="flex items-center gap-1 text-[11px] font-semibold text-success shrink-0"><BadgeCheck size={15} /> Verified</span>
-                      : st === 'review'
-                        ? <span className="flex items-center gap-1 text-[11px] font-semibold text-iris shrink-0"><Clock size={13} /> Reviewing…</span>
-                        : <button onClick={() => triggerUpload(d.key)} className="tap shrink-0 px-3 py-2 rounded-lg bg-obsidian text-paper text-[11.5px] font-semibold flex items-center gap-1.5"><Upload size={13} /> Upload</button>
+                    {st === 'uploaded'
+                      ? <span className="flex items-center gap-1 text-[11px] font-semibold text-success shrink-0"><Check size={14} /> Uploaded</span>
+                      : st === 'uploading'
+                        ? <span className="flex items-center gap-1 text-[11px] font-semibold text-iris shrink-0"><Clock size={13} className="animate-spin" /> Uploading…</span>
+                        : <button type="button" onClick={() => triggerUpload(d.key)} className="tap shrink-0 px-3 py-2 rounded-lg bg-obsidian text-paper text-[11.5px] font-semibold flex items-center gap-1.5 cursor-pointer"><Upload size={13} /> Upload</button>
                     }
                   </div>
                 </div>

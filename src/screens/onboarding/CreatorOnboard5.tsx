@@ -57,11 +57,13 @@ export function CreatorOnboard5() {
           travel_mode:  ob.travelMode ?? 'both',
           ig_handle:    soc.ig  || null,
           yt_handle:    soc.yt  || null,
-          website_url:  soc.web || null,
-          upi_id:       upi,
-          onboard_step: 'review',
-          is_published: false,
+          website_url:    soc.web || null,
+          upi_id:         upi,
+          portfolio_urls: ob.portfolio ?? [],
+          onboard_step:   'live',
+          is_published:   true,
         })
+        await authApi.setUserRole('creator')
       }
     } catch (e) {
       console.error('[FTC] onboard submit failed:', e)

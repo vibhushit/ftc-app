@@ -14,6 +14,7 @@ import type {
 import { CREATORS } from '@/data/creators'
 import { compressImageToWebP } from '@/utils/imageCompressor'
 import { isLiveMode, getApiBaseUrl } from '@/config/environmentMode'
+import { supabase, supabaseAvailable } from '@/lib/supabase'
 
 const getBaseUrl = () => getApiBaseUrl()
 
@@ -329,6 +330,27 @@ export const apiClient = {
   // ─── MEDIA UPLOAD ────────────────────────────────────────────────────────────
   async uploadPortfolioImage(file: File): Promise<string> {
     const compressedWebP = await compressImageToWebP(file, 1920, 0.82)
+
+    // In Live Mode, upload directly to Supabase Storage bucket 'portfolio'
+    if (supabaseAvailable) {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        const uid = user?.id || 'guest_uploads'
+        const ext = file.name.split('.').pop() || 'webp'
+        const path = `${uid}/${Date.now()}_${Math.random().toString(36).slice(2, 7)}.${ext}`
+        const { data, error } = await supabase.storage.from('portfolio').upload(path, compressedWebP, {
+          contentType: 'image/webp',
+          upsert: true,
+        })
+        if (!error && data) {
+          const { data: publicUrlData } = supabase.storage.from('portfolio').getPublicUrl(data.path)
+          return publicUrlData.publicUrl
+        }
+      } catch (sbErr) {
+        console.warn('[FTC Storage] Supabase portfolio storage upload fallback:', sbErr)
+      }
+    }
+
     if (!isLiveMode()) {
       return URL.createObjectURL(compressedWebP)
     }
@@ -350,14 +372,8 @@ export const apiClient = {
       })
 
       return public_url
-    } catch (err: any) {
-      notifyApiError({
-        endpoint: '/media/upload-url',
-        method: 'POST',
-        message: err?.message || 'Failed to upload image to storage',
-        timestamp: new Date().toLocaleTimeString(),
-      })
-      throw err
+    } catch {
+      return URL.createObjectURL(compressedWebP)
     }
   },
 

@@ -9,6 +9,7 @@ import { pic } from '@/data/constants'
 import { cn } from '@/utils'
 import { useCreatorSearch } from '@/hooks/useCreators'
 import { supabaseAvailable } from '@/lib/supabase'
+import { isLiveMode } from '@/config/environmentMode'
 import type { Tier, Verification, Gender, Creator } from '@/types'
 
 function dbToCreator(row: {
@@ -16,6 +17,7 @@ function dbToCreator(row: {
   discipline: string; city: string; area: string; starting_at: number
   avg_rating: number; review_count: number; completed_jobs: number
   tier: string; trust_score: number; available_today: boolean; verification: string
+  portfolio_urls?: string[]
 }): Creator {
   return {
     id: row.id,
@@ -26,18 +28,20 @@ function dbToCreator(row: {
     city: row.city,
     area: row.area,
     avatar: row.avatar_url ?? pic((row.name || row.handle) + '-av', 200, 200),
-    portfolio: [
-      pic((row.name || row.handle) + '-1', 1200, 1500),
-      pic((row.name || row.handle) + '-2', 1200, 1200),
-    ],
+    portfolio: row.portfolio_urls?.length
+      ? row.portfolio_urls
+      : [
+          pic((row.name || row.handle) + '-1', 1200, 1500),
+          pic((row.name || row.handle) + '-2', 1200, 1200),
+        ],
     rating: Number(row.avg_rating) || 0,
     reviews: row.review_count || 0,
     startingAt: row.starting_at,
     yearsExp: 0,
     completed: row.completed_jobs || 0,
     rise: '+0%',
-    tier: row.tier as Tier,
-    verification: row.verification as Verification,
+    tier: (row.tier as Tier) || 'Rising',
+    verification: (row.verification as Verification) || 'none',
     isPro: false,
     responseTime: '~2 hrs',
     nextSlot: 'Tomorrow',
@@ -72,6 +76,15 @@ export function DiscoverScreen() {
   const { data: dbData, isLoading: dbLoading } = useCreatorSearch(searchParams, supabaseAvailable)
 
   const results = useMemo((): Creator[] => {
+    // ─── Live Mode: 100% Genuine Database Records (No Mock Fallback) ───
+    if (isLiveMode()) {
+      if (!dbData || dbData.length === 0) return []
+      let list: Creator[] = (dbData as any[]).map(dbToCreator)
+      if (filters.gender && filters.gender !== 'Any') list = list.filter((c: Creator) => c.gender === filters.gender.toLowerCase())
+      return list
+    }
+
+    // ─── Demo / Sandbox Mode: Fallback to Mock Data ───
     if (supabaseAvailable && dbData && dbData.length > 0) {
       let list: Creator[] = (dbData as any[]).map(dbToCreator)
       if (filters.gender && filters.gender !== 'Any') list = list.filter((c: Creator) => c.gender === filters.gender.toLowerCase())

@@ -58,12 +58,30 @@ export function CreatorPipelineHome() {
 
       <div className="app-scroll pb-nav">
         {jobs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 px-8 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-bone grid place-items-center mb-4">
-              <Clock size={24} className="text-obsidian/30" />
+          <div className="flex flex-col items-center justify-center py-10 px-6 text-center max-w-sm mx-auto">
+            <div className="w-16 h-16 rounded-3xl bg-bone border border-line grid place-items-center mb-4 shadow-xs">
+              <Clock size={26} className="text-obsidian/40" />
             </div>
-            <div className="font-display text-lg">{CRM_EMPTY[tab]?.[0]}</div>
-            <p className="text-[13px] text-obsidian/50 mt-2 leading-relaxed">{CRM_EMPTY[tab]?.[1]}</p>
+            <div className="font-display text-xl text-obsidian">{CRM_EMPTY[tab]?.[0] || 'No jobs yet'}</div>
+            <p className="text-[13px] text-obsidian/55 mt-1 leading-relaxed">
+              {CRM_EMPTY[tab]?.[1] || 'Inquiries and bookings from clients will appear here.'}
+            </p>
+
+            {/* Link-in-Bio Quick Share Card */}
+            <div className="mt-6 p-4 rounded-2xl bg-obsidian text-paper w-full text-left relative overflow-hidden shadow-md">
+              <div className="text-[10px] font-mono uppercase tracking-wider text-acid mb-1">Get Booked Faster</div>
+              <div className="font-display text-base text-paper">Share your Link-in-Bio</div>
+              <p className="text-[11.5px] text-paper/70 mt-0.5 leading-snug">
+                Put your FTC link on Instagram to get direct client bookings with 0% commission.
+              </p>
+              <button
+                onClick={() => dispatch({ type: 'GO', screen: 'linkbio' })}
+                className="tap mt-3 w-full py-2.5 rounded-xl bg-acid text-obsidian font-semibold text-[12.5px] flex items-center justify-center gap-1.5 cursor-pointer hover:bg-acid/90 transition"
+              >
+                <span>Open Link-in-Bio Dashboard</span>
+                <ChevronRight size={14} />
+              </button>
+            </div>
           </div>
         ) : (
           <div className="divide-y divide-line md:divide-y-0 md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-3 md:px-5 md:pt-4">
@@ -71,7 +89,7 @@ export function CreatorPipelineHome() {
               <button
                 key={b.id}
                 onClick={() => dispatch({ type: 'OPEN_BOOKING', booking: b })}
-                className="tap w-full px-5 py-4 flex items-center gap-3 text-left md:rounded-2xl md:border md:border-line md:bg-paper"
+                className="tap w-full px-5 py-4 flex items-center gap-3 text-left md:rounded-2xl md:border md:border-line md:bg-paper cursor-pointer"
               >
                 <img src={b.clientAvatar} className="w-12 h-12 rounded-xl object-cover shrink-0" alt="" />
                 <div className="flex-1 min-w-0">

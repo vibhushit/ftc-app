@@ -95,10 +95,10 @@ export function MeScreen() {
   const [showCreatorModal, setShowCreatorModal] = useState(false)
   useBodyScrollLock(showCreatorModal)
   const u = state.user ?? {}
-  const name: string = (u as any).name ?? 'Rhea Kapoor'
-  const handle: string = (u as any).handle ?? '@rhea'
-  const city: string = (u as any).city ?? 'Delhi'
-  const locality: string = (u as any).locality ?? 'Hauz Khas'
+  const name: string = (u as any).name || (state.isCreator ? 'Creator' : 'Client')
+  const handle: string = (u as any).handle || `@${name.toLowerCase().replace(/\s+/g, '')}`
+  const city: string = (u as any).city || 'Delhi NCR'
+  const locality: string = (u as any).locality || ''
   const isC = state.isCreator
 
   const copyBookingLink = async () => {
@@ -119,11 +119,13 @@ export function MeScreen() {
     dispatch({ type: 'START_CREATOR_ONBOARD', origin: 'me' })
   }
 
+  const bookingCount = isC ? state.creatorBookings.length : state.lastBooking ? 1 : 0
+
   const clientMenu = [
-    { icon: CalendarCheck, label: 'My Bookings',    sub: '2 upcoming · 5 completed',              s: 'bookings' },
+    { icon: CalendarCheck, label: 'My Bookings',    sub: bookingCount > 0 ? `${bookingCount} active booking` : 'No upcoming bookings', s: 'bookings' },
     { icon: Bookmark,      label: 'Saved Creators', sub: `${state.saved.length} creators saved`,       s: 'saved' },
-    { icon: Bell,          label: 'Notifications',  sub: '3 unread updates',                       s: 'notifications' },
-    { icon: MessageCircle, label: 'Messages',       sub: 'Client chats & quotes',                  s: 'inbox' },
+    { icon: Bell,          label: 'Notifications',  sub: 'Account & booking updates',              s: 'notifications' },
+    { icon: MessageCircle, label: 'Messages',       sub: 'Client chats & custom quotes',           s: 'inbox' },
     { icon: Star,          label: 'My Reviews',     sub: 'Reviews you\'ve submitted',              s: 'reviews' },
     { icon: Shield,        label: 'Safety Centre',  sub: 'Escrow protection & disputes',           s: 'safety' },
     { icon: FileText,      label: 'Legal & Contracts', sub: 'Booking contract & policies',         s: 'legal' },
@@ -131,11 +133,11 @@ export function MeScreen() {
   ]
 
   const creatorMenu = [
-    { icon: CalendarCheck, label: 'My Bookings',    sub: `${state.creatorBookings.length} jobs in pipeline`, s: 'bookings' },
+    { icon: CalendarCheck, label: 'My Bookings',    sub: bookingCount > 0 ? `${bookingCount} jobs in pipeline` : 'No active jobs', s: 'bookings' },
     { icon: Calendar,      label: 'Calendar & Slots', sub: 'Manage availability & open dates',       s: 'calendar' },
-    { icon: Wallet,        label: 'Payouts & Revenue', sub: '₹43,000 available in escrow',           s: 'payouts' },
+    { icon: Wallet,        label: 'Payouts & Revenue', sub: 'Direct bank & UPI settlements',         s: 'payouts' },
     { icon: MessageCircle, label: 'Messages & Quotes', sub: 'Client inquiries & proposals',          s: 'inbox' },
-    { icon: Star,          label: 'Client Reviews', sub: '12 reviews · 4.8 average',                 s: 'reviews' },
+    { icon: Star,          label: 'Client Reviews', sub: `${bookingCount} reviews verified`,          s: 'reviews' },
     { icon: Link2,         label: 'Link-in-Bio',    sub: `ftc.app/${handle.replace(/^@/, '')}`,      s: 'linkbio' },
     { icon: Shield,        label: 'Safety Centre',  sub: 'Escrow protection & disputes',           s: 'safety' },
     { icon: FileText,      label: 'Legal & Agreements', sub: 'Your signed agreements',              s: 'legal' },
@@ -144,8 +146,8 @@ export function MeScreen() {
 
   const menu = isC ? creatorMenu : clientMenu
   const stats = isC
-    ? [['7', 'Jobs'], ['4.8', 'Rating'], ['12', 'Reviews']]
-    : [['7', 'Bookings'], [String(state.saved.length), 'Saved'], ['12', 'Reviews']]
+    ? [[String(bookingCount), 'Jobs'], [bookingCount > 0 ? '4.9' : '5.0', 'Rating'], [String(bookingCount), 'Reviews']]
+    : [[String(bookingCount), 'Bookings'], [String(state.saved.length), 'Saved'], [String(bookingCount), 'Reviews']]
 
   const go = (s: string) => dispatch(s === 'inbox' ? { type: 'GO_TAB', tab: 'inbox', viaMenu: true } : { type: 'GO', screen: s as any })
 
