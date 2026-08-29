@@ -14,7 +14,20 @@
     height: 100%;
     min-height: 100%;
   }
-  html, body { overflow: auto; }
+  html, body {
+    overflow: auto;
+    overscroll-behavior-y: none;
+  }
+
+  /* Prevent iOS Safari 16px auto-zoom while maintaining crisp desktop sizing */
+  input, textarea, select {
+    font-size: 16px;
+  }
+  @media (min-width: 768px) {
+    input, textarea, select {
+      font-size: 13.5px;
+    }
+  }
 }
 
 @layer components {
@@ -84,9 +97,26 @@
     padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px));
   }
 
+  .pb-safe {
+    padding-bottom: max(16px, env(safe-area-inset-bottom, 16px));
+  }
+
+  .pt-safe {
+    padding-top: max(12px, env(safe-area-inset-top, 12px));
+  }
+
+  .mb-safe {
+    margin-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .overscroll-contain {
+    overscroll-behavior-y: contain;
+  }
+
   .tap {
     transition: transform 0.12s ease;
     -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
   .tap:active { transform: scale(0.97); }
 
@@ -111,6 +141,8 @@
   .chip {
     @apply inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-bone border border-line text-xs font-medium cursor-pointer select-none;
     color: rgba(20,20,20,0.75);
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
   .chip-active {
     @apply bg-obsidian text-paper border-obsidian;

@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import { Check, Clock, Lock, Zap, Loader2 } from 'lucide-react'
+import { Check, Clock, Lock, Zap, Loader2, LogOut, Share2, Sparkles } from 'lucide-react'
 import { SimpleHeader } from '@/components/ui/SimpleHeader'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { inr } from '@/data/constants'
-import { cn } from '@/utils'
-import { supabaseAvailable } from '@/lib/supabase'
+import { cn, shareOrCopy } from '@/utils'
+import { supabase, supabaseAvailable } from '@/lib/supabase'
 import * as authApi from '@/lib/api/auth'
 
 /* ─── Settings Screen ─── */
@@ -34,6 +34,23 @@ export function SettingsScreen() {
       setError(e?.message || 'Failed to save changes to database')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleLogout = async () => {
+    try {
+      if (supabaseAvailable) {
+        await supabase.auth.signOut()
+      }
+    } catch (e) {
+      console.warn('[FTC] signOut error:', e)
+    }
+    try {
+      localStorage.removeItem('ftc_saved_session')
+    } catch {}
+    dispatch({ type: 'RESET' })
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', window.location.pathname)
     }
   }
 
@@ -77,7 +94,7 @@ export function SettingsScreen() {
             onClick={save}
             disabled={saving}
             className={cn(
-              'tap w-full mt-2 py-3 rounded-xl font-semibold text-[13px] flex items-center justify-center gap-2 transition shadow-sm',
+              'tap w-full mt-2 py-3 rounded-xl font-semibold text-[13px] flex items-center justify-center gap-2 transition shadow-sm cursor-pointer',
               saved ? 'bg-success text-paper' : 'bg-obsidian text-paper hover:bg-obsidian/90 disabled:opacity-50'
             )}
           >
@@ -88,6 +105,20 @@ export function SettingsScreen() {
             ) : (
               'Save changes'
             )}
+          </button>
+        </div>
+
+        {/* Account & Session Box */}
+        <div className="rounded-2xl bg-paper border border-line p-4 space-y-3">
+          <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-obsidian/50 mb-1">Account & Session</div>
+          <p className="text-[12px] text-obsidian/60">
+            Signed in as <span className="font-mono text-obsidian font-semibold">{u.email || u.phone || u.name || 'User'}</span>
+          </p>
+          <button
+            onClick={handleLogout}
+            className="tap w-full py-2.5 rounded-xl border border-danger/30 text-danger text-[12.5px] font-semibold hover:bg-danger/10 transition flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <LogOut size={14} /> Log out of this device
           </button>
         </div>
       </div>
@@ -350,14 +381,75 @@ export function PayoutsScreen() {
 }
 
 export function LinkBioScreen() {
-  const dispatch = useAppStore(s => s.dispatch)
+  const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
+  const [copied, setCopied] = useState(false)
+  const u = state.user ?? {}
+  const handle = (u as any).handle ? (u as any).handle.replace(/^@/, '') : 'rhea'
+  const name = u.name || 'Creator'
+  const bioUrl = `https://ftc.app/${handle}`
+
+  const handleShare = async () => {
+    const res = await shareOrCopy({
+      title: `${name}'s Link-in-Bio on FTC`,
+      text: `Book verified photography & videography services directly with ${name}`,
+      url: bioUrl,
+    })
+    if (res === 'copied') {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
   return (
-    <div className="flex-1 flex flex-col bg-bone p-5 overflow-hidden">
+    <div className="flex-1 flex flex-col bg-bone overflow-hidden min-h-0">
       <SimpleHeader title="Link-in-Bio" onBack={() => dispatch({ type: 'BACK' })} />
-      <div className="app-scroll p-5">
-        <div className="p-6 rounded-2xl bg-paper border border-line text-center">
-          <div className="font-display text-xl">Your Link-in-Bio is Active</div>
-          <div className="text-sm text-obsidian/60 mt-1">ftc.app/@rhea</div>
+      <div className="app-scroll px-5 py-4 pb-10 space-y-4 max-w-xl mx-auto w-full">
+        {/* Active Link Banner */}
+        <div className="p-6 rounded-3xl bg-obsidian text-paper relative overflow-hidden shadow-lg">
+          <div className="absolute inset-0 dots-acid opacity-10 pointer-events-none" />
+          <div className="flex items-center justify-between mb-3">
+            <span className="px-2.5 py-1 rounded-full text-[10px] font-mono uppercase bg-acid/20 text-acid border border-acid/30 font-semibold">
+              Live & Accepting Bookings
+            </span>
+            <Sparkles size={16} className="text-acid" />
+          </div>
+
+          <div className="font-display text-2xl font-light tracking-tight text-paper">
+            Your Personal Booking Link
+          </div>
+          <p className="text-[12.5px] text-paper/70 mt-1 leading-relaxed">
+            Put this in your Instagram bio or send it to clients. They can browse your packages, check availability, and pay with 100% escrow protection.
+          </p>
+
+          <div className="mt-5 p-3 rounded-2xl bg-paper/10 border border-paper/15 flex items-center justify-between gap-3">
+            <span className="font-mono text-[13px] text-acid truncate font-medium">{bioUrl}</span>
+            <button
+              onClick={handleShare}
+              className="tap px-4 py-2 rounded-xl bg-acid text-obsidian font-semibold text-[12px] flex items-center gap-1.5 shrink-0 shadow-sm cursor-pointer hover:bg-acid/90 transition"
+            >
+              {copied ? <Check size={14} /> : <Share2 size={14} />}
+              <span>{copied ? 'Copied ✓' : 'Share Link'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Benefits Breakdown */}
+        <div className="rounded-2xl bg-paper border border-line p-5 space-y-3">
+          <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-obsidian/50 mb-2">Why use your FTC link</div>
+          <div className="flex items-start gap-3 text-[13px]">
+            <span className="text-base leading-none shrink-0">⚡</span>
+            <div>
+              <div className="font-semibold text-obsidian">0% Commission on Direct Clients</div>
+              <div className="text-obsidian/60 text-[12px]">When clients book via your link-in-bio, you keep 100% of your listed rate.</div>
+            </div>
+          </div>
+          <div className="flex items-start gap-3 text-[13px] pt-2 border-t border-line/60">
+            <span className="text-base leading-none shrink-0">🛡️</span>
+            <div>
+              <div className="font-semibold text-obsidian">Guaranteed Escrow Advance</div>
+              <div className="text-obsidian/60 text-[12px]">No more chasing invoices or phantom cancellations. Funds are held safely before the shoot.</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

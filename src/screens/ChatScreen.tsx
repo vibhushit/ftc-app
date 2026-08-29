@@ -223,20 +223,20 @@ export function ChatScreen() {
       </div>
 
       {/* Input bar */}
-      <div className="bg-paper border-t border-line px-4 pt-3 pb-6 shrink-0 shadow-md">
+      <div className="bg-paper border-t border-line px-4 pt-3 pb-[max(16px,env(safe-area-inset-bottom))] shrink-0 shadow-md">
         {isCreator && (
-          <button onClick={() => setShowQuote(true)} className="tap w-full mb-3 py-3 rounded-xl bg-iris text-paper font-semibold text-[13px] flex items-center justify-center gap-2 shadow hover:bg-iris/90 transition">
+          <button onClick={() => setShowQuote(true)} className="tap w-full mb-3 py-3 rounded-xl bg-iris text-paper font-semibold text-[13px] flex items-center justify-center gap-2 shadow hover:bg-iris/90 transition cursor-pointer">
             <FileText size={16} /> Send Custom Quote
           </button>
         )}
         <div className="flex items-center gap-2">
-          <button className="tap w-10 h-10 rounded-full bg-bone border border-line grid place-items-center shrink-0 hover:bg-obsidian/5"><Plus size={18} /></button>
+          <button className="tap w-10 h-10 rounded-full bg-bone border border-line grid place-items-center shrink-0 hover:bg-obsidian/5 cursor-pointer"><Plus size={18} /></button>
           <input
             value={msgInput}
             onChange={e => setMsgInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleSendMsg()}
             placeholder="Type a message..."
-            className="flex-1 py-2.5 px-4 bg-bone rounded-full text-[14px] outline-none border border-line focus:border-obsidian/40"
+            className="flex-1 py-2.5 px-4 bg-bone rounded-full text-[16px] md:text-[14px] outline-none border border-line focus:border-obsidian/40"
           />
           <button
             onClick={handleSendMsg}

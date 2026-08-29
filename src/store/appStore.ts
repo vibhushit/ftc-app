@@ -92,7 +92,10 @@ function reduce(state: AppState, action: AppAction): AppState {
       return { ...state, onboard: { ...state.onboard, ...action.patch } }
     case 'START_CREATOR_ONBOARD':
       return { ...state, prevScreen: state.screen, screen: 'creatorOnboard1', onboardOrigin: action.origin }
-    case 'COMPLETE_AUTH':
+    case 'COMPLETE_AUTH': {
+      const isInitialAuthScreen = ['welcome', 'signup', 'login', 'phone', 'otp', 'magicLinkSent', 'forgotPassword', 'resetPassword', 'clientOnboard'].includes(state.screen)
+      const targetScreen = isInitialAuthScreen ? 'home' : (state.screen || 'home')
+      const targetTab = TAB_SCREENS[state.activeTab] ? state.activeTab : 'home'
       return {
         ...state, isAuthed: true,
         isCreator: action.isCreator ?? state.isCreator,
@@ -104,8 +107,10 @@ function reduce(state: AppState, action: AppAction): AppState {
           email: action.email ?? state.user.email,
           phone: action.phone ?? state.user.phone,
         },
-        screen: 'home', activeTab: 'home',
+        screen: targetScreen,
+        activeTab: targetTab,
       }
+    }
     case 'MARK_CREATOR':
       return { ...state, isCreator: true, hasCreatorProfile: true }
     case 'SET_SPONSOR_ROLE':
@@ -123,11 +128,11 @@ function reduce(state: AppState, action: AppAction): AppState {
         // Not a registered creator yet -> route to Onboarding
         return { ...state, prevScreen: state.screen, screen: 'creatorOnboard1', onboardOrigin: 'me' }
       }
-      return { ...state, isCreator: action.isCreator, crmTab: 'inquiry' }
-    case 'UPDATE_USER':
-      return { ...state, user: { ...state.user, ...action.patch } }
+      return { ...state, isCreator: action.isCreator }
     case 'SET_CRM_TAB':
       return { ...state, crmTab: action.tab }
+    case 'UPDATE_USER':
+      return { ...state, user: { ...state.user, ...action.patch } }
     case 'SEND_QUOTE':
       return { ...state, quotes: [...state.quotes, action.quote] }
     case 'QUOTE_ACTION':
@@ -141,6 +146,9 @@ function reduce(state: AppState, action: AppAction): AppState {
     case 'CLEAR_COMPARE':
       return { ...state, compareIds: [] }
     case 'RESET':
+      try {
+        localStorage.removeItem('ftc_saved_session')
+      } catch {}
       return DEFAULT_STATE
     case 'SET_PENDING_PHONE':
       return { ...state, pendingPhone: action.phone }
@@ -157,6 +165,14 @@ function reduce(state: AppState, action: AppAction): AppState {
           phone: action.phone || state.user.phone,
           email: action.email || state.user.email,
         },
+      }
+    case 'POP_STATE':
+      return {
+        ...state,
+        prevScreen: state.screen,
+        screen: action.screen,
+        activeTab: action.activeTab ?? state.activeTab,
+        selectedCreatorId: action.selectedCreatorId !== undefined ? action.selectedCreatorId : state.selectedCreatorId,
       }
     default:
       return state
@@ -228,6 +244,16 @@ function parseInitialHash(defaultState: AppState): AppState {
     }
   }
 
+  if (screen) {
+    const validTabs: Tab[] = ['home', 'discover', 'inbox', 'me']
+    const matchingTab = validTabs.find(t => t === screen)
+    return {
+      ...baseState,
+      screen,
+      activeTab: matchingTab ?? baseState.activeTab,
+    }
+  }
+
   // 4. Final Auth Guard: If not authenticated, only public screens are permitted
   const PUBLIC_AUTH_SCREENS: Screen[] = ['welcome', 'signup', 'login', 'phone', 'otp', 'magicLinkSent', 'forgotPassword', 'resetPassword']
   if (!baseState.isAuthed && !PUBLIC_AUTH_SCREENS.includes(baseState.screen)) {
@@ -242,7 +268,7 @@ function parseInitialHash(defaultState: AppState): AppState {
   return baseState
 }
 
-function syncUrlHash(state: AppState) {
+function syncUrlHash(state: AppState, isPopState = false) {
   if (typeof window === 'undefined') return
 
   const rawHash = window.location.hash
@@ -265,11 +291,16 @@ function syncUrlHash(state: AppState) {
     nextHash = `screen=${state.screen}`
   }
   const currentHash = window.location.hash.replace(/^#/, '')
+
   if (currentHash !== nextHash) {
-    if (nextHash) {
-      window.history.replaceState(null, '', `#${nextHash}`)
-    } else {
-      window.history.replaceState(null, '', window.location.pathname + window.location.search)
+    const targetUrl = nextHash ? `#${nextHash}` : (window.location.pathname + window.location.search)
+    if (!isPopState) {
+      // Push history state so browser Back/Forward buttons navigate seamlessly inside the app
+      window.history.pushState(
+        { screen: state.screen, activeTab: state.activeTab, selectedCreatorId: state.selectedCreatorId },
+        '',
+        targetUrl
+      )
     }
   }
 
@@ -305,22 +336,26 @@ export const useAppStore = create<AppStore>((set) => ({
   ...INITIAL_STATE,
   dispatch: (action) => set(state => {
     const next = reduce(state, action)
-    syncUrlHash(next)
+    syncUrlHash(next, action.type === 'POP_STATE' || action.type === 'SET_FILTER')
     return next
   }),
   setFilter: (patch) => set(state => {
     const next = { ...state, filters: { ...state.filters, ...patch } }
-    syncUrlHash(next)
+    syncUrlHash(next, true)
     return next
   }),
   go: (screen) => set(state => {
     const next = { ...state, prevScreen: state.screen, screen }
-    syncUrlHash(next)
+    syncUrlHash(next, false)
     return next
   }),
   back: () => set(state => {
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      window.history.back()
+      return state
+    }
     const next = { ...state, screen: state.prevScreen ?? TAB_SCREENS[state.activeTab], prevScreen: null }
-    syncUrlHash(next)
+    syncUrlHash(next, false)
     return next
   }),
 }))

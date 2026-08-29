@@ -333,3 +333,4 @@ export type AppAction =
   | { type: 'RESET' }
   | { type: 'SET_PENDING_PHONE'; phone: string }
   | { type: 'SYNC_AUTH_USER'; userId: string; name: string; phone?: string; email?: string; isCreator?: boolean }
+  | { type: 'POP_STATE'; screen: Screen; activeTab?: Tab; selectedCreatorId?: string | null }

@@ -5,6 +5,7 @@ import { useAppStore } from '@/store/appStore'
 import { AuthProvider } from '@/components/AuthProvider'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { EnvironmentSwitcher } from '@/components/ui/EnvironmentSwitcher'
+import { NetworkStatusBanner } from '@/components/ui/NetworkStatusBanner'
 import { BottomNav } from '@/components/ui/BottomNav'
 import { SideNav } from '@/components/ui/SideNav'
 import { WelcomeScreen } from '@/screens/WelcomeScreen'
@@ -58,6 +59,47 @@ export function App() {
       dispatch({ type: 'RESET' })
     }
   }, [isAuthed, isPublicScreen, dispatch])
+
+  // ─── Browser History Sync (Back / Forward Button & Swipe Support) ───
+  useEffect(() => {
+    const handlePopState = () => {
+      const rawHash = typeof window !== 'undefined' ? window.location.hash.replace(/^#/, '') : ''
+      const params = new URLSearchParams(rawHash)
+      const creatorId = params.get('creator')
+      const screenParam = params.get('screen') as Screen | null
+
+      if (creatorId) {
+        dispatch({
+          type: 'POP_STATE',
+          screen: 'creator',
+          selectedCreatorId: creatorId,
+        })
+        return
+      }
+
+      if (screenParam) {
+        const validTabs: Tab[] = ['home', 'discover', 'inbox', 'me']
+        const matchingTab = validTabs.find(t => t === screenParam)
+        dispatch({
+          type: 'POP_STATE',
+          screen: screenParam,
+          activeTab: matchingTab,
+        })
+        return
+      }
+
+      // Hash is empty -> restore home if authed, else welcome
+      const authed = useAppStore.getState().isAuthed
+      dispatch({
+        type: 'POP_STATE',
+        screen: authed ? 'home' : 'welcome',
+        activeTab: 'home',
+      })
+    }
+
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [dispatch])
 
   const showBottomNav = isAuthed && TAB_SCREENS.includes(screen)
   const showSideNav = isAuthed && !NO_SHELL_SCREENS.includes(screen)
@@ -134,6 +176,7 @@ export function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
+        <NetworkStatusBanner />
         <EnvironmentSwitcher />
         <div className="app-shell">
           {showSideNav && (

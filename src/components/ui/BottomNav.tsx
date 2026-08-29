@@ -16,8 +16,8 @@ export function BottomNav({ active, onNav, notifications = 0 }: BottomNavProps) 
   const isDedicatedScreenActive = tabs.some(x => x.screen && x.screen === screen)
 
   return (
-    <div className="md:hidden absolute bottom-0 inset-x-0 bg-paper/95 backdrop-blur-xl border-t border-line z-30">
-      <div className="flex items-center justify-around py-2 px-2">
+    <div className="md:hidden absolute bottom-0 inset-x-0 bg-paper/95 backdrop-blur-xl border-t border-line z-30 pb-[max(6px,env(safe-area-inset-bottom))]">
+      <div className="flex items-center justify-around py-1.5 px-2">
         {tabs.map(t => {
           const Ic = t.icon
           const isActive = t.screen ? screen === t.screen : (!isDedicatedScreenActive && active === t.id)
@@ -31,11 +31,11 @@ export function BottomNav({ active, onNav, notifications = 0 }: BottomNavProps) 
                   onNav(t.id as Tab)
                 }
               }}
-              className="tap relative flex flex-col items-center justify-center py-1 px-2 rounded-2xl"
+              className="tap relative flex flex-col items-center justify-center py-1 px-3 rounded-2xl min-w-[56px] min-h-[44px] cursor-pointer"
             >
               <div className="relative">
                 <Ic
-                  size={22}
+                  size={21}
                   className={isActive ? 'text-obsidian' : 'text-obsidian/40'}
                   strokeWidth={isActive ? 2.2 : 1.8}
                 />
@@ -45,15 +45,12 @@ export function BottomNav({ active, onNav, notifications = 0 }: BottomNavProps) 
                   </span>
                 )}
               </div>
-              <span className={cn('mt-1 text-[10px] font-medium', isActive ? 'text-obsidian font-semibold' : 'text-obsidian/40')}>
+              <span className={cn('mt-0.5 text-[10px] font-medium tracking-tight', isActive ? 'text-obsidian font-semibold' : 'text-obsidian/40')}>
                 {t.label}
               </span>
             </button>
           )
         })}
-      </div>
-      <div className="flex justify-center pb-1.5">
-        <div className="w-32 h-1 rounded-full bg-obsidian/90" />
       </div>
     </div>
   )

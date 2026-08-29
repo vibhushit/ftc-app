@@ -29,18 +29,17 @@ export function ForgotPasswordScreen() {
 
     try {
       if (supabaseAvailable && isLiveMode()) {
-        const userExists = await authApi.checkEmailExists(email.trim())
-        if (!userExists) {
-          setError('No account found with this email. Please check your spelling or sign up.')
-          setLoading(false)
-          return
-        }
         await authApi.resetPassword(email.trim())
       }
       setSent(true)
       setCooldown(60)
     } catch (e: any) {
-      setError(e?.message || 'Failed to send password recovery link. Please verify your email.')
+      const msg = e?.message?.toLowerCase() || ''
+      if (msg.includes('rate limit') || msg.includes('too many') || msg.includes('over_email_send_rate_limit')) {
+        setError('Email sending limit reached for this hour. Please wait before requesting another link or sign in directly.')
+      } else {
+        setError(e?.message || 'Failed to send password recovery link. Please verify your email.')
+      }
     } finally {
       setLoading(false)
     }

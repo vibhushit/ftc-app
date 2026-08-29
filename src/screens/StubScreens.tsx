@@ -7,7 +7,9 @@ import {
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { CREATORS } from '@/data/creators'
-import { cn } from '@/utils'
+import { cn, shareOrCopy } from '@/utils'
+import { supabase, supabaseAvailable } from '@/lib/supabase'
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 
 const INBOX = [
   { id: 'ib1', cid: 'c1',  last: 'Done! Uploaded 42 edited selects in full-res.', time: '2m',  unread: 1, online: true },
@@ -91,6 +93,7 @@ export function MeScreen() {
   const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
   const [copied, setCopied] = useState(false)
   const [showCreatorModal, setShowCreatorModal] = useState(false)
+  useBodyScrollLock(showCreatorModal)
   const u = state.user ?? {}
   const name: string = (u as any).name ?? 'Rhea Kapoor'
   const handle: string = (u as any).handle ?? '@rhea'
@@ -98,13 +101,17 @@ export function MeScreen() {
   const locality: string = (u as any).locality ?? 'Hauz Khas'
   const isC = state.isCreator
 
-  const copyBookingLink = () => {
+  const copyBookingLink = async () => {
     const link = `https://ftc.app/${handle.replace(/^@/, '')}`
-    try {
-      navigator.clipboard.writeText(link)
-    } catch {}
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    const res = await shareOrCopy({
+      title: `${name} on FTC`,
+      text: `Book ${name} with verified escrow protection on FTC Creator Marketplace`,
+      url: link,
+    })
+    if (res === 'copied') {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
   }
 
   const startCreatorOnboarding = () => {
@@ -141,6 +148,23 @@ export function MeScreen() {
     : [['7', 'Bookings'], [String(state.saved.length), 'Saved'], ['12', 'Reviews']]
 
   const go = (s: string) => dispatch(s === 'inbox' ? { type: 'GO_TAB', tab: 'inbox', viaMenu: true } : { type: 'GO', screen: s as any })
+
+  const handleLogout = async () => {
+    try {
+      if (supabaseAvailable) {
+        await supabase.auth.signOut()
+      }
+    } catch (e) {
+      console.warn('[FTC] signOut error:', e)
+    }
+    try {
+      localStorage.removeItem('ftc_saved_session')
+    } catch {}
+    dispatch({ type: 'RESET' })
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', window.location.pathname)
+    }
+  }
 
   return (
     <div className="flex-1 flex flex-col bg-bone overflow-hidden h-full">
@@ -297,8 +321,8 @@ export function MeScreen() {
                 </button>
               )}
               <button
-                onClick={() => dispatch({ type: 'RESET' })}
-                className="tap px-4 py-2.5 rounded-xl bg-paper border border-line text-[12.5px] font-semibold text-danger hover:bg-danger/10 transition flex items-center gap-1.5"
+                onClick={handleLogout}
+                className="tap px-4 py-2.5 rounded-xl bg-paper border border-line text-[12.5px] font-semibold text-danger hover:bg-danger/10 transition flex items-center gap-1.5 cursor-pointer"
               >
                 <LogOut size={14} /> Log out
               </button>
@@ -310,8 +334,11 @@ export function MeScreen() {
 
       {/* Become a Creator Value Sheet / Modal */}
       {showCreatorModal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-obsidian/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-paper border border-line rounded-t-3xl sm:rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative overflow-hidden animate-in slide-in-from-bottom duration-300">
+        <div
+          onClick={(e) => { if (e.target === e.currentTarget) setShowCreatorModal(false) }}
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-obsidian/60 backdrop-blur-xs animate-in fade-in duration-200"
+        >
+          <div className="bg-paper border border-line rounded-t-3xl sm:rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative overflow-hidden animate-in slide-in-from-bottom duration-300 pb-[max(24px,env(safe-area-inset-bottom))] overscroll-contain">
             {/* Close Button */}
             <button
               onClick={() => setShowCreatorModal(false)}

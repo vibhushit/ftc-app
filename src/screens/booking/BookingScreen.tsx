@@ -290,7 +290,7 @@ export function BookingScreen() {
       </div>
       </div>
 
-      <div className="md:hidden absolute bottom-0 inset-x-0 px-5 pb-6 pt-4 bg-paper border-t border-line">
+      <div className="md:hidden absolute bottom-0 inset-x-0 px-5 pt-3 pb-[max(16px,env(safe-area-inset-bottom))] bg-paper/95 backdrop-blur-xl border-t border-line z-20">
         <button
           onClick={() => step < 2 ? setStep(step + 1) : confirm()}
           className="tap w-full py-4 rounded-2xl bg-obsidian text-paper font-semibold text-[14px] flex items-center justify-center gap-2"

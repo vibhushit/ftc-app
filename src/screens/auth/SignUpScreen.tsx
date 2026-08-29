@@ -31,19 +31,16 @@ export function SignUpScreen() {
 
     try {
       if (supabaseAvailable && isLiveMode()) {
-        const alreadyExists = await authApi.checkEmailExists(email.trim())
-        if (alreadyExists) {
-          setError('This email is already registered. Please sign in instead.')
-          setLoading(false)
-          return
-        }
         await authApi.sendSignUpVerificationLink(email.trim(), name.trim())
       }
       setSent(true)
       setCooldown(60)
     } catch (e: any) {
-      if (e?.message?.toLowerCase().includes('already registered') || e?.message?.toLowerCase().includes('already exists')) {
+      const msg = e?.message?.toLowerCase() || ''
+      if (msg.includes('already registered') || msg.includes('already exists') || msg.includes('user already')) {
         setError('This email is already registered. Please sign in instead.')
+      } else if (msg.includes('rate limit') || msg.includes('too many') || msg.includes('over_email_send_rate_limit')) {
+        setError('Email sending limit reached. Please wait a few minutes before requesting another link.')
       } else {
         setError(e?.message || 'Failed to send verification link. Please check your email.')
       }

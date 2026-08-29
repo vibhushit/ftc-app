@@ -4,7 +4,7 @@ import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { CREATORS } from '@/data/creators'
 import { pic, inr } from '@/data/constants'
-import { cn } from '@/utils'
+import { cn, shareOrCopy } from '@/utils'
 import { useCreator, useCreatorServices } from '@/hooks/useCreators'
 import type { CreatorWithUser } from '@/lib/database.types'
 import type { Tier, Verification, Gender, TravelMode, TravelRadius, Creator } from '@/types'
@@ -256,7 +256,20 @@ export function CreatorDetailScreen() {
           <button onClick={() => dispatch({ type: 'TOGGLE_SAVE', id: c.id })} className="tap pointer-events-auto w-10 h-10 rounded-full bg-paper/90 backdrop-blur grid place-items-center shadow-md">
             <Heart size={16} className={isSaved ? 'fill-danger text-danger' : ''} />
           </button>
-          <button onClick={() => { try { navigator.clipboard?.writeText('https://ftc.app/' + c.handle) } catch {} setShareToast(true); setTimeout(() => setShareToast(false), 1800) }} className="tap pointer-events-auto w-10 h-10 rounded-full bg-paper/90 backdrop-blur grid place-items-center shadow-md">
+          <button
+            onClick={async () => {
+              const res = await shareOrCopy({
+                title: `${c.name} on FTC`,
+                text: `Book ${c.name} (${c.discipline}) with verified escrow on FTC Creator Marketplace`,
+                url: `https://ftc.app/${c.handle.replace(/^@/, '')}`,
+              })
+              if (res === 'copied') {
+                setShareToast(true)
+                setTimeout(() => setShareToast(false), 2000)
+              }
+            }}
+            className="tap pointer-events-auto w-10 h-10 rounded-full bg-paper/90 backdrop-blur grid place-items-center shadow-md cursor-pointer"
+          >
             <Share2 size={16} />
           </button>
         </div>
@@ -481,7 +494,7 @@ export function CreatorDetailScreen() {
       </div>
 
       {/* Sticky bottom CTA — mobile only; desktop uses the sidebar CTA above */}
-      <div className="md:hidden absolute bottom-0 inset-x-0 px-5 pb-6 pt-3 bg-paper/95 backdrop-blur-xl border-t border-line z-10">
+      <div className="md:hidden absolute bottom-0 inset-x-0 px-5 pt-3 pb-[max(16px,env(safe-area-inset-bottom))] bg-paper/95 backdrop-blur-xl border-t border-line z-10">
         {bookReady && (
           <div className="flex items-center gap-1.5 mb-2 text-[11px] text-obsidian/60">
             <CalendarCheck size={12} className="text-success" />
