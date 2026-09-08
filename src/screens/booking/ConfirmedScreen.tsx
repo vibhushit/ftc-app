@@ -1,7 +1,7 @@
-import { Check, Lock, Share2, Calendar, Download, Clock, ExternalLink } from 'lucide-react'
+import { Check, Lock, Calendar, Download, Clock, ExternalLink } from 'lucide-react'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
-import { CREATORS } from '@/data/creators'
+import { useCreator } from '@/hooks/useCreators'
 import { inr } from '@/data/constants'
 
 function depositInfo(price: number) {
@@ -12,16 +12,19 @@ function depositInfo(price: number) {
 
 export function ConfirmedScreen() {
   const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
-  const c = CREATORS.find(x => x.id === state.selectedCreatorId) ?? CREATORS[0]
+  const { data: dbCreator } = useCreator(state.selectedCreatorId)
   const lb = (state.lastBooking ?? {}) as Record<string, unknown>
-  const dep = depositInfo((lb.total as number) || Math.round(c.startingAt * 2.5))
+  const creatorName = (lb.creatorName as string) || dbCreator?.users?.name || 'Creator'
+  const creatorAvatar = (lb.creatorAvatar as string) || dbCreator?.users?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80'
+  const creatorArea = dbCreator?.area || 'Studio'
+  const dep = depositInfo((lb.total as number) || (dbCreator?.starting_at ? Math.round(dbCreator.starting_at * 2.5) : 20000))
   const advAmt = (lb.advance as number) ?? dep.advance
   const dateLine = `${(lb.when as string) || 'May 15 · 10:00 AM'} · ${(lb.pkg as string) || 'Standard'}`
   const isPending = (lb.status as string) === 'pending_approval'
 
-  const titleText = encodeURIComponent(`FTC Shoot: ${c.name} (${(lb.pkg as string) || 'Session'})`)
-  const detailsText = encodeURIComponent(`Creator: ${c.name}\nPackage: ${(lb.pkg as string) || 'Session'}\nShoot Timing: ${(lb.when as string) || ''}\nLocation: ${c.area || 'Studio'}\nBooking Code: ${(lb.id as string) || 'FTC8472'}\nStatus: ${isPending ? 'Pending Creator Acceptance (24h SLA)' : 'Confirmed'}`)
-  const locationText = encodeURIComponent(c.area || 'Studio')
+  const titleText = encodeURIComponent(`FTC Shoot: ${creatorName} (${(lb.pkg as string) || 'Session'})`)
+  const detailsText = encodeURIComponent(`Creator: ${creatorName}\nPackage: ${(lb.pkg as string) || 'Session'}\nShoot Timing: ${(lb.when as string) || ''}\nLocation: ${creatorArea}\nBooking Code: ${(lb.id as string) || 'FTC8472'}\nStatus: ${isPending ? 'Pending Creator Acceptance (24h SLA)' : 'Confirmed'}`)
+  const locationText = encodeURIComponent(creatorArea)
   const googleCalUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${titleText}&details=${detailsText}&location=${locationText}`
 
   const downloadIcs = () => {
@@ -36,9 +39,9 @@ export function ConfirmedScreen() {
       `UID:${(lb.id as string) || 'FTC8472'}@ftc.co`,
       `DTSTAMP:${nowStr}`,
       `DTSTART:${nowStr}`,
-      `SUMMARY:FTC Shoot: ${c.name} (${(lb.pkg as string) || 'Session'})`,
-      `LOCATION:${c.area || 'Studio'}`,
-      `DESCRIPTION:Shoot booking on FTC with ${c.name}. Booking ID: ${(lb.id as string) || 'FTC8472'}`,
+      `SUMMARY:FTC Shoot: ${creatorName} (${(lb.pkg as string) || 'Session'})`,
+      `LOCATION:${creatorArea}`,
+      `DESCRIPTION:Shoot booking on FTC with ${creatorName}. Booking ID: ${(lb.id as string) || 'FTC8472'}`,
       `STATUS:${isPending ? 'TENTATIVE' : 'CONFIRMED'}`,
       'END:VEVENT',
       'END:VCALENDAR',
@@ -82,7 +85,7 @@ export function ConfirmedScreen() {
 
         <p className="mt-3 text-[13.5px] text-paper/70 max-w-xs leading-relaxed">
           {isPending
-            ? `${c.name} has 24 hours to accept your shoot request. Your ${inr(advAmt)} advance is safely authorized in FTC escrow.`
+            ? `${creatorName} has 24 hours to accept your shoot request. Your ${inr(advAmt)} advance is safely authorized in FTC escrow.`
             : dep.full
             ? `${inr(advAmt)} is held safely in FTC escrow and released to the creator once you approve the delivery.`
             : `${inr(advAmt)} (${dep.pct}%) collected and held in escrow. Balance due on delivery approval.`}
@@ -90,9 +93,9 @@ export function ConfirmedScreen() {
 
         <div className="mt-6 p-5 rounded-2xl bg-paper/10 w-full max-w-sm border border-paper/10">
           <div className="flex items-center gap-3">
-            <img src={c.avatar} className="w-12 h-12 rounded-full object-cover" alt="" />
+            <img src={creatorAvatar} className="w-12 h-12 rounded-full object-cover" alt="" />
             <div className="text-left flex-1 min-w-0">
-              <div className="font-display text-lg leading-tight truncate">{c.name}</div>
+              <div className="font-display text-lg leading-tight truncate">{creatorName}</div>
               <div className="text-[11px] text-paper/60 truncate">{dateLine}</div>
             </div>
           </div>

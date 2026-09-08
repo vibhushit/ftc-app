@@ -1,11 +1,13 @@
-import { useState, useEffect } from 'react'
+/**
+ * FTC Platform Environment & API Configuration
+ * 
+ * Single source of truth for resolving API base URLs and backend health.
+ * The platform operates strictly in Live Mode connecting to the Axum backend.
+ */
 
-export type EnvironmentMode = 'live' | 'sandbox'
+export type EnvironmentMode = 'live'
 
-const STORAGE_KEY = 'ftc_environment_mode'
-const CHANGE_EVENT = 'ftc_env_mode_changed'
-
-export const DEFAULT_LIVE_API_URL = 'https://ftc-app-9n1s.onrender.com/api'
+export const DEFAULT_LIVE_API_URL = 'http://localhost:3000/api'
 
 /**
  * Returns the effective API Base URL.
@@ -19,64 +21,31 @@ export function getApiBaseUrl(): string {
 }
 
 /**
- * Reads the current environment mode from localStorage.
- * Defaults to 'live' across all environments.
+ * The platform operates exclusively in live database-backed mode.
  */
 export function getEnvironmentMode(): EnvironmentMode {
-  if (typeof window === 'undefined') return 'live'
-  const saved = localStorage.getItem(STORAGE_KEY)
-  if (saved === 'live' || saved === 'sandbox') return saved
   return 'live'
 }
 
 /**
- * Returns true if the platform is running in strict Live Mode.
+ * Returns true. Platform runs in live mode without mock branching.
  */
 export function isLiveMode(): boolean {
-  return getEnvironmentMode() === 'live'
+  return true
 }
 
 /**
- * Updates the environment mode in localStorage and dispatches a global change event.
+ * Deprecated: Kept for temporary backward compatibility during screen refactoring.
  */
-export function setEnvironmentMode(mode: EnvironmentMode): void {
-  if (typeof window === 'undefined') return
-  localStorage.setItem(STORAGE_KEY, mode)
-  window.dispatchEvent(new CustomEvent(CHANGE_EVENT, { detail: mode }))
+export function setEnvironmentMode(_mode: string): void {
+  // No-op: Sandbox mode is removed; the backend is the single source of truth.
 }
 
 /**
- * React Hook to subscribe to environment mode changes reactively.
+ * Hook returning static live mode.
  */
-export function useEnvironmentMode(): [EnvironmentMode, (mode: EnvironmentMode) => void] {
-  const [mode, setMode] = useState<EnvironmentMode>(getEnvironmentMode)
-
-  useEffect(() => {
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEY) {
-        setMode(getEnvironmentMode())
-      }
-    }
-    const handleCustom = (e: Event) => {
-      const custom = e as CustomEvent<EnvironmentMode>
-      setMode(custom.detail || getEnvironmentMode())
-    }
-
-    window.addEventListener('storage', handleStorage)
-    window.addEventListener(CHANGE_EVENT, handleCustom)
-
-    return () => {
-      window.removeEventListener('storage', handleStorage)
-      window.removeEventListener(CHANGE_EVENT, handleCustom)
-    }
-  }, [])
-
-  const updateMode = (newMode: EnvironmentMode) => {
-    setEnvironmentMode(newMode)
-    setMode(newMode)
-  }
-
-  return [mode, updateMode]
+export function useEnvironmentMode(): [EnvironmentMode, (mode: any) => void] {
+  return ['live', () => {}]
 }
 
 /**
@@ -112,8 +81,8 @@ export async function pingBackendHealth(apiUrl?: string): Promise<{
     const latency = Math.round(performance.now() - start)
     const isTimeout = err?.name === 'AbortError'
     const errorMsg = isTimeout
-      ? 'Timeout (>12s) — Server might be in cold start spin-up'
-      : err?.message || 'Network unreachable'
+      ? 'Timeout (>12s) — Server might be offline or starting up'
+      : err?.message || 'Backend unreachable'
     return { online: false, latencyMs: latency, targetUrl: healthUrl, error: errorMsg }
   }
 }

@@ -3,7 +3,6 @@ import { Clock, Check } from 'lucide-react'
 import { useAppStore } from '@/store/appStore'
 import { supabaseAvailable } from '@/lib/supabase'
 import * as authApi from '@/lib/api/auth'
-import { isLiveMode } from '@/config/environmentMode'
 
 export function CreatorOnboardReview() {
   const dispatch = useAppStore(s => s.dispatch)
@@ -12,7 +11,7 @@ export function CreatorOnboardReview() {
   const handleFinish = async () => {
     setFinishing(true)
     try {
-      if (supabaseAvailable && isLiveMode()) {
+      if (supabaseAvailable) {
         await authApi.setUserRole('creator')
       }
     } catch (e) {

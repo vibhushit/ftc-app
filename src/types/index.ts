@@ -1,3 +1,15 @@
+// Canonical Rust domain enums and platform config (exported via ts-rs)
+export type {
+  Discipline as CanonicalDiscipline,
+  CreatorTier,
+  VerificationLevel,
+  BookingStatus,
+  EscrowStatus,
+  LocationType as CanonicalLocationType,
+  TravelMode as CanonicalTravelMode,
+  PlatformConfig,
+} from './bindings'
+
 export type Tier = 'Platinum' | 'Gold' | 'Silver' | 'Rising'
 export type Verification = 'vetted' | 'id' | 'phone'
 export type Gender = 'male' | 'female' | 'non-binary'
@@ -124,6 +136,10 @@ export interface BookingDraft {
   time: string
   location: string
   notes: string
+  duration?: string
+  dateKey?: string | null
+  dateLabel?: string
+  pkgIdx?: number
 }
 
 export interface Booking {

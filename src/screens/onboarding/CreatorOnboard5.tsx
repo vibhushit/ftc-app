@@ -7,7 +7,6 @@ import { useUpsertCreatorProfile } from '@/hooks/useCreators'
 import { supabaseAvailable } from '@/lib/supabase'
 import * as authApi from '@/lib/api/auth'
 import { apiClient } from '@/services/apiClient'
-import { isLiveMode } from '@/config/environmentMode'
 import { OnboardShell } from './OnboardShell'
 
 export function CreatorOnboard5() {
@@ -39,7 +38,7 @@ export function CreatorOnboard5() {
         portfolio_urls: ob.portfolio ?? [],
       })
 
-      if (supabaseAvailable && state.supabaseUserId && isLiveMode()) {
+      if (supabaseAvailable && state.supabaseUserId) {
         const handle = `@${ob.name.replace(/\s+/g, '.').toLowerCase()}`
         await authApi.updateMyProfile({ name: ob.name, city: ob.city })
         await upsert.mutateAsync({

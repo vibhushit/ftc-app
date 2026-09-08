@@ -188,7 +188,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ical_feed_rfc5545_conformance() {
-        let app_state = AppState { pool: None };
+        let app_state = AppState::new(None);
         let response = crate::routes::calendar::get_ical_feed(
             axum::extract::State(app_state),
             axum::extract::Path("c1".to_string()),
@@ -235,7 +235,7 @@ mod tests {
             client_notes: Some("Need 2 background colors".into()),
         };
 
-        let app_state = AppState { pool: None };
+        let app_state = AppState::new(None);
         let app = create_app(app_state);
 
         let req = Request::builder()
@@ -264,7 +264,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_accept_and_decline_booking_endpoints() {
-        let app_state = AppState { pool: None };
+        let app_state = AppState::new(None);
         let app = create_app(app_state);
 
         // Test Accept
@@ -302,7 +302,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_http_availability_endpoint() {
-        let app_state = AppState { pool: None };
+        let app_state = AppState::new(None);
         let app = create_app(app_state);
 
         let req = Request::builder()
@@ -326,7 +326,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_http_filters_endpoint() {
-        let app_state = AppState { pool: None };
+        let app_state = AppState::new(None);
         let app = create_app(app_state);
 
         let req = Request::builder()
@@ -343,6 +343,60 @@ mod tests {
 
         assert!(val["disciplines"].is_array());
         assert!(val["cities"].is_array());
+        assert!(val["price_range"]["min"].as_u64().unwrap() > 0);
+    }
+
+    // ─── 5. DOMAIN ENUMS & PLATFORM CONFIG TESTS ─────────────────────────────
+
+    #[test]
+    fn test_domain_enums_serialization() {
+        use crate::models::enums::*;
+
+        // Discipline
+        assert_eq!(serde_json::to_string(&Discipline::Photography).unwrap(), "\"photography\"");
+        assert_eq!(serde_json::to_string(&Discipline::MakeupHair).unwrap(), "\"makeup_hair\"");
+        let parsed_disc: Discipline = serde_json::from_str("\"videography\"").unwrap();
+        assert_eq!(parsed_disc, Discipline::Videography);
+
+        // BookingStatus
+        assert_eq!(serde_json::to_string(&BookingStatus::PendingApproval).unwrap(), "\"pending_approval\"");
+        assert_eq!(serde_json::to_string(&BookingStatus::Confirmed).unwrap(), "\"confirmed\"");
+        let parsed_status: BookingStatus = serde_json::from_str("\"declined\"").unwrap();
+        assert_eq!(parsed_status, BookingStatus::Declined);
+
+        // CreatorTier
+        assert_eq!(serde_json::to_string(&CreatorTier::Rising).unwrap(), "\"rising\"");
+        assert_eq!(serde_json::to_string(&CreatorTier::Elite).unwrap(), "\"elite\"");
+
+        // LocationType & TravelMode
+        assert_eq!(serde_json::to_string(&LocationType::Studio).unwrap(), "\"studio\"");
+        assert_eq!(serde_json::to_string(&TravelMode::Both).unwrap(), "\"both\"");
+    }
+
+    #[tokio::test]
+    async fn test_http_config_endpoint() {
+        let app_state = AppState::new(None);
+        let app = create_app(app_state);
+
+        let req = Request::builder()
+            .method("GET")
+            .uri("/api/config")
+            .body(Body::empty())
+            .unwrap();
+
+        let res = app.oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+
+        let body_bytes = axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
+        let val: Value = serde_json::from_slice(&body_bytes).unwrap();
+
+        assert_eq!(val["sla_hours"], 24);
+        assert_eq!(val["default_advance_pct"], 50);
+        assert_eq!(val["default_platform_fee_pct"], 10);
+        assert_eq!(val["default_slot_step_minutes"], 60);
+        assert_eq!(val["default_buffer_minutes"], 30);
+        assert!(val["cities"].is_array());
+        assert!(val["disciplines"].is_array());
         assert!(val["price_range"]["min"].as_u64().unwrap() > 0);
     }
 }

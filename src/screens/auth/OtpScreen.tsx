@@ -4,7 +4,6 @@ import { useAppStore } from '@/store/appStore'
 import { useShallow } from 'zustand/shallow'
 import { supabaseAvailable } from '@/lib/supabase'
 import * as authApi from '@/lib/api/auth'
-import { isLiveMode } from '@/config/environmentMode'
 
 export function OtpScreen() {
   const { dispatch, pendingPhone } = useAppStore(useShallow(s => ({ dispatch: s.dispatch, pendingPhone: s.pendingPhone })))
@@ -36,7 +35,7 @@ export function OtpScreen() {
     setLoading(true)
     setError('')
     try {
-      if (supabaseAvailable && isLiveMode()) {
+      if (supabaseAvailable) {
         const isEmail = (pendingPhone || '').includes('@')
         await authApi.verifyOtp(pendingPhone || '', otpCode, isEmail ? 'email' : 'sms')
       }

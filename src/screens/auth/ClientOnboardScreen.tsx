@@ -5,7 +5,6 @@ import { useShallow } from 'zustand/shallow'
 import { cn } from '@/utils'
 import { supabaseAvailable } from '@/lib/supabase'
 import * as authApi from '@/lib/api/auth'
-import { isLiveMode } from '@/config/environmentMode'
 
 const POPULAR_CITIES = ['Delhi NCR', 'Mumbai', 'Bangalore', 'Pune', 'Hyderabad', 'Jaipur', 'Goa', 'Other']
 
@@ -35,7 +34,7 @@ export function ClientOnboardScreen() {
     const finalName = skip ? (name || 'Client') : (name.trim() || 'Client')
 
     try {
-      if (supabaseAvailable && isLiveMode()) {
+      if (supabaseAvailable) {
         await authApi.updateMyProfile({
           name: finalName,
           city: finalCity,

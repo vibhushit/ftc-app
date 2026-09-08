@@ -29,6 +29,21 @@ pub const DEFAULT_PRICE_RANGE: PriceRangeConfig = PriceRangeConfig {
 /// 24-hour Request-to-Book SLA in hours
 pub const BOOKING_REQUEST_SLA_HOURS: i64 = 24;
 
+/// Default booking advance deposit percentage (e.g. 50% held in escrow)
+pub const DEFAULT_ADVANCE_PCT: u32 = 50;
+
+/// Default platform commission fee percentage (e.g. 10%)
+pub const DEFAULT_PLATFORM_FEE_PCT: u32 = 10;
+
+/// Default scheduling time step (cadence) in minutes
+pub const DEFAULT_SLOT_STEP_MINUTES: u32 = 60;
+
+/// Default buffer time between sessions in minutes
+pub const DEFAULT_BUFFER_MINUTES: u32 = 30;
+
+/// Default minimum advance notice hours
+pub const DEFAULT_MIN_NOTICE_HOURS: u32 = 24;
+
 /// Category presets defining default time step (cadence) and buffer minutes
 pub fn get_discipline_presets() -> Vec<DisciplineFilterOption> {
     vec![

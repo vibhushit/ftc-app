@@ -4,12 +4,11 @@ import { CreatorCardRow } from '@/components/creator/CreatorCardRow'
 import { CreatorCardLarge } from '@/components/creator/CreatorCardLarge'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
-import { CREATORS, DISCIPLINE_CONFIG } from '@/data/creators'
+import { DISCIPLINE_CONFIG } from '@/data/creators'
 import { pic } from '@/data/constants'
 import { cn } from '@/utils'
 import { useCreatorSearch } from '@/hooks/useCreators'
 import { supabaseAvailable } from '@/lib/supabase'
-import { isLiveMode } from '@/config/environmentMode'
 import type { Tier, Verification, Gender, Creator } from '@/types'
 
 function dbToCreator(row: {
@@ -76,39 +75,13 @@ export function DiscoverScreen() {
   const { data: dbData, isLoading: dbLoading } = useCreatorSearch(searchParams, supabaseAvailable)
 
   const results = useMemo((): Creator[] => {
-    // ─── Live Mode: 100% Genuine Database Records (No Mock Fallback) ───
-    if (isLiveMode()) {
-      if (!dbData || dbData.length === 0) return []
-      let list: Creator[] = (dbData as any[]).map(dbToCreator)
-      if (filters.gender && filters.gender !== 'Any') list = list.filter((c: Creator) => c.gender === filters.gender.toLowerCase())
-      return list
-    }
-
-    // ─── Demo / Sandbox Mode: Fallback to Mock Data ───
-    if (supabaseAvailable && dbData && dbData.length > 0) {
-      let list: Creator[] = (dbData as any[]).map(dbToCreator)
-      if (filters.gender && filters.gender !== 'Any') list = list.filter((c: Creator) => c.gender === filters.gender.toLowerCase())
-      return list
-    }
-    let list = [...CREATORS]
-    if (filters.discipline && filters.discipline !== 'All') list = list.filter(c => c.discipline === filters.discipline)
-    if (filters.city) list = list.filter(c => c.city === filters.city)
-    if (filters.availableToday) list = list.filter(c => c.availableToday)
-    if (filters.gender && filters.gender !== 'Any') list = list.filter(c => c.gender === filters.gender.toLowerCase())
-    if (filters.rating > 0) list = list.filter(c => c.rating >= filters.rating)
-    if (filters.budgetMin > 0) list = list.filter(c => c.startingAt >= filters.budgetMin)
-    if (filters.budgetMax < 200000) list = list.filter(c => c.startingAt <= filters.budgetMax)
-    if (query.trim()) {
-      const q = query.toLowerCase()
-      list = list.filter(c =>
-        c.name.toLowerCase().includes(q) ||
-        c.discipline.toLowerCase().includes(q) ||
-        c.area.toLowerCase().includes(q) ||
-        c.tagline.toLowerCase().includes(q),
-      )
+    if (!dbData || dbData.length === 0) return []
+    let list: Creator[] = (dbData as any[]).map(dbToCreator)
+    if (filters.gender && filters.gender !== 'Any') {
+      list = list.filter((c: Creator) => c.gender === filters.gender.toLowerCase())
     }
     return list
-  }, [dbData, filters, query])
+  }, [dbData, filters])
 
   const hasFilters = filters.discipline !== 'All' || filters.availableToday || filters.gender !== 'Any' || filters.rating > 0
 
@@ -181,12 +154,28 @@ export function DiscoverScreen() {
         <div className="app-scroll">
           {results.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center px-8">
-              <div className="text-4xl mb-4">🔍</div>
-              <div className="font-display text-xl">No matches</div>
-              <p className="text-[13px] text-obsidian/50 mt-2">Try adjusting your filters or search term.</p>
-              <button onClick={() => { dispatch({ type: 'RESET_FILTERS' }); setQuery('') }} className="tap mt-4 px-4 py-2 rounded-xl bg-bone text-[13px] font-medium">
-                Clear all filters
-              </button>
+              <div className="text-4xl mb-3">🔍</div>
+              <div className="font-display text-xl">No creators found</div>
+              <p className="text-[13px] text-obsidian/50 mt-1 max-w-xs">
+                {hasFilters || query
+                  ? 'Try adjusting your filters, location, or search keywords.'
+                  : 'Be the first to join FTC as a verified founding creator!'}
+              </p>
+              {hasFilters || query ? (
+                <button
+                  onClick={() => { dispatch({ type: 'RESET_FILTERS' }); setQuery('') }}
+                  className="tap mt-4 px-4 py-2 rounded-xl bg-bone text-[13px] font-medium"
+                >
+                  Clear all filters
+                </button>
+              ) : (
+                <button
+                  onClick={() => dispatch({ type: 'GO', screen: 'creatorOnboard1' })}
+                  className="tap mt-4 px-5 py-2.5 rounded-2xl bg-obsidian text-paper text-[13px] font-semibold"
+                >
+                  Create Creator Profile
+                </button>
+              )}
             </div>
           ) : (
             <>

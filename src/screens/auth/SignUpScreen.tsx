@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react'
-import { ArrowLeft, ArrowRight, CheckCircle2, Sparkles } from 'lucide-react'
+import { ArrowLeft, ArrowRight, CheckCircle2 } from 'lucide-react'
 import { BrandIcon } from '@/components/ui/BrandIcon'
 import { useAppStore } from '@/store/appStore'
 import { supabaseAvailable } from '@/lib/supabase'
 import * as authApi from '@/lib/api/auth'
-import { isLiveMode } from '@/config/environmentMode'
 
 export function SignUpScreen() {
   const dispatch = useAppStore(s => s.dispatch)
@@ -30,9 +29,10 @@ export function SignUpScreen() {
     setLoading(true)
 
     try {
-      if (supabaseAvailable && isLiveMode()) {
-        await authApi.sendSignUpVerificationLink(email.trim(), name.trim())
+      if (!supabaseAvailable) {
+        throw new Error('Supabase client is not configured.')
       }
+      await authApi.sendSignUpVerificationLink(email.trim(), name.trim())
       setSent(true)
       setCooldown(60)
     } catch (e: any) {
@@ -49,80 +49,62 @@ export function SignUpScreen() {
     }
   }
 
-  const simulateSandboxSetPass = () => {
-    dispatch({ type: 'SET_PENDING_PHONE', phone: email.trim() || 'user@findtoconnect.com' })
-    dispatch({ type: 'GO', screen: 'resetPassword' })
-  }
-
   return (
     <div className="flex-1 flex flex-col bg-paper text-obsidian">
       {/* Clean Minimal Header */}
       <div className="px-5 pt-3 pb-3 flex items-center justify-between border-b border-line">
         <button
-          type="button"
           onClick={() => dispatch({ type: 'GO', screen: 'welcome' })}
-          className="tap w-9 h-9 -ml-1.5 grid place-items-center rounded-full hover:bg-bone transition cursor-pointer"
+          className="tap w-9 h-9 -ml-1.5 grid place-items-center rounded-full hover:bg-bone transition"
         >
           <ArrowLeft size={20} />
         </button>
-        <span className="font-display text-[17px] tracking-tight">
-          Create Account
-        </span>
+        <span className="font-display text-[17px] tracking-tight">Create Account</span>
         <div className="w-9" />
       </div>
 
-      <div className="flex-1 overflow-y-auto px-6 pt-6 pb-8 max-w-md mx-auto w-full flex flex-col justify-between">
-        <div>
-          <div className="flex justify-center mb-4"><BrandIcon size={44} /></div>
-          <h1 className="font-display text-3xl font-light tracking-tight text-center leading-tight mb-2">
-            Join the <span className="italic">FTC Network</span>
-          </h1>
-          <p className="text-[13px] text-obsidian/60 text-center mb-6 leading-relaxed">
-            Enter your email to receive an account activation link and set your password.
-          </p>
+      <div className="flex-1 overflow-y-auto px-6 pt-6 pb-8 max-w-md mx-auto w-full">
+        <div className="flex justify-center mb-4"><BrandIcon size={44} /></div>
+        <h1 className="font-display text-[28px] tracking-tight text-center leading-tight mb-1">
+          Join FindToConnect
+        </h1>
+        <p className="text-[13px] text-obsidian/60 text-center mb-6">
+          Connect with India’s top verified creative talent
+        </p>
 
+        <div className="space-y-4">
           {!sent ? (
             <div className="space-y-3.5">
               <div>
-                <label className="text-[11px] font-medium text-obsidian/60 block mb-1">Full Name</label>
+                <label className="text-[11px] font-medium text-obsidian/60 block mb-1">Your Full Name</label>
                 <div className="rounded-2xl border-2 border-obsidian/15 focus-within:border-obsidian px-4 py-3 bg-bone/30 transition">
                   <input
+                    type="text"
                     value={name}
-                    onChange={e => setName(e.target.value)}
-                    placeholder="e.g. Rhea Kapoor"
-                    className="w-full bg-transparent outline-none text-[14px] placeholder:text-obsidian/40"
+                    onChange={e => { setName(e.target.value); setError('') }}
+                    placeholder="e.g. Rahul Sharma"
+                    className="w-full bg-transparent outline-none text-[14.5px] placeholder:text-obsidian/30"
+                    autoFocus
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-[11px] font-medium text-obsidian/60 block mb-1">Email Address</label>
+                <label className="text-[11px] font-medium text-obsidian/60 block mb-1">Email address</label>
                 <div className="rounded-2xl border-2 border-obsidian/15 focus-within:border-obsidian px-4 py-3 bg-bone/30 transition">
                   <input
-                    autoFocus
                     type="email"
                     value={email}
-                    onChange={e => setEmail(e.target.value)}
+                    onChange={e => { setEmail(e.target.value); setError('') }}
+                    placeholder="you@example.com"
+                    className="w-full bg-transparent outline-none text-[14.5px] placeholder:text-obsidian/30"
                     onKeyDown={e => e.key === 'Enter' && handleSignUp()}
-                    placeholder="name@example.com"
-                    className="w-full bg-transparent outline-none text-[14px] placeholder:text-obsidian/40"
                   />
                 </div>
               </div>
 
               {error && (
-                <div className="space-y-2">
-                  <p className="text-[12px] text-danger font-medium">{error}</p>
-                  {error.includes('already registered') && (
-                    <button
-                      type="button"
-                      onClick={() => dispatch({ type: 'GO', screen: 'login' })}
-                      className="tap w-full py-2.5 rounded-xl bg-iris/10 text-iris text-[12.5px] font-semibold hover:bg-iris/20 transition flex items-center justify-center gap-1.5"
-                    >
-                      Sign in with {email} →
-                    </button>
-                  )}
-                </div>
+                <p className="text-[12px] text-danger font-medium px-1 leading-snug">{error}</p>
               )}
 
               <button
@@ -152,23 +134,6 @@ export function SignUpScreen() {
                   {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend link'}
                 </button>
               </div>
-            </div>
-          )}
-
-          {/* Sandbox mode shortcut */}
-          {!isLiveMode() && (
-            <div className="mt-6 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-center">
-              <div className="text-[10.5px] font-mono font-semibold text-amber-900 uppercase tracking-wider mb-1 flex items-center justify-center gap-1">
-                <Sparkles size={12} className="text-amber-600" />
-                <span>Sandbox Mode Shortcut</span>
-              </div>
-              <p className="text-[11px] text-amber-800/80 mb-2">Simulate opening the email verification link to set a password:</p>
-              <button
-                onClick={simulateSandboxSetPass}
-                className="tap w-full py-2 px-3 rounded-xl bg-paper border border-amber-500/40 text-[12px] font-semibold text-obsidian hover:bg-amber-50"
-              >
-                Simulate "Set Password" →
-              </button>
             </div>
           )}
         </div>

@@ -327,8 +327,6 @@ export function CalendarScreen() {
     }
   }
 
-  const upcoming = state.creatorBookings.filter(b => b.status === 'upcoming' || b.status === 'inquiry')
-
   return (
     <div className="flex-1 flex flex-col bg-bone min-h-0 h-full relative">
       {/* Toast Feedback */}

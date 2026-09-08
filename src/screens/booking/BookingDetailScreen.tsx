@@ -3,8 +3,7 @@ import { Check, Lock, FileText, Upload, MessageCircle, Star, HelpCircle } from '
 import { SimpleHeader } from '@/components/ui/SimpleHeader'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
-import { CREATORS } from '@/data/creators'
-import { inr } from '@/data/constants'
+import { inr, pic } from '@/data/constants'
 import { cn } from '@/utils'
 
 function depositInfo(price: number) {
@@ -18,28 +17,43 @@ const BOOKING_STAGES = [
   'Scheduled', 'Delivered', 'Final payment', 'Completed',
 ]
 
-const BOOKINGS_SEED = [
-  { id: 'FTC8472', cid: 'c1', when: 'Sun, Apr 27 · 1:00 PM', status: 'confirmed', pkg: 'Standard', locType: 'studio' },
-  { id: 'FTC8420', cid: 'c4', when: 'Thu, May 02 · 11:00 AM', status: 'pending', pkg: 'Premium', locType: 'local' },
-  { id: 'FTC8211', cid: 'c7', when: 'Sat, Apr 05', status: 'completed', pkg: 'Starter', locType: 'studio' },
-  { id: 'FTC7988', cid: 'c10', when: 'Fri, Mar 28', status: 'completed', pkg: 'Standard', locType: 'outstation' },
-]
-
 export function BookingDetailScreen() {
   const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
-  const b = ((state.viewBooking ?? BOOKINGS_SEED[0]) as unknown as Record<string, unknown>)
-  const c = CREATORS.find(x => x.id === (b.cid as string)) ?? CREATORS[0]
+  const b = ((state.viewBooking ?? state.lastBooking) as unknown as Record<string, unknown> | null)
   const [invoiceSaved, setInvoiceSaved] = useState(false)
 
-  const base = Math.round(c.startingAt * 2.5)
+  if (!b) {
+    return (
+      <div className="flex-1 flex flex-col bg-bone overflow-hidden min-h-0 h-full">
+        <SimpleHeader title="Booking details" onBack={() => dispatch({ type: 'BACK' })} />
+        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-paper">
+          <div className="text-4xl mb-3">📋</div>
+          <h2 className="font-display text-xl mb-1">No booking selected</h2>
+          <p className="text-[13px] text-obsidian/60 max-w-xs mb-6">
+            Select an active or past booking to view its details.
+          </p>
+          <button
+            onClick={() => dispatch({ type: 'BACK' })}
+            className="tap px-5 py-2.5 rounded-2xl bg-obsidian text-paper text-[13px] font-semibold"
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const creatorName = (b.creatorName as string) || (b.clientName as string) || 'Creator'
+  const creatorAvatar = (b.creatorAvatar as string) || (b.clientAvatar as string) || pic(creatorName, 120, 120)
+  const base = (b.total as number) || (b.price as number) || 20000
   const travel = b.locType === 'outstation' ? 6000 : b.locType === 'local' ? 800 : 0
   const accom = b.locType === 'outstation' ? 4500 : 0
   const platform = Math.max(99, Math.round(base * 0.05))
   const total = base + travel + accom + platform
   const dep = depositInfo(total)
-  const status = b.status as string
+  const status = (b.status as string) || 'confirmed'
   const curStage = status === 'completed' ? 7 : status === 'confirmed' ? 4 : 1
-  const locLabel = b.locType === 'studio' ? `${c.area} · creator's studio` : b.locType === 'local' ? 'Your location (Delhi)' : 'Outstation / destination'
+  const locLabel = b.locType === 'studio' ? 'Creator studio' : b.locType === 'local' ? 'Your location' : 'Outstation / destination'
 
   const Card = ({ title, children }: { title: string; children: React.ReactNode }) => (
     <div className="mb-4 rounded-2xl bg-paper border border-line overflow-hidden shadow-xs">
@@ -63,10 +77,10 @@ export function BookingDetailScreen() {
           {/* Left Column: Hero, Timeline & Details */}
           <div className="md:min-w-0">
             <div className="mb-4 p-5 rounded-2xl bg-obsidian text-paper flex items-center gap-4 shadow-md">
-              <img src={c.avatar} className="w-14 h-14 rounded-full object-cover border-2 border-paper/20 shrink-0" alt="" />
+              <img src={creatorAvatar} className="w-14 h-14 rounded-full object-cover border-2 border-paper/20 shrink-0" alt="" />
               <div className="flex-1 min-w-0">
-                <div className="font-display text-xl leading-tight truncate">{c.name}</div>
-                <div className="text-[12px] text-paper/60 font-mono mt-0.5">#{b.id as string} · {b.pkg as string}</div>
+                <div className="font-display text-xl leading-tight truncate">{creatorName}</div>
+                <div className="text-[12px] text-paper/60 font-mono mt-0.5">#{b.id as string} · {(b.pkg as string) || 'Session'}</div>
               </div>
               <span className={cn('px-3 py-1 rounded-full text-[10px] font-mono uppercase tracking-wider font-semibold shrink-0', status === 'completed' ? 'bg-paper/15 text-paper' : 'bg-acid text-obsidian')}>
                 {status === 'completed' ? 'Completed' : status === 'confirmed' ? 'Confirmed' : 'Awaiting creator'}
@@ -94,8 +108,8 @@ export function BookingDetailScreen() {
             </Card>
 
             <Card title="Session Details">
-              <KV k="Package" v={b.pkg as string} />
-              <KV k="Date & time" v={b.when as string} />
+              <KV k="Package" v={(b.pkg as string) || 'Standard Session'} />
+              <KV k="Date & time" v={(b.when as string) || (b.date as string) || 'Scheduled'} />
               <KV k="Location" v={locLabel} />
               <KV k="Booking ID" v={`#${b.id as string}`} />
             </Card>
@@ -121,10 +135,10 @@ export function BookingDetailScreen() {
             {/* Primary Action Buttons */}
             <div className="space-y-2.5 mb-6">
               <button
-                onClick={() => dispatch({ type: 'OPEN_CLIENT_CHAT', client: { name: c.name, avatar: c.avatar } })}
+                onClick={() => dispatch({ type: 'OPEN_CLIENT_CHAT', client: { name: creatorName, avatar: creatorAvatar } })}
                 className="tap w-full py-4 rounded-2xl bg-obsidian text-paper font-semibold text-[14px] flex items-center justify-center gap-2 shadow-md hover:bg-obsidian/90 transition"
               >
-                <MessageCircle size={16} /> Message {c.name.split(' ')[0]}
+                <MessageCircle size={16} /> Message {creatorName.split(' ')[0]}
               </button>
 
               <div className="grid grid-cols-2 gap-2">

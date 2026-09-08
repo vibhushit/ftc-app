@@ -33,3 +33,15 @@ export type { PriceRangeConfig } from './PriceRangeConfig'
 export type { SortOption } from './SortOption'
 export type { FilterConfig } from './FilterConfig'
 export type { CreatorFilterParams } from './CreatorFilterParams'
+
+// Production-Grade Domain Enums
+export type { Discipline } from './Discipline'
+export type { CreatorTier } from './CreatorTier'
+export type { VerificationLevel } from './VerificationLevel'
+export type { BookingStatus } from './BookingStatus'
+export type { EscrowStatus } from './EscrowStatus'
+export type { LocationType } from './LocationType'
+export type { TravelMode } from './TravelMode'
+
+// Platform Configuration
+export type { PlatformConfig } from './PlatformConfig'

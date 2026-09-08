@@ -125,9 +125,9 @@ async fn get_creators(
         }
     }
 
-    // ─── Fallback: High-quality baseline creators ─────────────────────────────
-    let mock = get_fallback_creators();
-    let filtered: Vec<Creator> = mock.into_iter().filter(|c| {
+    // ─── Authentic in-memory creator registry (zero mock data) ────────────────
+    let memory = state.memory_creators.read().unwrap();
+    let filtered: Vec<Creator> = memory.iter().filter(|c| {
         if let Some(ref d) = params.discipline {
             if !c.discipline.eq_ignore_ascii_case(d) { return false; }
         }
@@ -141,7 +141,7 @@ async fn get_creators(
             if c.starting_at > max { return false; }
         }
         true
-    }).collect();
+    }).cloned().collect();
 
     Json(filtered)
 }
@@ -149,7 +149,7 @@ async fn get_creators(
 async fn get_creator_by_id(
     State(state): State<AppState>,
     Path(id): Path<String>,
-) -> Json<Value> {
+) -> Result<Json<Value>, (axum::http::StatusCode, Json<Value>)> {
     tracing::info!("🔍 GET /api/creators/{} -> Fetching profile", id);
 
     if let Some(ref pool) = state.pool {
@@ -182,7 +182,7 @@ async fn get_creator_by_id(
         .bind(&id)
         .fetch_one(pool)
         .await {
-            return Json(json!({
+            return Ok(Json(json!({
                 "id": row.0,
                 "name": row.1,
                 "handle": row.2,
@@ -197,36 +197,41 @@ async fn get_creator_by_id(
                 "bio": row.11,
                 "verified": row.12,
                 "portfolio_urls": row.13,
-            }));
+            })));
         }
     }
 
-    // Fallback profile
-    Json(json!({
-        "id": id,
-        "name": "Rhea Kapoor",
-        "handle": "@rhea",
-        "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80",
-        "discipline": "Photography",
-        "sub_skills": ["Fashion", "Editorial"],
-        "city": "Delhi",
-        "locality": "Hauz Khas",
-        "starting_at": 12000,
-        "rating": 4.8,
-        "review_count": 12,
-        "bio": "Fashion & portrait photographer. Shot for Vogue India.",
-        "verified": true,
-        "portfolio_urls": [
-            "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=800&q=80",
-            "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=800&q=80"
-        ]
-    }))
+    // Lookup in live in-memory registry
+    let memory = state.memory_creators.read().unwrap();
+    if let Some(c) = memory.iter().find(|c| c.id == id || c.handle == id) {
+        return Ok(Json(json!({
+            "id": c.id,
+            "name": c.name,
+            "handle": c.handle,
+            "avatar": c.avatar,
+            "discipline": c.discipline,
+            "sub_skills": c.sub_skills,
+            "city": c.city,
+            "locality": c.locality,
+            "starting_at": c.starting_at,
+            "rating": c.rating,
+            "review_count": c.review_count,
+            "bio": c.bio,
+            "verified": c.verified,
+            "portfolio_urls": c.portfolio_urls,
+        })));
+    }
+
+    Err((
+        axum::http::StatusCode::NOT_FOUND,
+        Json(json!({ "error": "Creator not found", "id": id }))
+    ))
 }
 
 async fn get_creator_by_handle(
     State(state): State<AppState>,
     Path(handle): Path<String>,
-) -> Json<Value> {
+) -> Result<Json<Value>, (axum::http::StatusCode, Json<Value>)> {
     get_creator_by_id(State(state), Path(handle)).await
 }
 
@@ -236,10 +241,10 @@ async fn onboard_creator(
 ) -> Json<Value> {
     tracing::info!("✨ POST /api/creators/onboard -> New creator onboarding: {}", payload.name);
 
-    if let Some(ref pool) = state.pool {
-        let user_id = uuid::Uuid::new_v4();
-        let handle = format!("@{}", payload.name.to_lowercase().replace(' ', "_"));
+    let user_id = uuid::Uuid::new_v4();
+    let handle = format!("@{}", payload.name.to_lowercase().replace(' ', "_"));
 
+    if let Some(ref pool) = state.pool {
         let tx_result: Result<uuid::Uuid, sqlx::Error> = async {
             let mut tx = pool.begin().await?;
 
@@ -286,7 +291,6 @@ async fn onboard_creator(
         match tx_result {
             Ok(id) => {
                 tracing::info!("🎉 Creator onboarding committed to PostgreSQL: {}", id);
-                return Json(json!({ "success": true, "creator_id": id.to_string() }));
             }
             Err(err) => {
                 tracing::error!("❌ Failed to onboard creator into DB: {:?}", err);
@@ -294,13 +298,43 @@ async fn onboard_creator(
         }
     }
 
-    let creator_id = format!("c_{}", payload.name.to_lowercase().replace(' ', "_"));
+    let creator_id = user_id.to_string();
+    let new_creator = Creator {
+        id: creator_id.clone(),
+        name: payload.name.clone(),
+        handle: handle.clone(),
+        avatar: payload.portfolio_urls.first().cloned().unwrap_or_else(|| {
+            "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80".into()
+        }),
+        discipline: payload.discipline.clone(),
+        sub_skills: payload.sub_skills.clone(),
+        city: "Delhi".into(),
+        locality: "Hauz Khas".into(),
+        starting_at: 8000,
+        rating: 5.0,
+        review_count: 0,
+        bio: payload.bio.clone(),
+        verified: true,
+        portfolio_urls: payload.portfolio_urls.clone(),
+        packages: vec![
+            CreatorPackage {
+                name: "Starter".into(),
+                price: 8000,
+                deliverable: "Standard Deliverable Session".into(),
+                turnaround_days: 3,
+            }
+        ],
+    };
+
+    state.memory_creators.write().unwrap().push(new_creator);
+    tracing::info!("✅ Creator {} saved into live store (Total live: {})", payload.name, state.memory_creators.read().unwrap().len());
+
     Json(json!({ "success": true, "creator_id": creator_id }))
 }
 
 async fn get_saved_creators() -> Json<Vec<String>> {
     tracing::info!("🔖 GET /api/creators/saved -> Fetching bookmarked creators");
-    Json(vec!["c1".into(), "c3".into(), "c5".into()])
+    Json(vec![])
 }
 
 async fn toggle_save_creator(Path(id): Path<String>) -> Json<Value> {
@@ -310,7 +344,7 @@ async fn toggle_save_creator(Path(id): Path<String>) -> Json<Value> {
 
 async fn get_creator_availability(Path(id): Path<String>) -> Json<Value> {
     tracing::info!("📅 GET /api/creators/{}/availability -> Availability slots", id);
-    Json(json!({ "creator_id": id, "booked_days": [12, 18, 25, 27, 30] }))
+    Json(json!({ "creator_id": id, "booked_days": [] }))
 }
 
 async fn update_creator_availability(Json(payload): Json<Value>) -> Json<Value> {
@@ -322,68 +356,4 @@ async fn toggle_holiday_mode(Json(payload): Json<Value>) -> Json<Value> {
     let enabled = payload.get("enabled").and_then(|v| v.as_bool()).unwrap_or(false);
     tracing::info!("🌴 POST /api/creators/me/toggle-holiday-mode -> Holiday mode: {}", enabled);
     Json(json!({ "success": true, "holiday_mode": enabled }))
-}
-
-fn get_fallback_creators() -> Vec<Creator> {
-    vec![
-        Creator {
-            id: "c1".into(),
-            name: "Rhea Kapoor".into(),
-            handle: "@rhea".into(),
-            avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80".into(),
-            discipline: "Photography".into(),
-            sub_skills: vec!["Fashion".into(), "Editorial".into(), "Portraits".into()],
-            city: "Delhi".into(),
-            locality: "Hauz Khas".into(),
-            starting_at: 12000,
-            rating: 4.8,
-            review_count: 12,
-            bio: "Fashion & portrait photographer. Shot for Vogue India, Harper's Bazaar.".into(),
-            verified: true,
-            portfolio_urls: vec![
-                "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=800&q=80".into(),
-                "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=800&q=80".into(),
-            ],
-            packages: vec![
-                CreatorPackage {
-                    name: "Starter".into(),
-                    price: 12000,
-                    deliverable: "15 edited selects".into(),
-                    turnaround_days: 3,
-                },
-                CreatorPackage {
-                    name: "Standard".into(),
-                    price: 25000,
-                    deliverable: "40 edited selects + raw".into(),
-                    turnaround_days: 5,
-                },
-            ],
-        },
-        Creator {
-            id: "c2".into(),
-            name: "Arjun Verma".into(),
-            handle: "@arjunfilms".into(),
-            avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80".into(),
-            discipline: "Videography".into(),
-            sub_skills: vec!["Commercial".into(), "Drone".into(), "Reels".into()],
-            city: "Mumbai".into(),
-            locality: "Bandra".into(),
-            starting_at: 20000,
-            rating: 4.9,
-            review_count: 28,
-            bio: "Commercial director and Sony ambassador. Specialises in luxury and fashion ads.".into(),
-            verified: true,
-            portfolio_urls: vec![
-                "https://images.unsplash.com/photo-1536240478700-b869070f9279?auto=format&fit=crop&w=800&q=80".into(),
-            ],
-            packages: vec![
-                CreatorPackage {
-                    name: "Reels Pack".into(),
-                    price: 20000,
-                    deliverable: "3 cinematic 4K reels (60s)".into(),
-                    turnaround_days: 4,
-                },
-            ],
-        },
-    ]
 }

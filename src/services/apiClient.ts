@@ -11,13 +11,12 @@ import type {
   PayoutBalance,
   WithdrawPayload,
   MonthAvailabilityResponse,
-  DayAvailability,
   UpdateCalendarSettingsPayload,
   CreateOverridePayload,
+  PlatformConfig,
 } from '@/types/bindings'
-import { CREATORS } from '@/data/creators'
 import { compressImageToWebP } from '@/utils/imageCompressor'
-import { isLiveMode, getApiBaseUrl } from '@/config/environmentMode'
+import { getApiBaseUrl } from '@/config/environmentMode'
 import { supabase, supabaseAvailable } from '@/lib/supabase'
 
 const getBaseUrl = () => getApiBaseUrl()
@@ -38,23 +37,60 @@ function notifyApiError(error: ApiErrorEvent) {
 }
 
 /**
- * Decoupled API Service Layer
- * In LIVE MODE: Queries the Rust Axum backend & PostgreSQL database directly.
- * In SANDBOX MODE: Operates purely in-memory using local seed data for instant offline testing.
+ * Helper to acquire authorization and JSON headers.
+ */
+async function getHeaders(customHeaders?: Record<string, string>): Promise<HeadersInit> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...customHeaders,
+  }
+
+  if (supabaseAvailable) {
+    try {
+      const { data } = await supabase.auth.getSession()
+      if (data?.session?.access_token) {
+        headers['Authorization'] = `Bearer ${data.session.access_token}`
+      }
+    } catch {
+      // Ignore session lookup failures
+    }
+  }
+
+  return headers
+}
+
+/**
+ * Canonical FTC API Service Layer
+ * 
+ * Single source of truth querying the Rust Axum backend and PostgreSQL database.
+ * No mock data, no in-memory fallbacks, pure live communication.
  */
 export const apiClient = {
+  // ─── PLATFORM CONFIG ─────────────────────────────────────────────────────────
+  async getConfig(): Promise<PlatformConfig> {
+    const endpoint = `${getBaseUrl()}/config`
+    try {
+      const res = await fetch(endpoint)
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`)
+      return await res.json()
+    } catch (err: any) {
+      notifyApiError({
+        endpoint: '/config',
+        method: 'GET',
+        message: err?.message || 'Failed to fetch platform configuration',
+        timestamp: new Date().toLocaleTimeString(),
+      })
+      throw err
+    }
+  },
+
   // ─── AUTHENTICATION ──────────────────────────────────────────────────────────
   async sendPhoneOtp(phone: string): Promise<{ success: boolean }> {
-    if (!isLiveMode()) {
-      console.log('[Sandbox] Simulated OTP sent to:', phone)
-      return { success: true }
-    }
-
     const endpoint = `${getBaseUrl()}/auth/phone`
     try {
       const res = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getHeaders(),
         body: JSON.stringify({ phone }),
       })
       if (!res.ok) {
@@ -75,28 +111,11 @@ export const apiClient = {
   },
 
   async verifyOtp(phone: string, code: string): Promise<AuthResponse> {
-    if (!isLiveMode()) {
-      console.log('[Sandbox] Simulated OTP verification for:', phone)
-      return {
-        token: 'sandbox_jwt_token_ftc',
-        user: {
-          id: 'u_101',
-          phone,
-          name: 'Rhea Kapoor',
-          role: 'client',
-          city: 'Delhi',
-          handle: '@user',
-          trust_score: 85,
-          is_creator: false,
-        },
-      }
-    }
-
     const endpoint = `${getBaseUrl()}/auth/verify`
     try {
       const res = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getHeaders(),
         body: JSON.stringify({ phone, code }),
       })
       if (!res.ok) {
@@ -117,15 +136,11 @@ export const apiClient = {
   },
 
   async selectRole(role: string): Promise<{ success: boolean }> {
-    if (!isLiveMode()) {
-      return { success: true }
-    }
-
     const endpoint = `${getBaseUrl()}/auth/role`
     try {
       const res = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getHeaders(),
         body: JSON.stringify({ role }),
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -143,17 +158,6 @@ export const apiClient = {
 
   // ─── CREATORS & DISCOVERY ─────────────────────────────────────────────────────
   async getCreators(params?: { discipline?: string; city?: string; minPrice?: number; maxPrice?: number }): Promise<Creator[]> {
-    if (!isLiveMode()) {
-      let list = CREATORS as unknown as Creator[]
-      if (params?.discipline) {
-        list = list.filter(c => c.discipline.toLowerCase() === params.discipline?.toLowerCase())
-      }
-      if (params?.city) {
-        list = list.filter(c => c.city.toLowerCase() === params.city?.toLowerCase())
-      }
-      return list
-    }
-
     const query = new URLSearchParams()
     if (params?.discipline) query.set('discipline', params.discipline)
     if (params?.city) query.set('city', params.city)
@@ -178,14 +182,10 @@ export const apiClient = {
   },
 
   async getCreatorById(id: string): Promise<Creator | null> {
-    if (!isLiveMode()) {
-      const found = (CREATORS as unknown as Creator[]).find(c => c.id === id)
-      return found ?? null
-    }
-
     const endpoint = `${getBaseUrl()}/creators/${id}`
     try {
       const res = await fetch(endpoint)
+      if (res.status === 404) return null
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       return await res.json()
     } catch (err: any) {
@@ -200,19 +200,17 @@ export const apiClient = {
   },
 
   async onboardCreator(payload: CreatorOnboardPayload): Promise<{ success: boolean; creator_id: string }> {
-    if (!isLiveMode()) {
-      console.log('[Sandbox] Simulated creator onboarding:', payload)
-      return { success: true, creator_id: 'c_' + Date.now() }
-    }
-
     const endpoint = `${getBaseUrl()}/creators/onboard`
     try {
       const res = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getHeaders(),
         body: JSON.stringify(payload),
       })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => res.statusText)
+        throw new Error(`HTTP ${res.status}: ${errorText}`)
+      }
       return await res.json()
     } catch (err: any) {
       notifyApiError({
@@ -225,53 +223,8 @@ export const apiClient = {
     }
   },
 
-  // ─── BOOKINGS & ESCROW ────────────────────────────────────────────────────────
+  // ─── CALENDAR & SCHEDULING ───────────────────────────────────────────────────
   async getAvailability(creatorId: string, month: string, durationMinutes: number = 120): Promise<MonthAvailabilityResponse> {
-    if (!isLiveMode()) {
-      // Dynamic sandbox generator
-      const days: Record<string, DayAvailability> = {}
-      const parts = month.split('-')
-      const y = parseInt(parts[0] || '2026')
-      const m = parseInt(parts[1] || '5')
-      const daysCount = [4, 6, 9, 11].includes(m) ? 30 : m === 2 ? 28 : 31
-
-      for (let d = 1; d <= daysCount; d++) {
-        const dateStr = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-        const isSun = new Date(y, m - 1, d).getDay() === 0
-        const isBlocked = (d % 7 === 0) || isSun
-        const isBooked = (d % 5 === 0) && !isBlocked
-
-        let slots: string[] = []
-        let status = 'available'
-        if (isBlocked) {
-          status = 'blocked'
-        } else if (isBooked) {
-          status = 'booked'
-        } else {
-          slots = durationMinutes >= 240
-            ? ['10:00', '14:00', '16:00']
-            : ['09:00', '11:00', '13:00', '15:00', '17:00']
-        }
-
-        days[dateStr] = {
-          date: dateStr,
-          status,
-          slots,
-          reason: isBlocked ? 'Day off' : isBooked ? 'Fully booked' : null,
-        }
-      }
-
-      return {
-        creator_id: creatorId,
-        month,
-        duration_minutes: durationMinutes,
-        slot_step_minutes: 60,
-        buffer_minutes: 30,
-        holiday_mode: false,
-        days,
-      }
-    }
-
     const endpoint = `${getBaseUrl()}/calendar/${creatorId}/availability?month=${month}&duration_minutes=${durationMinutes}`
     try {
       const res = await fetch(endpoint)
@@ -288,74 +241,6 @@ export const apiClient = {
     }
   },
 
-  async requestBooking(payload: CreateBookingPayload): Promise<Booking> {
-    if (!isLiveMode()) {
-      const idSuffix = Math.floor(1000 + Math.random() * 9000).toString()
-      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-      return {
-        id: `FTC-REQ-${idSuffix}`,
-        creator_id: payload.creator_id,
-        creator_name: 'Rhea Kapoor',
-        creator_avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
-        client_name: 'You',
-        pkg_name: payload.pkg_name,
-        date_time: payload.date_time,
-        status: 'pending_approval',
-        price: 25000,
-        deposit_amount: 7500,
-        balance_amount: 17500,
-        location_type: payload.location_type,
-        start_time: payload.start_time,
-        end_time: payload.end_time,
-        request_expires_at: expiresAt,
-        client_notes: payload.client_notes,
-      }
-    }
-
-    const endpoint = `${getBaseUrl()}/bookings/request`
-    try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      return await res.json()
-    } catch (err: any) {
-      notifyApiError({
-        endpoint: '/bookings/request',
-        method: 'POST',
-        message: err?.message || 'Failed to submit 24h booking request',
-        timestamp: new Date().toLocaleTimeString(),
-      })
-      throw err
-    }
-  },
-
-  async acceptBooking(bookingId: string): Promise<{ success: boolean; status: string }> {
-    if (!isLiveMode()) {
-      return { success: true, status: 'confirmed' }
-    }
-    const endpoint = `${getBaseUrl()}/bookings/${bookingId}/accept`
-    const res = await fetch(endpoint, { method: 'POST' })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    return await res.json()
-  },
-
-  async declineBooking(bookingId: string, reason?: string): Promise<{ success: boolean; status: string }> {
-    if (!isLiveMode()) {
-      return { success: true, status: 'declined' }
-    }
-    const endpoint = `${getBaseUrl()}/bookings/${bookingId}/decline`
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reason }),
-    })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    return await res.json()
-  },
-
   async getCalendarSettings(): Promise<{
     slot_step_minutes: number
     buffer_minutes: number
@@ -364,39 +249,17 @@ export const apiClient = {
     calendar_token: string
     schedules: Array<{ day_of_week: number; is_active: boolean; start_time: string; end_time: string }>
   }> {
-    if (!isLiveMode()) {
-      return {
-        slot_step_minutes: 60,
-        buffer_minutes: 30,
-        min_notice_hours: 24,
-        holiday_mode: false,
-        calendar_token: 'ftc-sec-cal-token',
-        schedules: [
-          { day_of_week: 1, is_active: true, start_time: '09:00', end_time: '19:00' },
-          { day_of_week: 2, is_active: true, start_time: '09:00', end_time: '19:00' },
-          { day_of_week: 3, is_active: true, start_time: '09:00', end_time: '19:00' },
-          { day_of_week: 4, is_active: true, start_time: '09:00', end_time: '19:00' },
-          { day_of_week: 5, is_active: true, start_time: '09:00', end_time: '19:00' },
-          { day_of_week: 6, is_active: true, start_time: '10:00', end_time: '18:00' },
-          { day_of_week: 0, is_active: false, start_time: '10:00', end_time: '18:00' },
-        ],
-      }
-    }
-
     const endpoint = `${getBaseUrl()}/calendar/me/calendar-settings`
-    const res = await fetch(endpoint)
+    const res = await fetch(endpoint, { headers: await getHeaders() })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     return await res.json()
   },
 
   async updateCalendarSettings(payload: UpdateCalendarSettingsPayload): Promise<{ success: boolean; settings: any }> {
-    if (!isLiveMode()) {
-      return { success: true, settings: payload }
-    }
     const endpoint = `${getBaseUrl()}/calendar/me/calendar-settings`
     const res = await fetch(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await getHeaders(),
       body: JSON.stringify(payload),
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -404,13 +267,10 @@ export const apiClient = {
   },
 
   async createOverride(payload: CreateOverridePayload): Promise<{ success: boolean; id: string; override: any }> {
-    if (!isLiveMode()) {
-      return { success: true, id: `ovr-${Date.now()}`, override: payload }
-    }
     const endpoint = `${getBaseUrl()}/calendar/me/overrides`
     const res = await fetch(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await getHeaders(),
       body: JSON.stringify(payload),
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -418,38 +278,43 @@ export const apiClient = {
   },
 
   async deleteOverride(id: string): Promise<{ success: boolean; id: string }> {
-    if (!isLiveMode()) {
-      return { success: true, id }
-    }
     const endpoint = `${getBaseUrl()}/calendar/me/overrides/${id}`
-    const res = await fetch(endpoint, { method: 'DELETE' })
+    const res = await fetch(endpoint, {
+      method: 'DELETE',
+      headers: await getHeaders(),
+    })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     return await res.json()
   },
 
-  async createBooking(payload: CreateBookingPayload): Promise<Booking> {
-    if (!isLiveMode()) {
-      return {
-        id: 'FTC' + Math.floor(1000 + Math.random() * 9000),
-        creator_id: payload.creator_id,
-        creator_name: 'Rhea Kapoor',
-        creator_avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
-        client_name: 'You',
-        pkg_name: payload.pkg_name,
-        date_time: payload.date_time,
-        status: 'confirmed',
-        price: 25000,
-        deposit_amount: 7500,
-        balance_amount: 17500,
-        location_type: payload.location_type,
-      }
+  // ─── BOOKINGS & ESCROW ────────────────────────────────────────────────────────
+  async requestBooking(payload: CreateBookingPayload): Promise<Booking> {
+    const endpoint = `${getBaseUrl()}/bookings/request`
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: await getHeaders(),
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      return await res.json()
+    } catch (err: any) {
+      notifyApiError({
+        endpoint: '/bookings/request',
+        method: 'POST',
+        message: err?.message || 'Failed to submit booking request',
+        timestamp: new Date().toLocaleTimeString(),
+      })
+      throw err
     }
+  },
 
+  async createBooking(payload: CreateBookingPayload): Promise<Booking> {
     const endpoint = `${getBaseUrl()}/bookings`
     try {
       const res = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getHeaders(),
         body: JSON.stringify(payload),
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -465,23 +330,34 @@ export const apiClient = {
     }
   },
 
+  async acceptBooking(bookingId: string): Promise<{ success: boolean; status: string }> {
+    const endpoint = `${getBaseUrl()}/bookings/${bookingId}/accept`
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: await getHeaders(),
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return await res.json()
+  },
+
+  async declineBooking(bookingId: string, reason?: string): Promise<{ success: boolean; status: string }> {
+    const endpoint = `${getBaseUrl()}/bookings/${bookingId}/decline`
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: await getHeaders(),
+      body: JSON.stringify({ reason }),
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return await res.json()
+  },
+
   // ─── MESSAGING & QUOTES ──────────────────────────────────────────────────────
   async sendMessage(payload: ChatMessagePayload): Promise<ChatMessage> {
-    if (!isLiveMode()) {
-      return {
-        id: 'm_' + Date.now(),
-        sender_id: 'self',
-        receiver_id: payload.receiver_id,
-        text: payload.text,
-        timestamp: 'Just now',
-      }
-    }
-
     const endpoint = `${getBaseUrl()}/chat/conversations/${payload.receiver_id}/messages`
     try {
       const res = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getHeaders(),
         body: JSON.stringify(payload),
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -498,25 +374,11 @@ export const apiClient = {
   },
 
   async sendQuote(payload: CreateQuotePayload): Promise<CustomQuote> {
-    if (!isLiveMode()) {
-      return {
-        id: 'q_' + Date.now(),
-        creator_id: 'self',
-        client_id: payload.client_id,
-        scope: payload.scope,
-        price: payload.price,
-        delivery: payload.delivery,
-        note: payload.note || null,
-        status: 'sent',
-        created_at: new Date().toISOString(),
-      }
-    }
-
     const endpoint = `${getBaseUrl()}/chat/quotes`
     try {
       const res = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getHeaders(),
         body: JSON.stringify(payload),
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -536,12 +398,12 @@ export const apiClient = {
   async uploadPortfolioImage(file: File): Promise<string> {
     const compressedWebP = await compressImageToWebP(file, 1920, 0.82)
 
-    // In Live Mode, upload directly to Supabase Storage bucket 'portfolio'
+    // Upload directly to Supabase Storage bucket 'portfolio' if available
     if (supabaseAvailable) {
       try {
         const { data: { user } } = await supabase.auth.getUser()
         const uid = user?.id || 'guest_uploads'
-        const ext = file.name.split('.').pop() || 'webp'
+        const ext = 'webp'
         const path = `${uid}/${Date.now()}_${Math.random().toString(36).slice(2, 7)}.${ext}`
         const { data, error } = await supabase.storage.from('portfolio').upload(path, compressedWebP, {
           contentType: 'image/webp',
@@ -556,15 +418,11 @@ export const apiClient = {
       }
     }
 
-    if (!isLiveMode()) {
-      return URL.createObjectURL(compressedWebP)
-    }
-
     const endpoint = `${getBaseUrl()}/media/upload-url`
     try {
       const res = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getHeaders(),
         body: JSON.stringify({ file_name: compressedWebP.name, file_size: compressedWebP.size }),
       })
       if (!res.ok) throw new Error('Failed to get presigned upload URL')
@@ -577,20 +435,22 @@ export const apiClient = {
       })
 
       return public_url
-    } catch {
-      return URL.createObjectURL(compressedWebP)
+    } catch (err: any) {
+      notifyApiError({
+        endpoint: '/media/upload-url',
+        method: 'POST',
+        message: err?.message || 'Failed to upload portfolio image',
+        timestamp: new Date().toLocaleTimeString(),
+      })
+      throw err
     }
   },
 
   // ─── PAYOUTS & FINANCIALS ─────────────────────────────────────────────────────
   async getPayoutBalance(): Promise<PayoutBalance> {
-    if (!isLiveMode()) {
-      return { available_balance: 42500, pending_escrow: 17500, total_earned: 185000, upi_id: 'rhea@upi' }
-    }
-
     const endpoint = `${getBaseUrl()}/payouts/balance`
     try {
-      const res = await fetch(endpoint)
+      const res = await fetch(endpoint, { headers: await getHeaders() })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       return await res.json()
     } catch (err: any) {
@@ -605,15 +465,11 @@ export const apiClient = {
   },
 
   async withdrawPayout(payload: WithdrawPayload): Promise<{ success: boolean; message: string }> {
-    if (!isLiveMode()) {
-      return { success: true, message: `Withdrawal request for ₹${payload.amount} submitted in Sandbox mode` }
-    }
-
     const endpoint = `${getBaseUrl()}/payouts/withdraw`
     try {
       const res = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getHeaders(),
         body: JSON.stringify(payload),
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)

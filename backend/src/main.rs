@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 mod error;
 mod middleware;
 mod models;
@@ -52,7 +54,7 @@ async fn main() {
         None
     };
 
-    let app_state = AppState { pool };
+    let app_state = AppState::new(pool);
     let app = create_app(app_state);
 
     let addr = std::net::SocketAddr::from(([0, 0, 0, 0], 3000));
@@ -80,6 +82,7 @@ pub fn create_app(app_state: AppState) -> Router {
         .nest("/api/safety", routes::safety::router())
         .nest("/api/calendar", routes::calendar::router())
         .nest("/api/filters", routes::filters::router())
+        .nest("/api/config", routes::config::router())
         .layer(TraceLayer::new_for_http())
         .layer(cors)
         .with_state(app_state)
@@ -135,6 +138,16 @@ mod tests {
         models::filter::SortOption::export_all().unwrap();
         models::filter::FilterConfig::export_all().unwrap();
         models::filter::CreatorFilterParams::export_all().unwrap();
+
+        // Enums & Platform Config
+        models::enums::Discipline::export_all().unwrap();
+        models::enums::CreatorTier::export_all().unwrap();
+        models::enums::VerificationLevel::export_all().unwrap();
+        models::enums::BookingStatus::export_all().unwrap();
+        models::enums::EscrowStatus::export_all().unwrap();
+        models::enums::LocationType::export_all().unwrap();
+        models::enums::TravelMode::export_all().unwrap();
+        models::config::PlatformConfig::export_all().unwrap();
 
         println!("Successfully exported all Rust models to TypeScript types!");
     }
@@ -306,7 +319,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_filter_config_defaults() {
-        let app_state = state::AppState { pool: None };
+        let app_state = state::AppState::new(None);
         let config = routes::filters::get_discovery_filters(axum::extract::State(app_state)).await.0;
         assert_eq!(config.disciplines.len(), 5);
         assert_eq!(config.disciplines[0].name, "Photography");

@@ -3,14 +3,12 @@ import {
   ArrowLeft, Heart, Share2, MapPin, BadgeCheck, Shield, Check, Star, Clock,
   ChevronRight, ChevronLeft, MessageCircle, HelpCircle, Volume2, Coffee,
   ArrowRight, CalendarCheck, Instagram, Film, Briefcase, Globe, Link2,
-  Sun, Sunset, Sparkles, Loader2
+  Sun, Sunset, Loader2
 } from 'lucide-react'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
-import { CREATORS } from '@/data/creators'
 import { pic, inr } from '@/data/constants'
 import { cn, shareOrCopy } from '@/utils'
-import { isLiveMode } from '@/config/environmentMode'
 import { useCreator, useCreatorServices } from '@/hooks/useCreators'
 import { apiClient } from '@/services/apiClient'
 import type { MonthAvailabilityResponse } from '@/types/bindings'
@@ -69,16 +67,13 @@ function depositInfo(price: number) {
   return price <= 10000 ? { full: true, pct: 100, advance: price } : { full: false, pct: 30, advance: Math.round(price * 0.3) }
 }
 
-const DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
-const SLOTS = ['9:00 AM', '11:00 AM', '1:00 PM', '3:00 PM', '5:00 PM', '7:00 PM']
-
 export function CreatorDetailScreen() {
   const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
   const id = state.selectedCreatorId
   const { data: dbCreator, isLoading } = useCreator(id)
   const { data: dbServices }           = useCreatorServices(id)
 
-  let c: Creator | undefined = dbCreator ? dbToCreatorFull(dbCreator) : (!isLiveMode() ? CREATORS.find(x => x.id === id) : undefined)
+  let c: Creator | undefined = dbCreator ? dbToCreatorFull(dbCreator) : undefined
 
   // Fallback for newly created creator viewing their own profile
   if (!c && (id === state.supabaseUserId || id === state.user.handle || (state.isCreator && state.user.name))) {
@@ -127,31 +122,17 @@ export function CreatorDetailScreen() {
   const [availData, setAvailData] = useState<MonthAvailabilityResponse | null>(null)
   const [loadingAvail, setLoadingAvail] = useState(false)
 
-  if (isLoading) return (
-    <div className="flex-1 flex flex-col items-center justify-center gap-3">
-      <div className="w-10 h-10 rounded-full border-2 border-iris border-t-transparent animate-spin" />
-      <div className="text-[13px] text-obsidian/50">Loading profile…</div>
-    </div>
-  )
-  if (!c) return (
-    <div className="flex-1 flex flex-col items-center justify-center">
-      <div className="text-4xl mb-3">👤</div>
-      <div className="font-display text-xl">Creator not found</div>
-      <button onClick={() => dispatch({ type: 'BACK' })} className="tap mt-4 px-5 py-3 rounded-2xl bg-obsidian text-paper text-[14px] font-semibold">← Back</button>
-    </div>
-  )
-
   type Pkg = { name: string; price: number; duration: string; revisions: number; delivery: string; inclusions: string[] }
+  const startingPrice = c?.startingAt ?? 8000
   const packages: Pkg[] = dbServices && dbServices.length > 0
     ? dbServices.map((s: any) => ({ name: s.name, price: s.price, duration: s.duration, revisions: s.revisions, delivery: `${s.delivery_days} days`, inclusions: s.inclusions }))
     : [
-        { name: 'Starter',  price: c.startingAt,                     duration: '2 hours', revisions: 1, delivery: '7 days',  inclusions: ['Up to 30 edited photos', 'Digital delivery', '1 location'] },
-        { name: 'Standard', price: Math.round(c.startingAt * 2.5),   duration: '4 hours', revisions: 2, delivery: '10 days', inclusions: ['Up to 80 edited photos', 'Digital + print', '2 locations'] },
-        { name: 'Premium',  price: Math.round(c.startingAt * 6),     duration: '8 hours', revisions: 4, delivery: '14 days', inclusions: ['Unlimited photos', 'Album + print', 'Multiple locations'] },
+        { name: 'Starter',  price: startingPrice,                     duration: '2 hours', revisions: 1, delivery: '7 days',  inclusions: ['Up to 30 edited photos', 'Digital delivery', '1 location'] },
+        { name: 'Standard', price: Math.round(startingPrice * 2.5),   duration: '4 hours', revisions: 2, delivery: '10 days', inclusions: ['Up to 80 edited photos', 'Digital + print', '2 locations'] },
+        { name: 'Premium',  price: Math.round(startingPrice * 6),     duration: '8 hours', revisions: 4, delivery: '14 days', inclusions: ['Unlimited photos', 'Album + print', 'Multiple locations'] },
       ]
 
-  const activePackage = packages[selectedPkg] ?? packages[0] ?? { name: 'Starter', price: c.startingAt, duration: '2 hours', revisions: 1, delivery: '7 days', inclusions: [] }
-  const isSaved = state.saved.includes(c.id)
+  const activePackage = packages[selectedPkg] ?? packages[0] ?? { name: 'Starter', price: startingPrice, duration: '2 hours', revisions: 1, delivery: '7 days', inclusions: [] }
 
   const durMins = useMemo(() => {
     const d = (activePackage?.duration || '').toLowerCase()
@@ -166,6 +147,7 @@ export function CreatorDetailScreen() {
 
   // Fetch dynamic availability from Rust / API client
   useEffect(() => {
+    if (!c?.id) return
     let mounted = true
     setLoadingAvail(true)
     apiClient.getAvailability(c.id, monthStr, durMins)
@@ -180,7 +162,7 @@ export function CreatorDetailScreen() {
         if (mounted) setLoadingAvail(false)
       })
     return () => { mounted = false }
-  }, [c.id, monthStr, durMins])
+  }, [c?.id, monthStr, durMins])
 
   // Reset selected time if package duration changes
   useEffect(() => {
@@ -194,6 +176,21 @@ export function CreatorDetailScreen() {
     return `${m} ${parseInt(parts[2])}`
   }, [selectedDateKey])
 
+  if (isLoading) return (
+    <div className="flex-1 flex flex-col items-center justify-center gap-3">
+      <div className="w-10 h-10 rounded-full border-2 border-iris border-t-transparent animate-spin" />
+      <div className="text-[13px] text-obsidian/50">Loading profile…</div>
+    </div>
+  )
+  if (!c) return (
+    <div className="flex-1 flex flex-col items-center justify-center">
+      <div className="text-4xl mb-3">👤</div>
+      <div className="font-display text-xl">Creator not found</div>
+      <button onClick={() => dispatch({ type: 'BACK' })} className="tap mt-4 px-5 py-3 rounded-2xl bg-obsidian text-paper text-[14px] font-semibold">← Back</button>
+    </div>
+  )
+
+  const isSaved = state.saved.includes(c.id)
   const bookReady = !!selectedDateKey && !!selectedTime
   const dep = depositInfo(activePackage.price)
 

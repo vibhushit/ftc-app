@@ -4,7 +4,6 @@ import { cn } from '@/utils'
 import { supabaseAvailable } from '@/lib/supabase'
 import * as authApi from '@/lib/api/auth'
 import { apiClient } from '@/services/apiClient'
-import { isLiveMode } from '@/config/environmentMode'
 
 export function RoleScreen() {
   const dispatch = useAppStore(s => s.dispatch)
@@ -18,7 +17,7 @@ export function RoleScreen() {
     } catch (e) {
       console.warn('[FTC] selectRole API failed:', e)
     }
-    if (supabaseAvailable && isLiveMode()) {
+    if (supabaseAvailable) {
       try {
         await authApi.setUserRole(role === 'creator' ? 'creator' : 'consumer')
       } catch (e) {

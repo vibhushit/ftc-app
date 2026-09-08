@@ -6,3 +6,5 @@ pub mod payout;
 pub mod review;
 pub mod calendar;
 pub mod filter;
+pub mod enums;
+pub mod config;

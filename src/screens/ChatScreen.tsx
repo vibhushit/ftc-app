@@ -2,7 +2,6 @@ import { useState, useRef, useEffect } from 'react'
 import { ArrowLeft, ArrowRight, FileText, Phone, Plus, X, Send, CheckCheck, Clock } from 'lucide-react'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
-import { CREATORS } from '@/data/creators'
 import { inr, pic } from '@/data/constants'
 import { cn } from '@/utils'
 import { InboxList } from './StubScreens'
@@ -146,7 +145,7 @@ export function ChatScreen() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const isCreator = state.isCreator
 
-  const partner = (state.selectedClient as any) || CREATORS.find(x => x.id === state.selectedCreatorId) || { name: 'Chat', avatar: pic('chat', 80, 80), verification: undefined }
+  const partner = (state.selectedClient as any) || { name: 'Chat', avatar: pic('chat', 80, 80), verification: undefined }
   
   const [messages, setMessages] = useState([
     ...(isCreator ? [

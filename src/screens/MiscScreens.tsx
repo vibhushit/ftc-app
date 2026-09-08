@@ -7,7 +7,7 @@ import {
 import { SimpleHeader } from '@/components/ui/SimpleHeader'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
-import { CREATORS } from '@/data/creators'
+import type { Creator } from '@/types'
 import { inr, pic } from '@/data/constants'
 import { cn } from '@/utils'
 
@@ -126,8 +126,8 @@ function fakeDistance(city: string) {
 }
 
 export function CompareScreen() {
-  const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
-  const creators = state.compareIds.map(id => CREATORS.find(c => c.id === id)).filter(Boolean) as typeof CREATORS[0][]
+  const { dispatch } = useAppStore(useShallow(s => ({ dispatch: s.dispatch })))
+  const creators: Creator[] = []
 
   if (creators.length === 0) {
     return (
@@ -147,7 +147,7 @@ export function CompareScreen() {
     )
   }
 
-  const rows: { label: string; val: (c: typeof CREATORS[0]) => React.ReactNode }[] = [
+  const rows: { label: string; val: (c: Creator) => React.ReactNode }[] = [
     { label: 'Starting price', val: c => <span className="font-display text-lg tnum">{inr(c.startingAt)}</span> },
     { label: 'Rating', val: c => <span className="flex items-center gap-0.5"><Star size={12} className="fill-obsidian text-obsidian" /><span className="font-semibold tnum">{c.rating}</span></span> },
     { label: 'Reviews', val: c => <span className="tnum">{c.reviews}</span> },

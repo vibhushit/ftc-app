@@ -23,27 +23,7 @@ pub fn router() -> Router<AppState> {
 
 async fn list_bookings() -> Json<Vec<Booking>> {
     tracing::info!("📅 GET /api/bookings -> Fetching user/creator bookings list");
-    let mock = vec![
-        Booking {
-            id: "FTC9821".into(),
-            creator_id: "c1".into(),
-            creator_name: "Rhea Kapoor".into(),
-            creator_avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80".into(),
-            client_name: "Aarav Sharma".into(),
-            pkg_name: "Standard Shoot".into(),
-            date_time: "Oct 24, 2026 at 10:00 AM".into(),
-            status: "confirmed".into(),
-            price: 25000,
-            deposit_amount: 7500,
-            balance_amount: 17500,
-            location_type: "Studio".into(),
-            start_time: Some("2026-10-24T10:00:00Z".into()),
-            end_time: Some("2026-10-24T14:00:00Z".into()),
-            request_expires_at: None,
-            client_notes: None,
-        }
-    ];
-    Json(mock)
+    Json(vec![])
 }
 
 async fn create_booking(Json(payload): Json<CreateBookingPayload>) -> Json<Booking> {

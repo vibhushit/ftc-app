@@ -1,8 +1,9 @@
+import { useState } from 'react'
 import { ArrowLeft, ArrowRight, Home, MapPin, Globe, Shield, Check, Zap, CreditCard, Lock, Clock } from 'lucide-react'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
-import { CREATORS } from '@/data/creators'
-import { inr } from '@/data/constants'
+import { useCreator } from '@/hooks/useCreators'
+import { inr, pic } from '@/data/constants'
 import { cn } from '@/utils'
 
 function depositInfo(price: number) {
@@ -13,7 +14,24 @@ function depositInfo(price: number) {
 
 export function BookingScreen() {
   const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
-  const c = CREATORS.find(x => x.id === state.selectedCreatorId) ?? CREATORS[0]
+  const { data: dbCreator } = useCreator(state.selectedCreatorId)
+  const c = dbCreator ? {
+    id: dbCreator.id,
+    name: dbCreator.users.name,
+    avatar: dbCreator.users.avatar_url || pic(dbCreator.users.name + '-av', 200, 200),
+    startingAt: dbCreator.starting_at,
+    area: dbCreator.area || 'Studio',
+    city: dbCreator.city,
+    travelMode: dbCreator.travel_mode || 'both',
+  } : {
+    id: state.selectedCreatorId || 'c_default',
+    name: 'Creator',
+    avatar: pic('creator', 200, 200),
+    startingAt: 8000,
+    area: 'Studio',
+    city: 'Delhi',
+    travelMode: 'both',
+  }
   const draft = (state.bookingDraft ?? {}) as Record<string, unknown>
 
   const PKGS = [

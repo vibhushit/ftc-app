@@ -6,19 +6,11 @@ import {
 } from 'lucide-react'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
-import { CREATORS } from '@/data/creators'
 import { cn, shareOrCopy } from '@/utils'
 import { supabase, supabaseAvailable } from '@/lib/supabase'
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 
-const INBOX = [
-  { id: 'ib1', cid: 'c1',  last: 'Done! Uploaded 42 edited selects in full-res.', time: '2m',  unread: 1, online: true },
-  { id: 'ib2', cid: 'c2',  last: 'Drone permit for South Goa beach session ready.', time: '1h',  unread: 2, online: false },
-  { id: 'ib3', cid: 'c4',  last: 'Hey! Are you free for a 4h event in Hauz Khas?', time: '4h',  unread: 0, online: true },
-  { id: 'ib4', cid: 'c5',  last: 'Invoice #FTC-8472 generated · ₹35,000 paid.', time: '1d',  unread: 0, online: false },
-  { id: 'ib5', cid: 'c7',  last: 'Sent custom quote: ₹45,000 (pre-wedding).',   time: '2d',  unread: 0, online: false },
-  { id: 'ib6', cid: 'c10', last: 'Booking confirmed ✨',                        time: '3d',  unread: 0, online: false },
-]
+const INBOX: Array<{ id: string; name: string; avatar: string; last: string; time: string; unread: number; online: boolean }> = []
 
 export function InboxList() {
   const { drillIntoTab, dispatch } = useAppStore(useShallow(s => ({ drillIntoTab: s.drillIntoTab, dispatch: s.dispatch })))
@@ -36,22 +28,30 @@ export function InboxList() {
         </button>
       </div>
       <div className="app-scroll pb-nav flex-1">
-        {INBOX.map(m => {
-          const c = CREATORS.find(x => x.id === m.cid)
-          if (!c) return null
-          return (
+        {INBOX.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-24 text-center px-8">
+            <div className="w-14 h-14 rounded-full bg-bone grid place-items-center mb-3 text-obsidian/40 mx-auto">
+              <MessageCircle size={26} />
+            </div>
+            <div className="font-display text-lg">Your inbox is empty</div>
+            <p className="text-[13px] text-obsidian/50 mt-1 max-w-xs leading-relaxed">
+              When you message creators or receive booking inquiries, they will show up here.
+            </p>
+          </div>
+        ) : (
+          INBOX.map(m => (
             <button
               key={m.id}
-              onClick={() => dispatch({ type: 'OPEN_CLIENT_CHAT', client: { name: c.name, avatar: c.avatar } })}
+              onClick={() => dispatch({ type: 'OPEN_CLIENT_CHAT', client: { name: m.name, avatar: m.avatar } })}
               className="tap w-full flex items-center gap-3.5 px-5 py-4 border-b border-line text-left hover:bg-bone/40 transition-colors"
             >
               <div className="relative shrink-0">
-                <img src={c.avatar} className="w-12 h-12 rounded-full object-cover" alt="" />
+                <img src={m.avatar} className="w-12 h-12 rounded-full object-cover" alt="" />
                 {m.online && <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-success border-2 border-paper" />}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between">
-                  <span className={cn('text-[14px]', m.unread ? 'font-semibold' : 'font-medium')}>{c.name}</span>
+                  <span className={cn('text-[14px]', m.unread ? 'font-semibold' : 'font-medium')}>{m.name}</span>
                   <span className="text-[11px] font-mono text-obsidian/40">{m.time}</span>
                 </div>
                 <div className="text-[12px] text-obsidian/60 mt-0.5 truncate">{m.last}</div>
@@ -62,8 +62,8 @@ export function InboxList() {
                 )}
               </div>
             </button>
-          )
-        })}
+          ))
+        )}
       </div>
     </div>
   )

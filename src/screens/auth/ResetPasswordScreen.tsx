@@ -4,7 +4,6 @@ import { useAppStore } from '@/store/appStore'
 import { cn } from '@/utils'
 import { supabaseAvailable, supabase } from '@/lib/supabase'
 import * as authApi from '@/lib/api/auth'
-import { isLiveMode } from '@/config/environmentMode'
 
 export function ResetPasswordScreen() {
   const dispatch = useAppStore(s => s.dispatch)
@@ -26,7 +25,7 @@ export function ResetPasswordScreen() {
     setLoading(true)
 
     try {
-      if (supabaseAvailable && isLiveMode()) {
+      if (supabaseAvailable) {
         let { data: { session } } = await supabase.auth.getSession()
 
         // Fallback 1: Extract from hash if session storage is still initializing
@@ -65,7 +64,7 @@ export function ResetPasswordScreen() {
       }
       setSuccess(true)
       setTimeout(async () => {
-        if (supabaseAvailable && isLiveMode()) {
+        if (supabaseAvailable) {
           try {
             const { data: { user } } = await supabase.auth.getUser()
             if (user) {
