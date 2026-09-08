@@ -50,25 +50,34 @@ ALTER TABLE public.creator_calendar_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.calendar_overrides        ENABLE ROW LEVEL SECURITY;
 
 -- Schedules: Anyone can read; creators can manage their own
+DROP POLICY IF EXISTS "schedules_select_public" ON public.creator_schedules;
 CREATE POLICY "schedules_select_public" ON public.creator_schedules FOR SELECT
   USING (true);
 
+DROP POLICY IF EXISTS "schedules_manage_own" ON public.creator_schedules;
 CREATE POLICY "schedules_manage_own" ON public.creator_schedules FOR ALL
-  USING (creator_id IN (SELECT id FROM public.creator_profiles WHERE user_id = auth.uid()));
+  USING (creator_id = auth.uid())
+  WITH CHECK (creator_id = auth.uid());
 
 -- Calendar Settings: Anyone can read (for slot step/buffer computation); creators manage their own
+DROP POLICY IF EXISTS "calendar_settings_select_public" ON public.creator_calendar_settings;
 CREATE POLICY "calendar_settings_select_public" ON public.creator_calendar_settings FOR SELECT
   USING (true);
 
+DROP POLICY IF EXISTS "calendar_settings_manage_own" ON public.creator_calendar_settings;
 CREATE POLICY "calendar_settings_manage_own" ON public.creator_calendar_settings FOR ALL
-  USING (creator_id IN (SELECT id FROM public.creator_profiles WHERE user_id = auth.uid()));
+  USING (creator_id = auth.uid())
+  WITH CHECK (creator_id = auth.uid());
 
 -- Overrides: Anyone can read; creators manage their own
+DROP POLICY IF EXISTS "overrides_select_public" ON public.calendar_overrides;
 CREATE POLICY "overrides_select_public" ON public.calendar_overrides FOR SELECT
   USING (true);
 
+DROP POLICY IF EXISTS "overrides_manage_own" ON public.calendar_overrides;
 CREATE POLICY "overrides_manage_own" ON public.calendar_overrides FOR ALL
-  USING (creator_id IN (SELECT id FROM public.creator_profiles WHERE user_id = auth.uid()));
+  USING (creator_id = auth.uid())
+  WITH CHECK (creator_id = auth.uid());
 
 -- 6. INDEXES
 CREATE INDEX IF NOT EXISTS idx_creator_schedules_cid ON public.creator_schedules(creator_id);
