@@ -5,6 +5,7 @@ use axum::{
 };
 use serde_json::json;
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub enum AppError {
     BadRequest(String),

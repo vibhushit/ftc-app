@@ -1,5 +1,4 @@
-import { useState } from 'react'
-import { ArrowLeft, ArrowRight, Home, MapPin, Globe, Shield, Check, Zap, CreditCard, Lock } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Home, MapPin, Globe, Shield, Check, Zap, CreditCard, Lock, Clock } from 'lucide-react'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { CREATORS } from '@/data/creators'
@@ -25,8 +24,8 @@ export function BookingScreen() {
   const pkgIdx = typeof draft.pkgIdx === 'number' ? draft.pkgIdx : 1
   const pkg = PKGS[pkgIdx] ?? PKGS[1]
   const base = pkg.price
-  const dateLabel = (draft.dateLabel as string) || 'Apr 27'
-  const time = (draft.time as string) || '1:00 PM'
+  const dateLabel = (draft.dateLabel as string) || (draft.date as string) || 'May 15'
+  const time = (draft.time as string) || '10:00 AM'
 
   const allLocOpts = [
     { key: 'studio', label: `${c.area} · their studio`, sub: 'You visit the creator\'s space', fee: 0, accom: 0 },
@@ -53,13 +52,26 @@ export function BookingScreen() {
   const stepTitles = ['Location', 'Brief', 'Pay']
 
   const confirm = () => {
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
     dispatch({
       type: 'CONFIRM_BOOKING',
       booking: {
         id: 'FTC' + Math.floor(Math.random() * 9000 + 1000),
-        cid: c.id, when: `${dateLabel} · ${time}`, status: 'confirmed' as const,
-        pkg: pkg.name, locType: sel?.key ?? 'studio',
-        advance: dep.advance, balance: dep.balance, pct: dep.pct, full: dep.full, total,
+        cid: c.id,
+        creatorName: c.name,
+        creatorAvatar: c.avatar,
+        when: `${dateLabel} · ${time}`,
+        status: 'pending_approval' as any,
+        request_expires_at: expiresAt,
+        pkg: pkg.name,
+        locType: sel?.key ?? 'studio',
+        advance: dep.advance,
+        balance: dep.balance,
+        pct: dep.pct,
+        full: dep.full,
+        total,
+        dateLabel,
+        time,
       } as any,
     })
   }
@@ -162,6 +174,16 @@ export function BookingScreen() {
                 <span className="font-semibold">FTC Secure escrow. </span>
                 Money is held, not sent. Full refund if cancelled or off-brief.
               </div>
+            </div>
+
+            <div className="mb-4 p-3.5 rounded-2xl bg-iris/10 border border-iris/20">
+              <div className="flex items-center gap-2 text-iris font-semibold text-[12.5px] mb-1">
+                <Clock size={15} />
+                <span>24-Hour Creator Guarantee</span>
+              </div>
+              <p className="text-[11.5px] text-obsidian/75 leading-relaxed">
+                {c.name} has 24 hours to review and accept your session for {dateLabel} at {time}. Your advance deposit of {inr(dep.advance)} is held safely in escrow. If declined or expired, you receive an immediate full refund.
+              </p>
             </div>
             <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-obsidian/50 mb-2">Payment method</div>
             <div className="space-y-2 mb-5">
@@ -282,7 +304,7 @@ export function BookingScreen() {
           >
             {step < 2
               ? <>Continue <ArrowRight size={16} /></>
-              : <><Lock size={14} /> {dep.full ? `Pay ${inr(dep.advance)} securely` : `Pay ${dep.pct}% deposit — ${inr(dep.advance)}`}</>
+              : <><Lock size={14} /> Request to Book · Pay {inr(dep.advance)}</>
             }
           </button>
         </div>
@@ -297,7 +319,7 @@ export function BookingScreen() {
         >
           {step < 2
             ? <>Continue <ArrowRight size={16} /></>
-            : <><Lock size={14} /> {dep.full ? `Pay ${inr(dep.advance)} securely` : `Pay ${dep.pct}% deposit — ${inr(dep.advance)}`}</>
+            : <><Lock size={14} /> Request to Book · Pay {inr(dep.advance)}</>
           }
         </button>
       </div>

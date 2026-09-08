@@ -16,6 +16,14 @@ pub struct Booking {
     pub deposit_amount: u32,
     pub balance_amount: u32,
     pub location_type: String,
+    #[serde(default)]
+    pub start_time: Option<String>,
+    #[serde(default)]
+    pub end_time: Option<String>,
+    #[serde(default)]
+    pub request_expires_at: Option<String>,
+    #[serde(default)]
+    pub client_notes: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -25,4 +33,10 @@ pub struct CreateBookingPayload {
     pub pkg_name: String,
     pub date_time: String,
     pub location_type: String,
+    #[serde(default)]
+    pub start_time: Option<String>,
+    #[serde(default)]
+    pub end_time: Option<String>,
+    #[serde(default)]
+    pub client_notes: Option<String>,
 }

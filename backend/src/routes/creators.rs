@@ -20,6 +20,7 @@ pub struct CreatorQueryParams {
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(get_creators))
+        .route("/filters", get(crate::routes::filters::get_discovery_filters))
         .route("/saved", get(get_saved_creators))
         .route("/saved/:id", post(toggle_save_creator))
         .route("/handle/:handle", get(get_creator_by_handle))

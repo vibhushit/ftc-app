@@ -8,6 +8,7 @@ use base64::Engine;
 use serde::{Deserialize, Serialize};
 use crate::error::AppError;
 
+#[allow(dead_code)]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
     pub sub: String,
@@ -21,6 +22,7 @@ pub struct Claims {
     pub exp: Option<usize>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct AuthenticatedUser {
     pub user_id: String,

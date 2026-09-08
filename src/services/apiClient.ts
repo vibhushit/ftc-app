@@ -10,6 +10,10 @@ import type {
   AuthResponse,
   PayoutBalance,
   WithdrawPayload,
+  MonthAvailabilityResponse,
+  DayAvailability,
+  UpdateCalendarSettingsPayload,
+  CreateOverridePayload,
 } from '@/types/bindings'
 import { CREATORS } from '@/data/creators'
 import { compressImageToWebP } from '@/utils/imageCompressor'
@@ -222,6 +226,207 @@ export const apiClient = {
   },
 
   // ─── BOOKINGS & ESCROW ────────────────────────────────────────────────────────
+  async getAvailability(creatorId: string, month: string, durationMinutes: number = 120): Promise<MonthAvailabilityResponse> {
+    if (!isLiveMode()) {
+      // Dynamic sandbox generator
+      const days: Record<string, DayAvailability> = {}
+      const parts = month.split('-')
+      const y = parseInt(parts[0] || '2026')
+      const m = parseInt(parts[1] || '5')
+      const daysCount = [4, 6, 9, 11].includes(m) ? 30 : m === 2 ? 28 : 31
+
+      for (let d = 1; d <= daysCount; d++) {
+        const dateStr = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+        const isSun = new Date(y, m - 1, d).getDay() === 0
+        const isBlocked = (d % 7 === 0) || isSun
+        const isBooked = (d % 5 === 0) && !isBlocked
+
+        let slots: string[] = []
+        let status = 'available'
+        if (isBlocked) {
+          status = 'blocked'
+        } else if (isBooked) {
+          status = 'booked'
+        } else {
+          slots = durationMinutes >= 240
+            ? ['10:00', '14:00', '16:00']
+            : ['09:00', '11:00', '13:00', '15:00', '17:00']
+        }
+
+        days[dateStr] = {
+          date: dateStr,
+          status,
+          slots,
+          reason: isBlocked ? 'Day off' : isBooked ? 'Fully booked' : null,
+        }
+      }
+
+      return {
+        creator_id: creatorId,
+        month,
+        duration_minutes: durationMinutes,
+        slot_step_minutes: 60,
+        buffer_minutes: 30,
+        holiday_mode: false,
+        days,
+      }
+    }
+
+    const endpoint = `${getBaseUrl()}/calendar/${creatorId}/availability?month=${month}&duration_minutes=${durationMinutes}`
+    try {
+      const res = await fetch(endpoint)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      return await res.json()
+    } catch (err: any) {
+      notifyApiError({
+        endpoint: `/calendar/${creatorId}/availability`,
+        method: 'GET',
+        message: err?.message || 'Failed to fetch calendar availability',
+        timestamp: new Date().toLocaleTimeString(),
+      })
+      throw err
+    }
+  },
+
+  async requestBooking(payload: CreateBookingPayload): Promise<Booking> {
+    if (!isLiveMode()) {
+      const idSuffix = Math.floor(1000 + Math.random() * 9000).toString()
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+      return {
+        id: `FTC-REQ-${idSuffix}`,
+        creator_id: payload.creator_id,
+        creator_name: 'Rhea Kapoor',
+        creator_avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+        client_name: 'You',
+        pkg_name: payload.pkg_name,
+        date_time: payload.date_time,
+        status: 'pending_approval',
+        price: 25000,
+        deposit_amount: 7500,
+        balance_amount: 17500,
+        location_type: payload.location_type,
+        start_time: payload.start_time,
+        end_time: payload.end_time,
+        request_expires_at: expiresAt,
+        client_notes: payload.client_notes,
+      }
+    }
+
+    const endpoint = `${getBaseUrl()}/bookings/request`
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      return await res.json()
+    } catch (err: any) {
+      notifyApiError({
+        endpoint: '/bookings/request',
+        method: 'POST',
+        message: err?.message || 'Failed to submit 24h booking request',
+        timestamp: new Date().toLocaleTimeString(),
+      })
+      throw err
+    }
+  },
+
+  async acceptBooking(bookingId: string): Promise<{ success: boolean; status: string }> {
+    if (!isLiveMode()) {
+      return { success: true, status: 'confirmed' }
+    }
+    const endpoint = `${getBaseUrl()}/bookings/${bookingId}/accept`
+    const res = await fetch(endpoint, { method: 'POST' })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return await res.json()
+  },
+
+  async declineBooking(bookingId: string, reason?: string): Promise<{ success: boolean; status: string }> {
+    if (!isLiveMode()) {
+      return { success: true, status: 'declined' }
+    }
+    const endpoint = `${getBaseUrl()}/bookings/${bookingId}/decline`
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason }),
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return await res.json()
+  },
+
+  async getCalendarSettings(): Promise<{
+    slot_step_minutes: number
+    buffer_minutes: number
+    min_notice_hours: number
+    holiday_mode: boolean
+    calendar_token: string
+    schedules: Array<{ day_of_week: number; is_active: boolean; start_time: string; end_time: string }>
+  }> {
+    if (!isLiveMode()) {
+      return {
+        slot_step_minutes: 60,
+        buffer_minutes: 30,
+        min_notice_hours: 24,
+        holiday_mode: false,
+        calendar_token: 'ftc-sec-cal-token',
+        schedules: [
+          { day_of_week: 1, is_active: true, start_time: '09:00', end_time: '19:00' },
+          { day_of_week: 2, is_active: true, start_time: '09:00', end_time: '19:00' },
+          { day_of_week: 3, is_active: true, start_time: '09:00', end_time: '19:00' },
+          { day_of_week: 4, is_active: true, start_time: '09:00', end_time: '19:00' },
+          { day_of_week: 5, is_active: true, start_time: '09:00', end_time: '19:00' },
+          { day_of_week: 6, is_active: true, start_time: '10:00', end_time: '18:00' },
+          { day_of_week: 0, is_active: false, start_time: '10:00', end_time: '18:00' },
+        ],
+      }
+    }
+
+    const endpoint = `${getBaseUrl()}/calendar/me/calendar-settings`
+    const res = await fetch(endpoint)
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return await res.json()
+  },
+
+  async updateCalendarSettings(payload: UpdateCalendarSettingsPayload): Promise<{ success: boolean; settings: any }> {
+    if (!isLiveMode()) {
+      return { success: true, settings: payload }
+    }
+    const endpoint = `${getBaseUrl()}/calendar/me/calendar-settings`
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return await res.json()
+  },
+
+  async createOverride(payload: CreateOverridePayload): Promise<{ success: boolean; id: string; override: any }> {
+    if (!isLiveMode()) {
+      return { success: true, id: `ovr-${Date.now()}`, override: payload }
+    }
+    const endpoint = `${getBaseUrl()}/calendar/me/overrides`
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return await res.json()
+  },
+
+  async deleteOverride(id: string): Promise<{ success: boolean; id: string }> {
+    if (!isLiveMode()) {
+      return { success: true, id }
+    }
+    const endpoint = `${getBaseUrl()}/calendar/me/overrides/${id}`
+    const res = await fetch(endpoint, { method: 'DELETE' })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return await res.json()
+  },
+
   async createBooking(payload: CreateBookingPayload): Promise<Booking> {
     if (!isLiveMode()) {
       return {

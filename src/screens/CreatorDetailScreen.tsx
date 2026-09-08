@@ -1,5 +1,10 @@
-import { useState } from 'react'
-import { ArrowLeft, Heart, Share2, MapPin, BadgeCheck, Shield, Check, Star, Clock, ChevronRight, MessageCircle, HelpCircle, Volume2, Coffee, ArrowRight, CalendarCheck, Instagram, Film, Briefcase, Globe, Link2 } from 'lucide-react'
+import { useState, useEffect, useMemo } from 'react'
+import {
+  ArrowLeft, Heart, Share2, MapPin, BadgeCheck, Shield, Check, Star, Clock,
+  ChevronRight, ChevronLeft, MessageCircle, HelpCircle, Volume2, Coffee,
+  ArrowRight, CalendarCheck, Instagram, Film, Briefcase, Globe, Link2,
+  Sun, Sunset, Sparkles, Loader2
+} from 'lucide-react'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { CREATORS } from '@/data/creators'
@@ -7,6 +12,8 @@ import { pic, inr } from '@/data/constants'
 import { cn, shareOrCopy } from '@/utils'
 import { isLiveMode } from '@/config/environmentMode'
 import { useCreator, useCreatorServices } from '@/hooks/useCreators'
+import { apiClient } from '@/services/apiClient'
+import type { MonthAvailabilityResponse } from '@/types/bindings'
 import type { CreatorWithUser } from '@/lib/database.types'
 import type { Tier, Verification, Gender, TravelMode, TravelRadius, Creator } from '@/types'
 
@@ -112,9 +119,13 @@ export function CreatorDetailScreen() {
 
   const [portfolioIdx, setPortfolioIdx] = useState(0)
   const [selectedPkg, setSelectedPkg] = useState(1)
-  const [selectedDate, setSelectedDate] = useState<number | null>(null)
+  const [currentYear, setCurrentYear] = useState(2026)
+  const [currentMonthNum, setCurrentMonthNum] = useState(5)
+  const [selectedDateKey, setSelectedDateKey] = useState<string | null>('2026-05-15')
   const [selectedTime, setSelectedTime] = useState<string | null>(null)
   const [shareToast, setShareToast] = useState(false)
+  const [availData, setAvailData] = useState<MonthAvailabilityResponse | null>(null)
+  const [loadingAvail, setLoadingAvail] = useState(false)
 
   if (isLoading) return (
     <div className="flex-1 flex flex-col items-center justify-center gap-3">
@@ -141,9 +152,66 @@ export function CreatorDetailScreen() {
 
   const activePackage = packages[selectedPkg] ?? packages[0] ?? { name: 'Starter', price: c.startingAt, duration: '2 hours', revisions: 1, delivery: '7 days', inclusions: [] }
   const isSaved = state.saved.includes(c.id)
-  const bookDateLabel = selectedDate === null ? '' : ((23 + selectedDate) > 30 ? 'May ' + (23 + selectedDate - 30) : 'Apr ' + (23 + selectedDate))
-  const bookReady = selectedDate !== null && !!selectedTime
+
+  const durMins = useMemo(() => {
+    const d = (activePackage?.duration || '').toLowerCase()
+    if (d.includes('1 hour') || d.includes('1h')) return 60
+    if (d.includes('4 hour') || d.includes('4h')) return 240
+    if (d.includes('8 hour') || d.includes('8h')) return 480
+    return 120
+  }, [activePackage?.duration])
+
+  const monthStr = `${currentYear}-${String(currentMonthNum).padStart(2, '0')}`
+  const monthTitle = new Date(currentYear, currentMonthNum - 1, 1).toLocaleString('default', { month: 'long', year: 'numeric' })
+
+  // Fetch dynamic availability from Rust / API client
+  useEffect(() => {
+    let mounted = true
+    setLoadingAvail(true)
+    apiClient.getAvailability(c.id, monthStr, durMins)
+      .then(res => {
+        if (mounted) {
+          setAvailData(res)
+          setLoadingAvail(false)
+        }
+      })
+      .catch(err => {
+        console.warn('Failed to fetch dynamic availability:', err)
+        if (mounted) setLoadingAvail(false)
+      })
+    return () => { mounted = false }
+  }, [c.id, monthStr, durMins])
+
+  // Reset selected time if package duration changes
+  useEffect(() => {
+    setSelectedTime(null)
+  }, [selectedPkg])
+
+  const bookDateLabel = useMemo(() => {
+    if (!selectedDateKey) return ''
+    const parts = selectedDateKey.split('-')
+    const m = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2])).toLocaleString('default', { month: 'short' })
+    return `${m} ${parseInt(parts[2])}`
+  }, [selectedDateKey])
+
+  const bookReady = !!selectedDateKey && !!selectedTime
   const dep = depositInfo(activePackage.price)
+
+  const activeDayAvail = selectedDateKey && availData?.days ? availData.days[selectedDateKey] : null
+  const daySlots = activeDayAvail?.slots ?? []
+
+  const morningSlots = daySlots.filter(s => {
+    const h = parseInt(s.split(':')[0] || '0')
+    return h < 12
+  })
+  const afternoonSlots = daySlots.filter(s => {
+    const h = parseInt(s.split(':')[0] || '0')
+    return h >= 12 && h < 16
+  })
+  const goldenSlots = daySlots.filter(s => {
+    const h = parseInt(s.split(':')[0] || '0')
+    return h >= 16
+  })
 
   const packagesBlock = (
     <div className="px-5 py-5 border-b border-line">
@@ -185,47 +253,207 @@ export function CreatorDetailScreen() {
     </div>
   )
 
+  // Calendar month days calculation
+  const firstDayOfMonth = new Date(currentYear, currentMonthNum - 1, 1).getDay() // 0 = Sun
+  const offset = (firstDayOfMonth + 6) % 7 // Align Monday = 0
+  const daysInMonth = [4, 6, 9, 11].includes(currentMonthNum) ? 30 : currentMonthNum === 2 ? 28 : 31
+  const monthDays = Array.from({ length: daysInMonth }, (_, i) => i + 1)
+
+  const prevMonth = () => {
+    if (currentMonthNum === 1) {
+      setCurrentMonthNum(12)
+      setCurrentYear(y => y - 1)
+    } else {
+      setCurrentMonthNum(m => m - 1)
+    }
+  }
+
+  const nextMonth = () => {
+    if (currentMonthNum === 12) {
+      setCurrentMonthNum(1)
+      setCurrentYear(y => y + 1)
+    } else {
+      setCurrentMonthNum(m => m + 1)
+    }
+  }
+
   const calendarBlock = (
     <div className="px-5 py-5 border-b border-line">
+      {/* Month Header & Controls */}
       <div className="flex items-center justify-between mb-3">
-        <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-obsidian/50">Next 28 days</div>
-        <div className="flex items-center gap-3 text-[10px] font-mono">
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-acid" /> Open</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-obsidian/10" /> Booked</span>
+        <div>
+          <div className="text-[10px] font-mono uppercase tracking-[0.14em] text-iris font-semibold">
+            {activePackage.duration} session window
+          </div>
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className="font-display text-lg tracking-tight">{monthTitle}</span>
+            {loadingAvail && <Loader2 size={13} className="animate-spin text-obsidian/40" />}
+          </div>
+        </div>
+        <div className="flex items-center gap-1 bg-bone p-1 rounded-xl border border-line">
+          <button onClick={prevMonth} className="tap w-7 h-7 rounded-lg grid place-items-center hover:bg-paper text-obsidian/70">
+            <ChevronLeft size={15} />
+          </button>
+          <button onClick={nextMonth} className="tap w-7 h-7 rounded-lg grid place-items-center hover:bg-paper text-obsidian/70">
+            <ChevronRight size={15} />
+          </button>
         </div>
       </div>
-      <div className="grid grid-cols-7 gap-1.5 text-center">
-        {DAYS.map((d, i) => <div key={i} className="text-[10px] font-mono text-obsidian/40 py-1">{d}</div>)}
-        {c.availability.map((avail, i) => {
-          const date = 23 + i
-          const isSelected = selectedDate === i
+
+      {/* Legend */}
+      <div className="flex items-center gap-3 text-[10px] font-mono text-obsidian/60 mb-2">
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-acid border border-obsidian/20" /> Open</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-obsidian/20" /> Booked</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-obsidian/5" /> Off</span>
+      </div>
+
+      {/* Days of Week Header */}
+      <div className="grid grid-cols-7 gap-1.5 text-center mb-1">
+        {['M','T','W','T','F','S','S'].map((d, i) => (
+          <div key={i} className="text-[10px] font-mono text-obsidian/40 py-0.5">{d}</div>
+        ))}
+      </div>
+
+      {/* Calendar Grid */}
+      <div className="grid grid-cols-7 gap-1.5 place-items-center">
+        {Array.from({ length: offset }).map((_, i) => (
+          <div key={'offset-' + i} className="w-8 h-8" />
+        ))}
+        {monthDays.map(d => {
+          const dateKey = `${currentYear}-${String(currentMonthNum).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+          const dayInfo = availData?.days?.[dateKey]
+          const isAvailable = dayInfo ? dayInfo.status === 'available' : true
+          const isBooked = dayInfo ? dayInfo.status === 'booked' : false
+          const isBlocked = dayInfo ? dayInfo.status === 'blocked' : false
+          const isSelected = selectedDateKey === dateKey
+
           return (
             <button
-              key={i}
-              disabled={!avail}
-              onClick={() => { setSelectedDate(i); setSelectedTime(null) }}
-              className={cn('aspect-square rounded-lg text-[12px] font-medium transition-all tnum',
-                !avail && 'text-obsidian/20 bg-obsidian/5',
-                !!avail && !isSelected && 'bg-acid/30 hover:bg-acid/50',
-                isSelected && 'bg-obsidian text-paper')}
+              key={d}
+              disabled={isBlocked || isBooked}
+              onClick={() => {
+                setSelectedDateKey(dateKey)
+                setSelectedTime(null)
+              }}
+              className={cn(
+                'w-8 h-8 rounded-xl text-[12px] font-medium tnum flex items-center justify-center transition-all',
+                isSelected && 'bg-obsidian text-paper font-semibold shadow-md',
+                !isSelected && isAvailable && 'bg-acid/30 hover:bg-acid/50 text-obsidian font-semibold',
+                !isSelected && isBooked && 'bg-obsidian/10 text-obsidian/40 cursor-not-allowed',
+                !isSelected && isBlocked && 'bg-obsidian/5 text-obsidian/20 cursor-not-allowed line-through'
+              )}
             >
-              {date > 30 ? date - 30 : date}
+              {d}
             </button>
           )
         })}
       </div>
-      {selectedDate !== null && (
-        <div className="mt-4 pt-4 border-t border-line">
-          <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-obsidian/50 mb-2.5">Pick a time</div>
-          <div className="grid grid-cols-3 gap-2">
-            {SLOTS.map(t => (
-              <button key={t} onClick={() => setSelectedTime(t)} className={cn('tap py-2.5 rounded-xl text-[12px] font-medium transition border', selectedTime === t ? 'bg-obsidian text-paper border-obsidian' : 'bg-bone border-line text-obsidian/70')}>{t}</button>
-            ))}
+
+      {/* Time Slot Picker grouped by time of day */}
+      {selectedDateKey && (
+        <div className="mt-4 pt-4 border-t border-line space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-obsidian/60">
+              Start times for {bookDateLabel}
+            </div>
+            <span className="text-[10px] font-mono text-iris bg-iris/10 px-2 py-0.5 rounded-full">
+              24h confirmation SLA
+            </span>
           </div>
+
+          {daySlots.length === 0 ? (
+            <div className="rounded-xl bg-bone p-3.5 text-center text-[12px] text-obsidian/60 border border-line">
+              {activeDayAvail?.reason || 'No open slots fit this package duration on this date. Try another day or package.'}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {/* Morning Slots */}
+              {morningSlots.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-1.5 text-[11px] text-obsidian/50 font-medium mb-1.5">
+                    <Sun size={12} className="text-amber-500" />
+                    <span>Morning</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {morningSlots.map(t => (
+                      <button
+                        key={t}
+                        onClick={() => setSelectedTime(t)}
+                        className={cn(
+                          'tap py-2.5 rounded-xl text-[12px] font-medium transition border text-center',
+                          selectedTime === t
+                            ? 'bg-obsidian text-paper border-obsidian'
+                            : 'bg-bone border-line text-obsidian/80 hover:border-obsidian/30'
+                        )}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Afternoon Slots */}
+              {afternoonSlots.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-1.5 text-[11px] text-obsidian/50 font-medium mb-1.5">
+                    <Sun size={12} className="text-iris" />
+                    <span>Afternoon</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {afternoonSlots.map(t => (
+                      <button
+                        key={t}
+                        onClick={() => setSelectedTime(t)}
+                        className={cn(
+                          'tap py-2.5 rounded-xl text-[12px] font-medium transition border text-center',
+                          selectedTime === t
+                            ? 'bg-obsidian text-paper border-obsidian'
+                            : 'bg-bone border-line text-obsidian/80 hover:border-obsidian/30'
+                        )}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Golden Hour / Evening Slots */}
+              {goldenSlots.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-1.5 text-[11px] text-obsidian/50 font-medium mb-1.5">
+                    <Sunset size={12} className="text-rose-500" />
+                    <span>Golden Hour & Evening</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {goldenSlots.map(t => (
+                      <button
+                        key={t}
+                        onClick={() => setSelectedTime(t)}
+                        className={cn(
+                          'tap py-2.5 rounded-xl text-[12px] font-medium transition border text-center',
+                          selectedTime === t
+                            ? 'bg-obsidian text-paper border-obsidian'
+                            : 'bg-bone border-line text-obsidian/80 hover:border-obsidian/30'
+                        )}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
-      {selectedDate === null && (
-        <div className="mt-3 text-[11px] text-obsidian/45 flex items-center gap-1.5"><Clock size={12} />Pick a date to see open time slots</div>
+
+      {!selectedDateKey && (
+        <div className="mt-3 text-[11px] text-obsidian/45 flex items-center gap-1.5">
+          <Clock size={12} />
+          Pick an available date to view open {activePackage.duration} windows
+        </div>
       )}
     </div>
   )
@@ -235,15 +463,31 @@ export function CreatorDetailScreen() {
       {bookReady && (
         <div className="flex items-center gap-1.5 mb-2 text-[11px] text-obsidian/60">
           <CalendarCheck size={12} className="text-success" />
-          {bookDateLabel} · {selectedTime} · {activePackage.name}
+          {bookDateLabel} · {selectedTime} · {activePackage.name} ({activePackage.duration})
         </div>
       )}
       <button
         disabled={!bookReady}
-        onClick={() => dispatch({ type: 'START_BOOKING', draft: { creatorId: c.id, creatorName: c.name, creatorAvatar: c.avatar, packageName: activePackage.name, packagePrice: activePackage.price, date: bookDateLabel, time: selectedTime ?? '', location: c.area, notes: '' } })}
+        onClick={() => dispatch({
+          type: 'START_BOOKING',
+          draft: {
+            creatorId: c.id,
+            creatorName: c.name,
+            creatorAvatar: c.avatar,
+            packageName: activePackage.name,
+            packagePrice: activePackage.price,
+            date: bookDateLabel,
+            dateLabel: bookDateLabel,
+            time: selectedTime ?? '',
+            location: c.area,
+            notes: '',
+            duration: activePackage.duration,
+            dateKey: selectedDateKey,
+          }
+        })}
         className={cn('tap w-full py-3.5 rounded-2xl font-semibold text-[14px] flex items-center justify-center gap-2', bookReady ? 'bg-obsidian text-paper' : 'bg-bone text-obsidian/40')}
       >
-        {!bookReady ? 'Select date & time' : `${dep.full ? 'Book' : 'Reserve'} · ${inr(dep.advance)}`}
+        {!bookReady ? 'Select date & time' : `Request to Book · ${inr(dep.advance)}`}
         {bookReady && <ArrowRight size={16} />}
       </button>
     </div>
@@ -499,7 +743,7 @@ export function CreatorDetailScreen() {
         {bookReady && (
           <div className="flex items-center gap-1.5 mb-2 text-[11px] text-obsidian/60">
             <CalendarCheck size={12} className="text-success" />
-            {bookDateLabel} · {selectedTime} · {activePackage.name}
+            {bookDateLabel} · {selectedTime} · {activePackage.name} ({activePackage.duration})
           </div>
         )}
         <div className="flex gap-2">
@@ -508,10 +752,26 @@ export function CreatorDetailScreen() {
           </button>
           <button
             disabled={!bookReady}
-            onClick={() => dispatch({ type: 'START_BOOKING', draft: { creatorId: c.id, creatorName: c.name, creatorAvatar: c.avatar, packageName: activePackage.name, packagePrice: activePackage.price, date: bookDateLabel, time: selectedTime ?? '', location: c.area, notes: '' } })}
+            onClick={() => dispatch({
+              type: 'START_BOOKING',
+              draft: {
+                creatorId: c.id,
+                creatorName: c.name,
+                creatorAvatar: c.avatar,
+                packageName: activePackage.name,
+                packagePrice: activePackage.price,
+                date: bookDateLabel,
+                dateLabel: bookDateLabel,
+                time: selectedTime ?? '',
+                location: c.area,
+                notes: '',
+                duration: activePackage.duration,
+                dateKey: selectedDateKey,
+              }
+            })}
             className={cn('tap flex-1 py-3.5 rounded-2xl font-semibold text-[14px] flex items-center justify-center gap-2', bookReady ? 'bg-obsidian text-paper' : 'bg-bone text-obsidian/40')}
           >
-            {!bookReady ? 'Select date & time' : `${dep.full ? 'Book' : 'Reserve'} · ${inr(dep.advance)}`}
+            {!bookReady ? 'Select date & time' : `Request to Book · ${inr(dep.advance)}`}
             {bookReady && <ArrowRight size={16} />}
           </button>
         </div>

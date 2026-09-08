@@ -134,7 +134,13 @@ export interface Booking {
   date: string
   price: number
   advancePaid: number
-  status: 'inquiry' | 'upcoming' | 'pending' | 'completed'
+  status: 'inquiry' | 'upcoming' | 'pending' | 'completed' | 'pending_approval' | 'declined'
+  requestExpiresAt?: string
+  clientNotes?: string
+  startTime?: string
+  endTime?: string
+  packageName?: string
+  locationType?: string
 }
 
 export interface Quote {

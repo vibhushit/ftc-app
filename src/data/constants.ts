@@ -53,6 +53,7 @@ export const DEAL_STAGES = [
 ] as const
 
 export const CRM_TABS = [
+  { key: 'pending_approval', label: 'Requests' },
   { key: 'inquiry', label: 'Inquiries' },
   { key: 'upcoming', label: 'Advance Paid' },
   { key: 'pending', label: 'Pending Delivery' },
@@ -60,6 +61,7 @@ export const CRM_TABS = [
 ]
 
 export const CRM_EMPTY: Record<string, [string, string]> = {
+  pending_approval: ['No pending booking requests', 'New booking requests requiring your approval within 24 hours will appear here.'],
   inquiry: ['New leads land here', "When a client messages or requests a quote, you'll see them in this column."],
   upcoming: ['No upcoming sessions', 'Bookings with a deposit paid show here with their date & time.'],
   pending: ['Nothing in delivery', 'Active jobs awaiting final delivery appear here.'],
@@ -174,6 +176,20 @@ export const SEED_DEALS: Deal[] = [
 ]
 
 export const SEED_CREATOR_BOOKINGS: Booking[] = [
+  {
+    id: 'FTC-REQ-2048',
+    clientName: 'Aarav Singhania',
+    clientAvatar: pic('client8', 100, 100),
+    projectType: 'Lookbook Shoot',
+    packageName: 'Standard Editorial (Half Day)',
+    date: 'May 18, 2026 · 11:00 AM',
+    price: 32000,
+    advancePaid: 16000,
+    status: 'pending_approval',
+    requestExpiresAt: new Date(Date.now() + 21 * 3600 * 1000 + 45 * 60 * 1000).toISOString(),
+    clientNotes: 'Indoor minimalist studio shoot for luxury streetwear brand. 3 models, 4 looks.',
+    locationType: 'Studio (Hauz Khas)',
+  },
   { id: 'b1', clientName: 'Rhea Kapoor', clientAvatar: pic('client1', 100, 100), projectType: 'Portrait shoot', date: 'Apr 27 · 10am', price: 25000, advancePaid: 12500, status: 'upcoming' },
   { id: 'b2', clientName: 'Aryan Mehta', clientAvatar: pic('client2', 100, 100), projectType: 'Product photography', date: 'Apr 29 · 2pm', price: 18000, advancePaid: 9000, status: 'upcoming' },
   { id: 'b3', clientName: 'Sneha Gupta', clientAvatar: pic('client3', 100, 100), projectType: 'Brand identity kit', date: 'Apr 22 · Done', price: 45000, advancePaid: 45000, status: 'pending' },
