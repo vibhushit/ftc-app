@@ -186,8 +186,14 @@ export function MeScreen() {
               <div className="flex items-center gap-2">
                 {state.hasCreatorProfile ? (
                   <button
-                    onClick={() => dispatch({ type: 'SET_ROLE', isCreator: !isC })}
-                    className="tap px-3 py-1.5 rounded-full bg-paper/10 text-paper text-[11px] font-semibold hover:bg-paper/20 transition flex items-center gap-1.5"
+                    onClick={() => {
+                      const activeCid = state.supabaseUserId || (typeof window !== 'undefined' ? localStorage.getItem('ftc_creator_id') : '')
+                      dispatch({ type: 'SET_ROLE', isCreator: !isC })
+                      if (isC && activeCid) {
+                        dispatch({ type: 'OPEN_CREATOR', id: activeCid })
+                      }
+                    }}
+                    className="tap px-3 py-1.5 rounded-full bg-paper/10 text-paper text-[11px] font-semibold hover:bg-paper/20 transition flex items-center gap-1.5 cursor-pointer"
                   >
                     <Sparkles size={12} className="text-acid" />
                     {isC ? 'Switch to Client View' : 'Switch to Creator View'}
@@ -253,7 +259,19 @@ export function MeScreen() {
                   </div>
                   <div className="font-display text-xl md:text-2xl text-paper tracking-tight mt-1 truncate flex items-center gap-1.5">
                     <span>ftc.app/{handle.replace(/^@/, '')}</span>
-                    <a href={`#creator=${state.selectedCreatorId || 'c1'}`} className="text-paper/40 hover:text-paper transition"><ExternalLink size={16} /></a>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const activeCid = state.supabaseUserId || (typeof window !== 'undefined' ? localStorage.getItem('ftc_creator_id') : '') || state.selectedCreatorId
+                        if (activeCid) {
+                          dispatch({ type: 'OPEN_CREATOR', id: activeCid })
+                        }
+                      }}
+                      className="text-paper/40 hover:text-paper transition cursor-pointer"
+                      title="Preview client booking page"
+                    >
+                      <ExternalLink size={16} />
+                    </button>
                   </div>
                   <p className="text-[11.5px] text-paper/60 mt-0.5">Share this link in your Instagram bio for 1-tap client bookings.</p>
                 </div>
@@ -309,8 +327,14 @@ export function MeScreen() {
             <div className="flex items-center gap-3">
               {state.hasCreatorProfile ? (
                 <button
-                  onClick={() => dispatch({ type: 'SET_ROLE', isCreator: !isC })}
-                  className="tap px-4 py-2.5 rounded-xl bg-iris text-paper text-[12.5px] font-semibold flex items-center gap-1.5 shadow-sm"
+                  onClick={() => {
+                    const activeCid = state.supabaseUserId || (typeof window !== 'undefined' ? localStorage.getItem('ftc_creator_id') : '')
+                    dispatch({ type: 'SET_ROLE', isCreator: !isC })
+                    if (isC && activeCid) {
+                      dispatch({ type: 'OPEN_CREATOR', id: activeCid })
+                    }
+                  }}
+                  className="tap px-4 py-2.5 rounded-xl bg-iris text-paper text-[12.5px] font-semibold flex items-center gap-1.5 shadow-sm cursor-pointer"
                 >
                   <Sparkles size={14} /> {isC ? 'Switch to Client View' : 'Switch to Creator View'}
                 </button>

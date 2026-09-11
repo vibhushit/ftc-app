@@ -50,6 +50,7 @@ mod tests {
         // 1) 09:00 - 09:30 (30m free) -> 60m session does NOT fit
         // 2) 12:30 - 14:30 (120m free) -> 13:00 fits (13:00 - 14:00)
         // 3) 17:30 - 19:00 (90m free) -> 18:00 fits (18:00 - 19:00)
+        let custom_hours = HashMap::new();
         let slots = compute_month_slots(
             2026,
             5,
@@ -60,6 +61,7 @@ mod tests {
             &active_days,
             &blocked_dates,
             &booked,
+            &custom_hours,
         );
 
         let day = slots.get("2026-05-15").unwrap();
@@ -79,6 +81,7 @@ mod tests {
         let active_days = mock_active_weekdays(10, 12); // Exactly 2 hours: 10:00 to 12:00
         let blocked = HashMap::new();
         let booked = HashMap::new();
+        let custom_hours = HashMap::new();
 
         // 120-minute package should fit exactly at 10:00
         let fit_slots = compute_month_slots(
@@ -91,6 +94,7 @@ mod tests {
             &active_days,
             &blocked,
             &booked,
+            &custom_hours,
         );
         let fit_day = fit_slots.get("2026-05-04").unwrap(); // Monday
         assert_eq!(fit_day.slots, vec!["10:00"]);
@@ -106,6 +110,7 @@ mod tests {
             &active_days,
             &blocked,
             &booked,
+            &custom_hours,
         );
         let no_fit_day = no_fit_slots.get("2026-05-04").unwrap();
         assert!(no_fit_day.slots.is_empty());
@@ -119,6 +124,7 @@ mod tests {
 
         let blocked = HashMap::new();
         let mut booked = HashMap::new();
+        let custom_hours = HashMap::new();
         // Booking right at midnight (00:00 - 01:00) with 60m buffer (saturates at 00:00)
         // Booking right at night end (23:00 - 24:00) with 60m buffer (clamps at 1440m)
         booked.insert(
@@ -136,6 +142,7 @@ mod tests {
             &active_days,
             &blocked,
             &booked,
+            &custom_hours,
         );
 
         let day = slots.get("2026-05-04").unwrap();
@@ -152,14 +159,15 @@ mod tests {
         let active_days = mock_active_weekdays(9, 18);
         let blocked = HashMap::new();
         let booked = HashMap::new();
+        let custom_hours = HashMap::new();
 
         // 2028 is a leap year -> 29 days
-        let leap = compute_month_slots(2028, 2, 60, 60, 0, false, &active_days, &blocked, &booked);
+        let leap = compute_month_slots(2028, 2, 60, 60, 0, false, &active_days, &blocked, &booked, &custom_hours);
         assert_eq!(leap.len(), 29);
         assert!(leap.contains_key("2028-02-29"));
 
         // 2026 is NOT a leap year -> 28 days
-        let non_leap = compute_month_slots(2026, 2, 60, 60, 0, false, &active_days, &blocked, &booked);
+        let non_leap = compute_month_slots(2026, 2, 60, 60, 0, false, &active_days, &blocked, &booked, &custom_hours);
         assert_eq!(non_leap.len(), 28);
         assert!(!non_leap.contains_key("2026-02-29"));
         assert!(non_leap.contains_key("2026-02-28"));
@@ -172,8 +180,9 @@ mod tests {
         blocked.insert("2026-05-20".to_string(), true); // Wednesday blocked
 
         let booked = HashMap::new();
+        let custom_hours = HashMap::new();
 
-        let slots = compute_month_slots(2026, 5, 60, 60, 0, false, &active_days, &blocked, &booked);
+        let slots = compute_month_slots(2026, 5, 60, 60, 0, false, &active_days, &blocked, &booked, &custom_hours);
 
         let blocked_day = slots.get("2026-05-20").unwrap();
         assert_eq!(blocked_day.status, "blocked");
@@ -182,6 +191,28 @@ mod tests {
         let open_day = slots.get("2026-05-21").unwrap(); // Thursday
         assert_eq!(open_day.status, "available");
         assert!(!open_day.slots.is_empty());
+    }
+
+    #[test]
+    fn test_custom_hours_override_on_specific_date() {
+        // Regular weekdays: 09:00 - 18:00. Sunday (05-17) is day off.
+        let active_days = mock_active_weekdays(9, 18);
+        let blocked = HashMap::new();
+        let booked = HashMap::new();
+        let mut custom_hours = HashMap::new();
+        // Creator opens custom night hours on Sunday May 17, 2026 from 18:00 to 22:00
+        custom_hours.insert("2026-05-17".to_string(), (18 * 60, 22 * 60));
+
+        let slots = compute_month_slots(2026, 5, 60, 60, 0, false, &active_days, &blocked, &booked, &custom_hours);
+
+        let sunday = slots.get("2026-05-17").unwrap();
+        assert_eq!(sunday.status, "available");
+        assert_eq!(sunday.is_custom_hours, Some(true));
+        assert!(sunday.slots.contains(&"18:00".to_string()));
+        assert!(sunday.slots.contains(&"19:00".to_string()));
+        assert!(sunday.slots.contains(&"20:00".to_string()));
+        assert!(sunday.slots.contains(&"21:00".to_string()));
+        assert!(!sunday.slots.contains(&"09:00".to_string()));
     }
 
     // ─── 2. RFC 5545 ICALENDAR SPEC VALIDATION ────────────────────────────────

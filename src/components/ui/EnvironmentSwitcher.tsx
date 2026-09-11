@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Database, Activity, RefreshCw, X, AlertTriangle, CheckCircle2, ChevronDown, Server } from 'lucide-react'
+import { RefreshCw, X, CheckCircle2, AlertCircle } from 'lucide-react'
 import { pingBackendHealth, getApiBaseUrl } from '@/config/environmentMode'
 import type { ApiErrorEvent } from '@/services/apiClient'
 import { cn } from '@/utils'
@@ -16,8 +16,7 @@ export function EnvironmentSwitcher() {
   }>({
     loading: false,
   })
-  const [activeError, setActiveError] = useState<ApiErrorEvent | null>(null)
-  const [showResetNotice, setShowResetNotice] = useState(false)
+  const [_activeError, setActiveError] = useState<ApiErrorEvent | null>(null)
 
   // Listen to live API errors
   useEffect(() => {
@@ -45,177 +44,90 @@ export function EnvironmentSwitcher() {
     checkHealth()
   }, [])
 
-  useEffect(() => {
-    if (isOpen) {
-      checkHealth()
-    }
-  }, [isOpen])
-
-  const handleResetStorage = () => {
-    localStorage.clear()
-    setShowResetNotice(true)
-    setTimeout(() => {
-      window.location.reload()
-    }, 800)
-  }
-
   const isOnline = pingStatus.online ?? true
 
   return (
     <>
-      {/* ─── Floating Top-Right Backend Status Pill ────────────────────────── */}
-      <div className="fixed top-3 right-4 z-50 flex items-center gap-2">
+      {/* ─── Minimal Bottom-Right Status Dot (Zero Clutter, No Header Overlap) ─── */}
+      <div className="fixed bottom-4 right-4 z-40">
         <button
-          onClick={() => setIsOpen(!isOpen)}
+          onClick={() => {
+            setIsOpen(!isOpen)
+            if (!isOpen) checkHealth()
+          }}
           className={cn(
-            'tap flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-mono font-medium tracking-tight shadow-sm border transition-all backdrop-blur-md cursor-pointer',
+            'tap w-8 h-8 rounded-full border shadow-md flex items-center justify-center transition-all backdrop-blur-md cursor-pointer hover:scale-110',
             isOnline
-              ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/40 hover:bg-emerald-900/90 shadow-emerald-950/20'
-              : 'bg-red-950/80 text-red-300 border-red-500/40 hover:bg-red-900/90 shadow-red-950/20'
+              ? 'bg-paper/90 border-emerald-500/30 shadow-emerald-500/10 hover:border-emerald-500/60'
+              : 'bg-paper/90 border-red-500/30 shadow-red-500/10 hover:border-red-500/60'
           )}
-          title="Backend Connection Status"
+          aria-label="Backend Status Indicator"
+          title={isOnline ? `Backend Online (${pingStatus.latencyMs ?? 0}ms)` : 'Backend Offline'}
         >
-          <span className="relative flex h-2 w-2">
+          <span className="relative flex h-2.5 w-2.5">
             {isOnline && (
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
             )}
             <span
               className={cn(
-                'relative inline-flex rounded-full h-2 w-2',
-                isOnline ? 'bg-emerald-400' : 'bg-red-400'
+                'relative inline-flex rounded-full h-2.5 w-2.5',
+                isOnline ? 'bg-emerald-500' : 'bg-red-500'
               )}
             />
           </span>
-          <span>{isOnline ? `Live Backend (${pingStatus.latencyMs ?? 0}ms)` : 'Backend Offline'}</span>
-          <ChevronDown size={12} className={cn('opacity-60 transition-transform', isOpen && 'rotate-180')} />
         </button>
       </div>
 
-      {/* ─── Global Error Banner ─────────────────────────────────────────── */}
-      <AnimatePresence>
-        {activeError && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="fixed top-12 left-4 right-4 md:left-auto md:right-4 md:max-w-md z-50 bg-danger text-paper p-4 rounded-2xl shadow-2xl border border-white/10 text-[12px] flex items-start gap-3"
-          >
-            <AlertTriangle size={18} className="shrink-0 text-white mt-0.5" />
-            <div className="flex-1 min-w-0">
-              <div className="font-semibold flex items-center justify-between">
-                <span>Live API Connection Error</span>
-                <span className="font-mono text-[10px] bg-black/30 px-1.5 py-0.5 rounded">
-                  {activeError.method} {activeError.endpoint}
-                </span>
-              </div>
-              <div className="text-white/90 text-[11px] mt-1 font-mono break-all leading-snug">
-                {activeError.message}
-              </div>
-            </div>
-            <button
-              onClick={() => setActiveError(null)}
-              className="tap p-1 -mr-1 text-white/70 hover:text-white cursor-pointer"
-            >
-              <X size={15} />
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ─── Diagnostics Drawer ───────────────────────────────────────────── */}
+      {/* ─── Compact Diagnostics Card ─────────────────────────────────────── */}
       <AnimatePresence>
         {isOpen && (
           <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+            <div
               onClick={() => setIsOpen(false)}
-              className="fixed inset-0 z-40 bg-black/40 backdrop-blur-xs"
+              className="fixed inset-0 z-40 bg-black/20"
             />
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: -10 }}
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: -10 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
               transition={{ duration: 0.15, ease: 'easeOut' }}
-              className="fixed top-12 right-4 z-50 w-[350px] max-w-[calc(100vw-32px)] bg-obsidian text-paper rounded-3xl p-5 shadow-2xl border border-white/10 font-sans text-left"
+              className="fixed bottom-14 right-4 z-50 w-72 bg-paper text-obsidian rounded-2xl p-4 shadow-xl border border-line text-left"
             >
-              <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <div className="flex items-center justify-between pb-2.5 border-b border-line">
                 <div className="flex items-center gap-2">
-                  <Server size={16} className="text-iris" />
-                  <span className="font-display text-sm tracking-tight font-semibold">Backend Infrastructure</span>
+                  <span className={cn('w-2 h-2 rounded-full', isOnline ? 'bg-emerald-500' : 'bg-red-500')} />
+                  <span className="text-[12px] font-semibold">Backend Status</span>
                 </div>
                 <button
                   onClick={() => setIsOpen(false)}
-                  className="tap w-7 h-7 rounded-full bg-white/10 grid place-items-center text-white/60 hover:text-white cursor-pointer"
+                  className="tap p-1 rounded-lg text-obsidian/40 hover:text-obsidian hover:bg-bone transition cursor-pointer"
                 >
-                  <X size={14} />
+                  <X size={13} />
                 </button>
               </div>
 
-              {/* Status Details */}
-              <div className="mt-4 p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-2.5">
+              <div className="py-3 space-y-2 text-[11px] font-mono">
                 <div className="flex items-center justify-between">
-                  <span className="text-[12px] text-white/70 flex items-center gap-1.5">
-                    <Activity size={13} className="text-emerald-400" /> Rust Axum Service
+                  <span className="text-obsidian/60">Status:</span>
+                  <span className={cn('font-semibold flex items-center gap-1', isOnline ? 'text-emerald-600' : 'text-danger')}>
+                    {isOnline ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />}
+                    {isOnline ? `Online (${pingStatus.latencyMs ?? 0}ms)` : 'Offline'}
                   </span>
-                  {pingStatus.loading ? (
-                    <span className="text-[11px] text-white/40 animate-pulse font-mono">Pinging…</span>
-                  ) : pingStatus.online ? (
-                    <span className="text-[11px] text-emerald-400 font-semibold font-mono flex items-center gap-1">
-                      <CheckCircle2 size={12} /> Online ({pingStatus.latencyMs}ms)
-                    </span>
-                  ) : (
-                    <span className="text-[11px] text-danger font-semibold font-mono">
-                      Offline
-                    </span>
-                  )}
                 </div>
-
-                <div className="text-[10px] text-white/50 font-mono break-all pt-1 border-t border-white/5">
-                  Base API: {getApiBaseUrl()}
-                </div>
-
-                <div className="flex items-center justify-between pt-1 border-t border-white/5">
-                  <span className="text-[12px] text-white/70 flex items-center gap-1.5">
-                    <Database size={13} className="text-iris" /> PostgreSQL Database
-                  </span>
-                  <span className="text-[11px] text-emerald-400 font-semibold font-mono flex items-center gap-1">
-                    <CheckCircle2 size={12} /> Connected
-                  </span>
+                <div className="flex items-center justify-between">
+                  <span className="text-obsidian/60">API URL:</span>
+                  <span className="text-obsidian/80 text-[10px] truncate max-w-[140px]">{getApiBaseUrl()}</span>
                 </div>
               </div>
 
-              {/* Actions & Diagnostics */}
-              <div className="mt-4 pt-3 border-t border-white/10 text-[11px] space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-white/50 font-mono">Diagnostics</span>
-                  <button
-                    onClick={checkHealth}
-                    disabled={pingStatus.loading}
-                    className="tap flex items-center gap-1 text-iris hover:underline font-mono text-[10px] cursor-pointer"
-                  >
-                    <RefreshCw size={10} className={cn(pingStatus.loading && 'animate-spin')} />
-                    {pingStatus.loading ? 'Pinging…' : 'Ping Again'}
-                  </button>
-                </div>
-
-                {pingStatus.error && !pingStatus.online && (
-                  <div className="text-[10px] text-amber-300/90 p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 leading-tight font-sans">
-                    ⚠️ {pingStatus.error}
-                  </div>
-                )}
-
-                <div className="pt-2 border-t border-white/5 flex items-center justify-between">
-                  <button
-                    onClick={handleResetStorage}
-                    className="tap text-[10px] text-white/50 hover:text-danger underline font-mono cursor-pointer"
-                  >
-                    {showResetNotice ? 'Cleared! Reloading…' : 'Clear Browser Cache'}
-                  </button>
-                  <span className="text-[10px] font-mono text-white/30">FTC Axum v1.0</span>
-                </div>
-              </div>
+              <button
+                onClick={checkHealth}
+                disabled={pingStatus.loading}
+                className="tap w-full py-1.5 rounded-xl bg-obsidian text-paper text-[11px] font-semibold flex items-center justify-center gap-1.5 hover:bg-obsidian/90 transition shadow-2xs cursor-pointer disabled:opacity-50"
+              >
+                <RefreshCw size={11} className={cn(pingStatus.loading && 'animate-spin')} />
+                <span>{pingStatus.loading ? 'Pinging…' : 'Ping Backend'}</span>
+              </button>
             </motion.div>
           </>
         )}

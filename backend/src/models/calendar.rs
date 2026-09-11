@@ -52,6 +52,14 @@ pub struct CalendarOverride {
     pub end_datetime: String,
     pub reason: Option<String>,
     pub is_full_day: bool,
+    #[serde(default = "default_override_type")]
+    pub override_type: String, // "blocked" | "custom_hours"
+    pub custom_start_time: Option<String>,
+    pub custom_end_time: Option<String>,
+}
+
+fn default_override_type() -> String {
+    "blocked".to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -61,6 +69,10 @@ pub struct CreateOverridePayload {
     pub end_datetime: String,
     pub reason: Option<String>,
     pub is_full_day: bool,
+    #[serde(default = "default_override_type")]
+    pub override_type: String, // "blocked" | "custom_hours"
+    pub custom_start_time: Option<String>,
+    pub custom_end_time: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -70,6 +82,12 @@ pub struct DayAvailability {
     pub status: String, // "available" | "booked" | "blocked"
     pub slots: Vec<String>,
     pub reason: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub is_custom_hours: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub custom_start_time: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub custom_end_time: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

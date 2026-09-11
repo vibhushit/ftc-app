@@ -13,6 +13,7 @@ import type {
   MonthAvailabilityResponse,
   UpdateCalendarSettingsPayload,
   CreateOverridePayload,
+  CalendarOverride,
   PlatformConfig,
 } from '@/types/bindings'
 import { compressImageToWebP } from '@/utils/imageCompressor'
@@ -241,47 +242,57 @@ export const apiClient = {
     }
   },
 
-  async getCalendarSettings(): Promise<{
+  async getCalendarSettings(creatorId?: string): Promise<{
+    creator_id?: string
     slot_step_minutes: number
     buffer_minutes: number
     min_notice_hours: number
     holiday_mode: boolean
     calendar_token: string
     schedules: Array<{ day_of_week: number; is_active: boolean; start_time: string; end_time: string }>
+    overrides?: Array<CalendarOverride>
   }> {
     const endpoint = `${getBaseUrl()}/calendar/me/calendar-settings`
-    const res = await fetch(endpoint, { headers: await getHeaders() })
+    const customHeaders: Record<string, string> = {}
+    if (creatorId) customHeaders['x-creator-id'] = creatorId
+    const res = await fetch(endpoint, { headers: await getHeaders(customHeaders) })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     return await res.json()
   },
 
-  async updateCalendarSettings(payload: UpdateCalendarSettingsPayload): Promise<{ success: boolean; settings: any }> {
+  async updateCalendarSettings(payload: UpdateCalendarSettingsPayload, creatorId?: string): Promise<{ success: boolean; settings: any }> {
     const endpoint = `${getBaseUrl()}/calendar/me/calendar-settings`
+    const customHeaders: Record<string, string> = {}
+    if (creatorId) customHeaders['x-creator-id'] = creatorId
     const res = await fetch(endpoint, {
       method: 'POST',
-      headers: await getHeaders(),
+      headers: await getHeaders(customHeaders),
       body: JSON.stringify(payload),
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     return await res.json()
   },
 
-  async createOverride(payload: CreateOverridePayload): Promise<{ success: boolean; id: string; override: any }> {
+  async createOverride(payload: CreateOverridePayload, creatorId?: string): Promise<{ success: boolean; id: string; override: any }> {
     const endpoint = `${getBaseUrl()}/calendar/me/overrides`
+    const customHeaders: Record<string, string> = {}
+    if (creatorId) customHeaders['x-creator-id'] = creatorId
     const res = await fetch(endpoint, {
       method: 'POST',
-      headers: await getHeaders(),
+      headers: await getHeaders(customHeaders),
       body: JSON.stringify(payload),
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     return await res.json()
   },
 
-  async deleteOverride(id: string): Promise<{ success: boolean; id: string }> {
+  async deleteOverride(id: string, creatorId?: string): Promise<{ success: boolean; id: string }> {
     const endpoint = `${getBaseUrl()}/calendar/me/overrides/${id}`
+    const customHeaders: Record<string, string> = {}
+    if (creatorId) customHeaders['x-creator-id'] = creatorId
     const res = await fetch(endpoint, {
       method: 'DELETE',
-      headers: await getHeaders(),
+      headers: await getHeaders(customHeaders),
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     return await res.json()

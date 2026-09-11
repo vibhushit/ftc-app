@@ -3,7 +3,7 @@ import {
   ArrowLeft, Heart, Share2, MapPin, BadgeCheck, Shield, Check, Star, Clock,
   ChevronRight, ChevronLeft, MessageCircle, HelpCircle, Volume2, Coffee,
   ArrowRight, CalendarCheck, Instagram, Film, Briefcase, Globe, Link2,
-  Sun, Sunset, Loader2
+  Loader2, Sparkles, Lock
 } from 'lucide-react'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
@@ -69,7 +69,8 @@ function depositInfo(price: number) {
 
 export function CreatorDetailScreen() {
   const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
-  const id = state.selectedCreatorId
+  const storedCid = typeof window !== 'undefined' ? (localStorage.getItem('ftc_creator_id') || '') : ''
+  const id = state.selectedCreatorId || (state.isCreator ? (state.supabaseUserId || storedCid) : (storedCid || state.supabaseUserId || null))
   const { data: dbCreator, isLoading } = useCreator(id)
   const { data: dbServices }           = useCreatorServices(id)
 
@@ -79,7 +80,7 @@ export function CreatorDetailScreen() {
   if (!c && (id === state.supabaseUserId || id === state.user.handle || (state.isCreator && state.user.name))) {
     const ob = state.onboard
     c = {
-      id: id || state.supabaseUserId || 'my_profile',
+      id: id || state.supabaseUserId || storedCid || 'my_profile',
       name: ob.name || state.user.name || 'Creator',
       handle: state.user.handle || `@${(ob.name || state.user.name || 'creator').toLowerCase().replace(/\s+/g, '_')}`,
       discipline: ob.discipline || 'Photography',
@@ -112,11 +113,14 @@ export function CreatorDetailScreen() {
     }
   }
 
+  const now = new Date()
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+
   const [portfolioIdx, setPortfolioIdx] = useState(0)
-  const [selectedPkg, setSelectedPkg] = useState(1)
-  const [currentYear, setCurrentYear] = useState(2026)
-  const [currentMonthNum, setCurrentMonthNum] = useState(5)
-  const [selectedDateKey, setSelectedDateKey] = useState<string | null>('2026-05-15')
+  const [selectedPkg, setSelectedPkg] = useState(0)
+  const [currentYear, setCurrentYear] = useState(now.getFullYear())
+  const [currentMonthNum, setCurrentMonthNum] = useState(now.getMonth() + 1)
+  const [selectedDateKey, setSelectedDateKey] = useState<string | null>(todayStr)
   const [selectedTime, setSelectedTime] = useState<string | null>(null)
   const [shareToast, setShareToast] = useState(false)
   const [availData, setAvailData] = useState<MonthAvailabilityResponse | null>(null)
@@ -134,13 +138,45 @@ export function CreatorDetailScreen() {
 
   const activePackage = packages[selectedPkg] ?? packages[0] ?? { name: 'Starter', price: startingPrice, duration: '2 hours', revisions: 1, delivery: '7 days', inclusions: [] }
 
+  function formatSlotRange(startTime: string, durationMinutes: number): string {
+    if (!startTime) return ''
+    const [hStr, mStr] = startTime.split(':')
+    const startH = parseInt(hStr || '0', 10)
+    const startM = parseInt(mStr || '0', 10)
+    const totalStart = startH * 60 + startM
+    const totalEnd = totalStart + durationMinutes
+
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const formatH = (totalMins: number) => {
+      const h24 = Math.floor(totalMins / 60) % 24
+      const m = totalMins % 60
+      return `${pad(h24)}:${pad(m)}`
+    }
+    return `${formatH(totalStart)} – ${formatH(totalEnd)}`
+  }
+
   const durMins = useMemo(() => {
     const d = (activePackage?.duration || '').toLowerCase()
-    if (d.includes('1 hour') || d.includes('1h')) return 60
-    if (d.includes('4 hour') || d.includes('4h')) return 240
-    if (d.includes('8 hour') || d.includes('8h')) return 480
+    const matchHours = d.match(/(\d+(?:\.\d+)?)\s*(?:hours?|hrs?|h\b)/i)
+    if (matchHours) return Math.round(parseFloat(matchHours[1]) * 60)
+    const matchMins = d.match(/(\d+)\s*(?:mins?|minutes?|m\b)/i)
+    if (matchMins) return parseInt(matchMins[1], 10)
+    if (d.includes('1 day') || d.includes('full day')) return 480
     return 120
   }, [activePackage?.duration])
+
+  const packageSummary = useMemo(() => {
+    const name = (activePackage?.name || '').trim()
+    const dur = (activePackage?.duration || '').trim()
+    if (dur && name.toLowerCase().includes(dur.toLowerCase())) {
+      return name
+    }
+    if (name && dur && dur.toLowerCase().includes(name.toLowerCase())) {
+      return dur
+    }
+    const cleanName = name.replace(/\b(\w+)\s+\1\b/gi, '$1')
+    return dur ? `${cleanName} · ${dur}` : cleanName
+  }, [activePackage?.name, activePackage?.duration])
 
   const monthStr = `${currentYear}-${String(currentMonthNum).padStart(2, '0')}`
   const monthTitle = new Date(currentYear, currentMonthNum - 1, 1).toLocaleString('default', { month: 'long', year: 'numeric' })
@@ -197,19 +233,6 @@ export function CreatorDetailScreen() {
   const activeDayAvail = selectedDateKey && availData?.days ? availData.days[selectedDateKey] : null
   const daySlots = activeDayAvail?.slots ?? []
 
-  const morningSlots = daySlots.filter(s => {
-    const h = parseInt(s.split(':')[0] || '0')
-    return h < 12
-  })
-  const afternoonSlots = daySlots.filter(s => {
-    const h = parseInt(s.split(':')[0] || '0')
-    return h >= 12 && h < 16
-  })
-  const goldenSlots = daySlots.filter(s => {
-    const h = parseInt(s.split(':')[0] || '0')
-    return h >= 16
-  })
-
   const packagesBlock = (
     <div className="px-5 py-5 border-b border-line">
       <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-obsidian/50 mb-1.5">Packages</div>
@@ -250,13 +273,16 @@ export function CreatorDetailScreen() {
     </div>
   )
 
-  // Calendar month days calculation
+  // Calendar month days calculation (leap year safe)
   const firstDayOfMonth = new Date(currentYear, currentMonthNum - 1, 1).getDay() // 0 = Sun
   const offset = (firstDayOfMonth + 6) % 7 // Align Monday = 0
-  const daysInMonth = [4, 6, 9, 11].includes(currentMonthNum) ? 30 : currentMonthNum === 2 ? 28 : 31
+  const daysInMonth = new Date(currentYear, currentMonthNum, 0).getDate()
   const monthDays = Array.from({ length: daysInMonth }, (_, i) => i + 1)
 
+  const isCurrentOrPastMonth = currentYear < now.getFullYear() || (currentYear === now.getFullYear() && currentMonthNum <= now.getMonth() + 1)
+
   const prevMonth = () => {
+    if (isCurrentOrPastMonth) return
     if (currentMonthNum === 1) {
       setCurrentMonthNum(12)
       setCurrentYear(y => y - 1)
@@ -278,30 +304,38 @@ export function CreatorDetailScreen() {
     <div className="px-5 py-5 border-b border-line">
       {/* Month Header & Controls */}
       <div className="flex items-center justify-between mb-3">
-        <div>
-          <div className="text-[10px] font-mono uppercase tracking-[0.14em] text-iris font-semibold">
-            {activePackage.duration} session window
-          </div>
-          <div className="flex items-center gap-2 mt-0.5">
-            <span className="font-display text-lg tracking-tight">{monthTitle}</span>
-            {loadingAvail && <Loader2 size={13} className="animate-spin text-obsidian/40" />}
-          </div>
+        <div className="flex items-center gap-2">
+          <span className="font-display text-lg tracking-tight">{monthTitle}</span>
+          {loadingAvail && <Loader2 size={13} className="animate-spin text-obsidian/40" />}
         </div>
         <div className="flex items-center gap-1 bg-bone p-1 rounded-xl border border-line">
-          <button onClick={prevMonth} className="tap w-7 h-7 rounded-lg grid place-items-center hover:bg-paper text-obsidian/70">
+          <button
+            onClick={prevMonth}
+            disabled={isCurrentOrPastMonth}
+            className={cn(
+              "tap w-7 h-7 rounded-lg grid place-items-center transition",
+              isCurrentOrPastMonth ? "text-obsidian/20 cursor-not-allowed" : "hover:bg-paper text-obsidian/70"
+            )}
+            title={isCurrentOrPastMonth ? "Cannot view past months" : "Previous month"}
+          >
             <ChevronLeft size={15} />
           </button>
-          <button onClick={nextMonth} className="tap w-7 h-7 rounded-lg grid place-items-center hover:bg-paper text-obsidian/70">
+          <button
+            onClick={nextMonth}
+            className="tap w-7 h-7 rounded-lg grid place-items-center hover:bg-paper text-obsidian/70 transition"
+            title="Next month"
+          >
             <ChevronRight size={15} />
           </button>
         </div>
       </div>
 
       {/* Legend */}
-      <div className="flex items-center gap-3 text-[10px] font-mono text-obsidian/60 mb-2">
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-acid border border-obsidian/20" /> Open</span>
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-obsidian/20" /> Booked</span>
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-obsidian/5" /> Off</span>
+      <div className="flex items-center gap-3 text-[10px] font-mono text-obsidian/60 mb-2 flex-wrap">
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500" /> Open</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-iris" /> Custom Hours</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-obsidian/20" /> Day Off</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-rose-400" /> Unavailable</span>
       </div>
 
       {/* Days of Week Header */}
@@ -319,28 +353,38 @@ export function CreatorDetailScreen() {
         {monthDays.map(d => {
           const dateKey = `${currentYear}-${String(currentMonthNum).padStart(2, '0')}-${String(d).padStart(2, '0')}`
           const dayInfo = availData?.days?.[dateKey]
-          const isAvailable = dayInfo ? dayInfo.status === 'available' : true
-          const isBooked = dayInfo ? dayInfo.status === 'booked' : false
-          const isBlocked = dayInfo ? dayInfo.status === 'blocked' : false
+          const isPast = dateKey < todayStr
+          const isToday = dateKey === todayStr
+          const isDayOff = !isPast && (dayInfo ? (dayInfo.status === 'blocked' && (dayInfo.reason === 'Day off' || dayInfo.reason === null)) : false)
+          const isBlockedOverride = !isPast && (dayInfo ? (dayInfo.status === 'blocked' && dayInfo.reason !== 'Day off' && dayInfo.reason !== null) : false)
+          const isAvailable = !isPast && !isDayOff && !isBlockedOverride && (dayInfo ? dayInfo.status === 'available' : true)
+          const isBooked = !isPast && (dayInfo ? dayInfo.status === 'booked' : false)
           const isSelected = selectedDateKey === dateKey
+          const hasCustomHours = !isPast && !!dayInfo?.is_custom_hours
 
           return (
             <button
               key={d}
-              disabled={isBlocked || isBooked}
+              disabled={isPast || isDayOff || isBlockedOverride}
               onClick={() => {
                 setSelectedDateKey(dateKey)
                 setSelectedTime(null)
               }}
               className={cn(
-                'w-8 h-8 rounded-xl text-[12px] font-medium tnum flex items-center justify-center transition-all',
-                isSelected && 'bg-obsidian text-paper font-semibold shadow-md',
-                !isSelected && isAvailable && 'bg-acid/30 hover:bg-acid/50 text-obsidian font-semibold',
-                !isSelected && isBooked && 'bg-obsidian/10 text-obsidian/40 cursor-not-allowed',
-                !isSelected && isBlocked && 'bg-obsidian/5 text-obsidian/20 cursor-not-allowed line-through'
+                'w-8 h-8 rounded-xl text-[12px] font-medium tnum flex items-center justify-center transition-all relative cursor-pointer',
+                isSelected && 'bg-obsidian text-paper font-semibold shadow-md ring-2 ring-iris/40',
+                !isSelected && isPast && 'bg-obsidian/[0.02] text-obsidian/20 cursor-not-allowed',
+                !isSelected && !isPast && isDayOff && 'bg-obsidian/10 text-obsidian/35 cursor-not-allowed',
+                !isSelected && !isPast && isBlockedOverride && 'bg-rose-100 text-rose-800 font-semibold line-through cursor-not-allowed',
+                !isSelected && !isPast && isAvailable && 'bg-emerald-100/70 hover:bg-emerald-200/80 text-emerald-950 font-semibold',
+                !isSelected && !isPast && isBooked && 'bg-obsidian/10 text-obsidian/40 hover:bg-obsidian/20',
+                isToday && !isSelected && 'ring-1 ring-iris/50 font-bold'
               )}
             >
               {d}
+              {hasCustomHours && !isSelected && (
+                <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-iris ring-1 ring-paper" title="Custom creator hours" />
+              )}
             </button>
           )
         })}
@@ -351,96 +395,75 @@ export function CreatorDetailScreen() {
         <div className="mt-4 pt-4 border-t border-line space-y-3">
           <div className="flex items-center justify-between">
             <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-obsidian/60">
-              Start times for {bookDateLabel}
+              Shoot Windows for {bookDateLabel}
             </div>
             <span className="text-[10px] font-mono text-iris bg-iris/10 px-2 py-0.5 rounded-full">
               24h confirmation SLA
             </span>
           </div>
 
-          {daySlots.length === 0 ? (
+          {/* Custom Hours Banner */}
+          {activeDayAvail?.is_custom_hours && (
+            <div className="rounded-xl bg-iris/10 border border-iris/25 p-2.5 text-[11.5px] text-iris flex items-center justify-between gap-2 animate-fade-in">
+              <div className="flex items-center gap-2">
+                <Sparkles size={14} className="shrink-0" />
+                <span>
+                  <strong className="font-semibold">Special Hours:</strong>{' '}
+                  {activeDayAvail?.custom_start_time && activeDayAvail?.custom_end_time
+                    ? `${activeDayAvail.custom_start_time} – ${activeDayAvail.custom_end_time}`
+                    : 'Adjusted creator hours'}
+                  {activeDayAvail?.reason ? ` · ${activeDayAvail.reason}` : ''}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {activeDayAvail?.status === 'blocked' ? (
+            <div className="rounded-xl bg-rose-50 border border-rose-200 p-3.5 text-center space-y-1 text-rose-900 animate-fade-in">
+              <div className="text-[12px] font-semibold flex items-center justify-center gap-1.5">
+                <Lock size={13} className="text-rose-600" />
+                <span>Date Unavailable</span>
+              </div>
+              <div className="text-[11.5px] text-rose-800/80">
+                {activeDayAvail?.reason || 'The creator is not accepting bookings on this date.'}
+              </div>
+            </div>
+          ) : activeDayAvail?.status === 'booked' ? (
+            <div className="rounded-xl bg-bone border border-line p-3.5 text-center space-y-1 text-obsidian/70 animate-fade-in">
+              <div className="text-[12px] font-semibold flex items-center justify-center gap-1.5">
+                <Clock size={13} className="text-obsidian/40" />
+                <span>Fully Booked</span>
+              </div>
+              <div className="text-[11.5px] text-obsidian/50">
+                {activeDayAvail?.reason || 'All shoot windows on this date have already been reserved.'}
+              </div>
+            </div>
+          ) : daySlots.length === 0 ? (
             <div className="rounded-xl bg-bone p-3.5 text-center text-[12px] text-obsidian/60 border border-line">
               {activeDayAvail?.reason || 'No open slots fit this package duration on this date. Try another day or package.'}
             </div>
           ) : (
-            <div className="space-y-3">
-              {/* Morning Slots */}
-              {morningSlots.length > 0 && (
-                <div>
-                  <div className="flex items-center gap-1.5 text-[11px] text-obsidian/50 font-medium mb-1.5">
-                    <Sun size={12} className="text-amber-500" />
-                    <span>Morning</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    {morningSlots.map(t => (
-                      <button
-                        key={t}
-                        onClick={() => setSelectedTime(t)}
-                        className={cn(
-                          'tap py-2.5 rounded-xl text-[12px] font-medium transition border text-center',
-                          selectedTime === t
-                            ? 'bg-obsidian text-paper border-obsidian'
-                            : 'bg-bone border-line text-obsidian/80 hover:border-obsidian/30'
-                        )}
-                      >
-                        {t}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Afternoon Slots */}
-              {afternoonSlots.length > 0 && (
-                <div>
-                  <div className="flex items-center gap-1.5 text-[11px] text-obsidian/50 font-medium mb-1.5">
-                    <Sun size={12} className="text-iris" />
-                    <span>Afternoon</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    {afternoonSlots.map(t => (
-                      <button
-                        key={t}
-                        onClick={() => setSelectedTime(t)}
-                        className={cn(
-                          'tap py-2.5 rounded-xl text-[12px] font-medium transition border text-center',
-                          selectedTime === t
-                            ? 'bg-obsidian text-paper border-obsidian'
-                            : 'bg-bone border-line text-obsidian/80 hover:border-obsidian/30'
-                        )}
-                      >
-                        {t}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Golden Hour / Evening Slots */}
-              {goldenSlots.length > 0 && (
-                <div>
-                  <div className="flex items-center gap-1.5 text-[11px] text-obsidian/50 font-medium mb-1.5">
-                    <Sunset size={12} className="text-rose-500" />
-                    <span>Golden Hour & Evening</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    {goldenSlots.map(t => (
-                      <button
-                        key={t}
-                        onClick={() => setSelectedTime(t)}
-                        className={cn(
-                          'tap py-2.5 rounded-xl text-[12px] font-medium transition border text-center',
-                          selectedTime === t
-                            ? 'bg-obsidian text-paper border-obsidian'
-                            : 'bg-bone border-line text-obsidian/80 hover:border-obsidian/30'
-                        )}
-                      >
-                        {t}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+            <div>
+              <div className="flex items-center gap-1.5 text-[11px] text-obsidian/50 font-medium mb-2">
+                <Clock size={12} className="text-iris" />
+                <span>Available Slots</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {daySlots.map(t => (
+                  <button
+                    key={t}
+                    onClick={() => setSelectedTime(t)}
+                    className={cn(
+                      'tap py-2 px-2.5 rounded-xl text-[11.5px] font-mono font-medium transition border text-center cursor-pointer whitespace-nowrap',
+                      selectedTime === t
+                        ? 'bg-obsidian text-paper border-obsidian font-semibold shadow-xs'
+                        : 'bg-bone border-line text-obsidian/80 hover:border-obsidian/30'
+                    )}
+                  >
+                    {formatSlotRange(t, durMins)}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -460,7 +483,7 @@ export function CreatorDetailScreen() {
       {bookReady && (
         <div className="flex items-center gap-1.5 mb-2 text-[11px] text-obsidian/60">
           <CalendarCheck size={12} className="text-success" />
-          {bookDateLabel} · {selectedTime} · {activePackage.name} ({activePackage.duration})
+          {bookDateLabel} · {selectedTime ? formatSlotRange(selectedTime, durMins) : ''} · {packageSummary}
         </div>
       )}
       <button
@@ -475,7 +498,7 @@ export function CreatorDetailScreen() {
             packagePrice: activePackage.price,
             date: bookDateLabel,
             dateLabel: bookDateLabel,
-            time: selectedTime ?? '',
+            time: selectedTime ? formatSlotRange(selectedTime, durMins) : '',
             location: c.area,
             notes: '',
             duration: activePackage.duration,
@@ -740,7 +763,7 @@ export function CreatorDetailScreen() {
         {bookReady && (
           <div className="flex items-center gap-1.5 mb-2 text-[11px] text-obsidian/60">
             <CalendarCheck size={12} className="text-success" />
-            {bookDateLabel} · {selectedTime} · {activePackage.name} ({activePackage.duration})
+            {bookDateLabel} · {selectedTime ? formatSlotRange(selectedTime, durMins) : ''} · {packageSummary}
           </div>
         )}
         <div className="flex gap-2">
@@ -759,7 +782,7 @@ export function CreatorDetailScreen() {
                 packagePrice: activePackage.price,
                 date: bookDateLabel,
                 dateLabel: bookDateLabel,
-                time: selectedTime ?? '',
+                time: selectedTime ? formatSlotRange(selectedTime, durMins) : '',
                 location: c.area,
                 notes: '',
                 duration: activePackage.duration,

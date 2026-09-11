@@ -125,25 +125,7 @@ async fn get_creators(
         }
     }
 
-    // ─── Authentic in-memory creator registry (zero mock data) ────────────────
-    let memory = state.memory_creators.read().unwrap();
-    let filtered: Vec<Creator> = memory.iter().filter(|c| {
-        if let Some(ref d) = params.discipline {
-            if !c.discipline.eq_ignore_ascii_case(d) { return false; }
-        }
-        if let Some(ref ct) = params.city {
-            if !c.city.eq_ignore_ascii_case(ct) { return false; }
-        }
-        if let Some(min) = params.min_price {
-            if c.starting_at < min { return false; }
-        }
-        if let Some(max) = params.max_price {
-            if c.starting_at > max { return false; }
-        }
-        true
-    }).cloned().collect();
-
-    Json(filtered)
+    Json(vec![])
 }
 
 async fn get_creator_by_id(
@@ -201,27 +183,6 @@ async fn get_creator_by_id(
         }
     }
 
-    // Lookup in live in-memory registry
-    let memory = state.memory_creators.read().unwrap();
-    if let Some(c) = memory.iter().find(|c| c.id == id || c.handle == id) {
-        return Ok(Json(json!({
-            "id": c.id,
-            "name": c.name,
-            "handle": c.handle,
-            "avatar": c.avatar,
-            "discipline": c.discipline,
-            "sub_skills": c.sub_skills,
-            "city": c.city,
-            "locality": c.locality,
-            "starting_at": c.starting_at,
-            "rating": c.rating,
-            "review_count": c.review_count,
-            "bio": c.bio,
-            "verified": c.verified,
-            "portfolio_urls": c.portfolio_urls,
-        })));
-    }
-
     Err((
         axum::http::StatusCode::NOT_FOUND,
         Json(json!({ "error": "Creator not found", "id": id }))
@@ -238,98 +199,103 @@ async fn get_creator_by_handle(
 async fn onboard_creator(
     State(state): State<AppState>,
     Json(payload): Json<CreatorOnboardPayload>,
-) -> Json<Value> {
+) -> Result<Json<Value>, (axum::http::StatusCode, Json<Value>)> {
     tracing::info!("✨ POST /api/creators/onboard -> New creator onboarding: {}", payload.name);
 
     let user_id = uuid::Uuid::new_v4();
     let handle = format!("@{}", payload.name.to_lowercase().replace(' ', "_"));
 
     if let Some(ref pool) = state.pool {
-        let tx_result: Result<uuid::Uuid, sqlx::Error> = async {
-            let mut tx = pool.begin().await?;
+        let mut tx = pool.begin().await.map_err(|e| {
+            tracing::error!("Failed to begin transaction: {:?}", e);
+            (axum::http::StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": "Database error" })))
+        })?;
 
+        sqlx::query(
+            r#"
+            INSERT INTO users (id, name, city, role, is_verified)
+            VALUES ($1, $2, 'Delhi', 'creator', false)
+            ON CONFLICT (id) DO UPDATE SET name = $2, role = 'creator'
+            "#
+        )
+        .bind(user_id)
+        .bind(&payload.name)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to insert user: {:?}", e);
+            (axum::http::StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": "Failed to create user record" })))
+        })?;
+
+        sqlx::query(
+            r#"
+            INSERT INTO creator_profiles (
+                id, handle, bio, discipline, sub_skills, years_exp,
+                starting_at, upi_id, ig_handle, portfolio_urls, city, is_published
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, 8000, $7, $8, $9, 'Delhi', true)
+            ON CONFLICT (id) DO UPDATE SET
+                bio = $3, discipline = $4, sub_skills = $5, portfolio_urls = $9
+            "#
+        )
+        .bind(user_id)
+        .bind(&handle)
+        .bind(&payload.bio)
+        .bind(&payload.discipline)
+        .bind(&payload.sub_skills)
+        .bind(payload.years_exp as i16)
+        .bind(&payload.upi_id)
+        .bind(&payload.instagram_handle)
+        .bind(&payload.portfolio_urls)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to insert creator profile: {:?}", e);
+            (axum::http::StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": "Failed to create creator profile" })))
+        })?;
+
+        // Initialize default calendar settings for the new creator
+        sqlx::query(
+            r#"
+            INSERT INTO creator_calendar_settings (creator_id, slot_step_minutes, buffer_minutes, min_notice_hours, holiday_mode)
+            VALUES ($1, 60, 30, 24, false)
+            ON CONFLICT (creator_id) DO NOTHING
+            "#
+        )
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+
+        // Initialize default weekly schedules (Mon-Sat 9am-7pm)
+        for dow in 1..=6 {
             sqlx::query(
                 r#"
-                INSERT INTO users (id, name, city, role, is_verified)
-                VALUES ($1, $2, 'Delhi', 'creator', false)
-                ON CONFLICT (id) DO UPDATE SET name = $2, role = 'creator'
+                INSERT INTO creator_schedules (creator_id, day_of_week, is_active, start_time, end_time)
+                VALUES ($1, $2, true, '09:00:00', '19:00:00')
+                ON CONFLICT (creator_id, day_of_week) DO NOTHING
                 "#
             )
             .bind(user_id)
-            .bind(&payload.name)
+            .bind(dow as i16)
             .execute(&mut *tx)
-            .await?;
-
-            sqlx::query(
-                r#"
-                INSERT INTO creator_profiles (
-                    id, handle, bio, discipline, sub_skills, years_exp,
-                    starting_at, upi_id, ig_handle, portfolio_urls, city, is_published
-                )
-                VALUES ($1, $2, $3, $4, $5, $6, 8000, $7, $8, $9, 'Delhi', true)
-                ON CONFLICT (id) DO UPDATE SET
-                    bio = $3, discipline = $4, sub_skills = $5, portfolio_urls = $9
-                "#
-            )
-            .bind(user_id)
-            .bind(&handle)
-            .bind(&payload.bio)
-            .bind(&payload.discipline)
-            .bind(&payload.sub_skills)
-            .bind(payload.years_exp as i16)
-            .bind(&payload.upi_id)
-            .bind(&payload.instagram_handle)
-            .bind(&payload.portfolio_urls)
-            .execute(&mut *tx)
-            .await?;
-
-            tx.commit().await?;
-            Ok(user_id)
+            .await
+            .ok();
         }
-        .await;
 
-        match tx_result {
-            Ok(id) => {
-                tracing::info!("🎉 Creator onboarding committed to PostgreSQL: {}", id);
-            }
-            Err(err) => {
-                tracing::error!("❌ Failed to onboard creator into DB: {:?}", err);
-            }
-        }
+        tx.commit().await.map_err(|e| {
+            tracing::error!("Failed to commit onboarding tx: {:?}", e);
+            (axum::http::StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": "Commit failed" })))
+        })?;
+
+        tracing::info!("🎉 Creator onboarding committed to PostgreSQL: {}", user_id);
+        return Ok(Json(json!({ "success": true, "creator_id": user_id.to_string() })));
     }
 
-    let creator_id = user_id.to_string();
-    let new_creator = Creator {
-        id: creator_id.clone(),
-        name: payload.name.clone(),
-        handle: handle.clone(),
-        avatar: payload.portfolio_urls.first().cloned().unwrap_or_else(|| {
-            "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80".into()
-        }),
-        discipline: payload.discipline.clone(),
-        sub_skills: payload.sub_skills.clone(),
-        city: "Delhi".into(),
-        locality: "Hauz Khas".into(),
-        starting_at: 8000,
-        rating: 5.0,
-        review_count: 0,
-        bio: payload.bio.clone(),
-        verified: true,
-        portfolio_urls: payload.portfolio_urls.clone(),
-        packages: vec![
-            CreatorPackage {
-                name: "Starter".into(),
-                price: 8000,
-                deliverable: "Standard Deliverable Session".into(),
-                turnaround_days: 3,
-            }
-        ],
-    };
-
-    state.memory_creators.write().unwrap().push(new_creator);
-    tracing::info!("✅ Creator {} saved into live store (Total live: {})", payload.name, state.memory_creators.read().unwrap().len());
-
-    Json(json!({ "success": true, "creator_id": creator_id }))
+    Err((
+        axum::http::StatusCode::SERVICE_UNAVAILABLE,
+        Json(json!({ "error": "Database not connected" }))
+    ))
 }
 
 async fn get_saved_creators() -> Json<Vec<String>> {

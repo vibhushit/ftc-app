@@ -11,7 +11,8 @@ mod constants;
 mod calendar_tests;
 
 use axum::{routing::get, Router};
-use sqlx::postgres::PgPoolOptions;
+use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
+use std::str::FromStr;
 use std::time::Duration;
 use tower_http::{
     cors::{Any, CorsLayer},
@@ -34,18 +35,32 @@ async fn main() {
     // ─── Initialize PostgreSQL Pool ──────────────────────────────────────────
     let pool = if let Ok(database_url) = std::env::var("DATABASE_URL") {
         tracing::info!("🔌 Connecting to PostgreSQL database...");
-        match PgPoolOptions::new()
-            .max_connections(5)
-            .acquire_timeout(Duration::from_secs(5))
-            .connect(&database_url)
-            .await
-        {
-            Ok(p) => {
-                tracing::info!("✅ Successfully connected to PostgreSQL database pool!");
-                Some(p)
+        match PgConnectOptions::from_str(&database_url) {
+            Ok(options) => {
+                // Disable prepared statement caching to support PgBouncer / Supabase Transaction Pooler (port 6543)
+                // Prevents error 42P05: prepared statement already exists
+                let options = options.statement_cache_capacity(0);
+                match PgPoolOptions::new()
+                    .max_connections(5)
+                    .acquire_timeout(Duration::from_secs(30))
+                    .connect_with(options)
+                    .await
+                {
+                    Ok(p) => {
+                        tracing::info!("✅ Successfully connected to PostgreSQL database pool!");
+                        let _ = sqlx::query("ALTER TABLE calendar_overrides ADD COLUMN IF NOT EXISTS override_type TEXT NOT NULL DEFAULT 'blocked'").execute(&p).await;
+                        let _ = sqlx::query("ALTER TABLE calendar_overrides ADD COLUMN IF NOT EXISTS custom_start_time TIME").execute(&p).await;
+                        let _ = sqlx::query("ALTER TABLE calendar_overrides ADD COLUMN IF NOT EXISTS custom_end_time TIME").execute(&p).await;
+                        Some(p)
+                    }
+                    Err(e) => {
+                        tracing::warn!("⚠️ Could not connect to PostgreSQL (running in fallback mode): {:?}", e);
+                        None
+                    }
+                }
             }
             Err(e) => {
-                tracing::warn!("⚠️ Could not connect to PostgreSQL (running in fallback mode): {:?}", e);
+                tracing::warn!("⚠️ Invalid DATABASE_URL: {:?}", e);
                 None
             }
         }
@@ -223,6 +238,7 @@ mod tests {
         }
 
         let blocked_dates: HashMap<String, bool> = HashMap::new();
+        let custom_day_hours: HashMap<String, (u32, u32)> = HashMap::new();
         let mut booked_intervals: HashMap<String, Vec<(u32, u32)>> = HashMap::new();
         // Booking on 2026-05-15 (Friday): 12:00 to 15:00 (720m to 900m)
         booked_intervals.insert("2026-05-15".into(), vec![(12 * 60, 15 * 60)]);
@@ -238,6 +254,7 @@ mod tests {
             &active_days,
             &blocked_dates,
             &booked_intervals,
+            &custom_day_hours,
         );
 
         let day = slots.get("2026-05-15").expect("Day 2026-05-15 must exist");
@@ -262,6 +279,7 @@ mod tests {
         active_days.insert(1, (9 * 60, 19 * 60));
 
         let blocked_dates: HashMap<String, bool> = HashMap::new();
+        let custom_day_hours: HashMap<String, (u32, u32)> = HashMap::new();
         let booked_intervals: HashMap<String, Vec<(u32, u32)>> = HashMap::new();
 
         let slots = routes::calendar::compute_month_slots(
@@ -274,6 +292,7 @@ mod tests {
             &active_days,
             &blocked_dates,
             &booked_intervals,
+            &custom_day_hours,
         );
 
         assert_eq!(slots.len(), 31);
@@ -292,6 +311,7 @@ mod tests {
         active_days.insert(1, (9 * 60, 19 * 60));
 
         let blocked_dates: HashMap<String, bool> = HashMap::new();
+        let custom_day_hours: HashMap<String, (u32, u32)> = HashMap::new();
         let booked_intervals: HashMap<String, Vec<(u32, u32)>> = HashMap::new();
 
         let slots = routes::calendar::compute_month_slots(
@@ -304,6 +324,7 @@ mod tests {
             &active_days,
             &blocked_dates,
             &booked_intervals,
+            &custom_day_hours,
         );
 
         // May 3, 2026 is Sunday (dow = 0, inactive)

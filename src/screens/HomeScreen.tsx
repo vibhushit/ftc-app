@@ -127,7 +127,7 @@ export function HomeScreen() {
                   Connect with verified creators
                 </div>
                 <p className="text-[12.5px] text-paper/70 mt-1 max-w-sm leading-relaxed">
-                  Browse top photographers and videographers across Delhi NCR & Mumbai. Transparent pricing with instant booking.
+                  Browse top photographers and videographers across Delhi NCR & Mumbai. Transparent pricing with verified escrow protection.
                 </p>
                 <div className="mt-5">
                   <button

@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS creator_calendar_settings (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 3. CALENDAR OVERRIDES (Blocked dates, vacations, one-off availability)
+-- 3. CALENDAR OVERRIDES (Blocked dates, vacations, one-off availability, custom hours)
 CREATE TABLE IF NOT EXISTS calendar_overrides (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     creator_id UUID NOT NULL REFERENCES creator_profiles(id) ON DELETE CASCADE,
@@ -34,6 +34,9 @@ CREATE TABLE IF NOT EXISTS calendar_overrides (
     end_datetime TIMESTAMPTZ NOT NULL,
     reason TEXT,
     is_full_day BOOLEAN NOT NULL DEFAULT FALSE,
+    override_type TEXT NOT NULL DEFAULT 'blocked', -- 'blocked' or 'custom_hours'
+    custom_start_time TIME,
+    custom_end_time TIME,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
