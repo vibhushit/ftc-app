@@ -242,6 +242,28 @@ export const apiClient = {
     }
   },
 
+  async validateSlot(
+    creatorId: string,
+    date: string,
+    time: string,
+    durationMinutes: number = 120
+  ): Promise<{ valid: boolean; reason?: string | null }> {
+    const params = new URLSearchParams({
+      date,
+      time,
+      duration: durationMinutes.toString(),
+    })
+    const endpoint = `${getBaseUrl()}/calendar/${encodeURIComponent(creatorId)}/validate-slot?${params.toString()}`
+    try {
+      const res = await fetch(endpoint, { headers: await getHeaders() })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      return await res.json()
+    } catch (err: any) {
+      console.warn('Validate slot request error, falling back to permissive:', err)
+      return { valid: true }
+    }
+  },
+
   async getCalendarSettings(creatorId?: string): Promise<{
     creator_id?: string
     slot_step_minutes: number

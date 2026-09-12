@@ -1,17 +1,17 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft, Heart, Share2, MapPin, BadgeCheck, Shield, Check, Star, Clock,
   ChevronRight, ChevronLeft, MessageCircle, HelpCircle, Volume2, Coffee,
   ArrowRight, CalendarCheck, Instagram, Film, Briefcase, Globe, Link2,
-  Loader2, Sparkles, Lock
+  Loader2, Sparkles, Lock, AlertCircle
 } from 'lucide-react'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
+import { apiClient } from '@/services/apiClient'
 import { pic, inr } from '@/data/constants'
 import { cn, shareOrCopy } from '@/utils'
-import { useCreator, useCreatorServices } from '@/hooks/useCreators'
-import { apiClient } from '@/services/apiClient'
-import type { MonthAvailabilityResponse } from '@/types/bindings'
+import { useCreator, useCreatorServices, useMonthAvailability } from '@/hooks/useCreators'
 import type { CreatorWithUser } from '@/lib/database.types'
 import type { Tier, Verification, Gender, TravelMode, TravelRadius, Creator } from '@/types'
 
@@ -123,8 +123,9 @@ export function CreatorDetailScreen() {
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(todayStr)
   const [selectedTime, setSelectedTime] = useState<string | null>(null)
   const [shareToast, setShareToast] = useState(false)
-  const [availData, setAvailData] = useState<MonthAvailabilityResponse | null>(null)
-  const [loadingAvail, setLoadingAvail] = useState(false)
+  const qc = useQueryClient()
+  const [validatingSlot, setValidatingSlot] = useState(false)
+  const [slotConflictError, setSlotConflictError] = useState<string | null>(null)
 
   type Pkg = { name: string; price: number; duration: string; revisions: number; delivery: string; inclusions: string[] }
   const startingPrice = c?.startingAt ?? 8000
@@ -181,24 +182,8 @@ export function CreatorDetailScreen() {
   const monthStr = `${currentYear}-${String(currentMonthNum).padStart(2, '0')}`
   const monthTitle = new Date(currentYear, currentMonthNum - 1, 1).toLocaleString('default', { month: 'long', year: 'numeric' })
 
-  // Fetch dynamic availability from Rust / API client
-  useEffect(() => {
-    if (!c?.id) return
-    let mounted = true
-    setLoadingAvail(true)
-    apiClient.getAvailability(c.id, monthStr, durMins)
-      .then(res => {
-        if (mounted) {
-          setAvailData(res)
-          setLoadingAvail(false)
-        }
-      })
-      .catch(err => {
-        console.warn('Failed to fetch dynamic availability:', err)
-        if (mounted) setLoadingAvail(false)
-      })
-    return () => { mounted = false }
-  }, [c?.id, monthStr, durMins])
+  // Dynamic month availability cached via TanStack Query
+  const { data: availData, isLoading: loadingAvail } = useMonthAvailability(c?.id, monthStr, durMins)
 
   // Reset selected time if package duration changes
   useEffect(() => {
@@ -230,8 +215,65 @@ export function CreatorDetailScreen() {
   const bookReady = !!selectedDateKey && !!selectedTime
   const dep = depositInfo(activePackage.price)
 
+  const handleStartBooking = async () => {
+    if (!bookReady || !selectedDateKey || !selectedTime) return
+    setValidatingSlot(true)
+    setSlotConflictError(null)
+
+    try {
+      const check = await apiClient.validateSlot(c.id, selectedDateKey, selectedTime, durMins)
+      if (!check.valid) {
+        const msg = check.reason || 'This time slot was just booked or blocked. Please select another slot.'
+        setSlotConflictError(msg)
+        qc.invalidateQueries({ queryKey: ['calendar'] })
+        setSelectedTime(null)
+        setValidatingSlot(false)
+        return
+      }
+
+      dispatch({
+        type: 'START_BOOKING',
+        draft: {
+          creatorId: c.id,
+          creatorName: c.name,
+          creatorAvatar: c.avatar,
+          packageName: activePackage.name,
+          packagePrice: activePackage.price,
+          date: bookDateLabel,
+          dateLabel: bookDateLabel,
+          time: selectedTime ? formatSlotRange(selectedTime, durMins) : '',
+          location: c.area,
+          notes: '',
+          duration: activePackage.duration,
+          dateKey: selectedDateKey,
+        }
+      })
+    } catch {
+      // If validation call fails, proceed gracefully
+      dispatch({
+        type: 'START_BOOKING',
+        draft: {
+          creatorId: c.id,
+          creatorName: c.name,
+          creatorAvatar: c.avatar,
+          packageName: activePackage.name,
+          packagePrice: activePackage.price,
+          date: bookDateLabel,
+          dateLabel: bookDateLabel,
+          time: selectedTime ? formatSlotRange(selectedTime, durMins) : '',
+          location: c.area,
+          notes: '',
+          duration: activePackage.duration,
+          dateKey: selectedDateKey,
+        }
+      })
+    } finally {
+      setValidatingSlot(false)
+    }
+  }
+
   const activeDayAvail = selectedDateKey && availData?.days ? availData.days[selectedDateKey] : null
-  const daySlots = activeDayAvail?.slots ?? []
+  const daySlots: string[] = activeDayAvail?.slots ?? []
 
   const packagesBlock = (
     <div className="px-5 py-5 border-b border-line">
@@ -480,6 +522,12 @@ export function CreatorDetailScreen() {
 
   const desktopCta = (
     <div className="px-5 pb-5">
+      {slotConflictError && (
+        <div className="mb-2.5 px-3.5 py-2.5 rounded-xl bg-danger/10 border border-danger/20 text-danger text-[11px] flex items-center gap-2 animate-fade-in leading-tight">
+          <AlertCircle size={14} className="shrink-0" />
+          <span>{slotConflictError}</span>
+        </div>
+      )}
       {bookReady && (
         <div className="flex items-center gap-1.5 mb-2 text-[11px] text-obsidian/60">
           <CalendarCheck size={12} className="text-success" />
@@ -487,28 +535,23 @@ export function CreatorDetailScreen() {
         </div>
       )}
       <button
-        disabled={!bookReady}
-        onClick={() => dispatch({
-          type: 'START_BOOKING',
-          draft: {
-            creatorId: c.id,
-            creatorName: c.name,
-            creatorAvatar: c.avatar,
-            packageName: activePackage.name,
-            packagePrice: activePackage.price,
-            date: bookDateLabel,
-            dateLabel: bookDateLabel,
-            time: selectedTime ? formatSlotRange(selectedTime, durMins) : '',
-            location: c.area,
-            notes: '',
-            duration: activePackage.duration,
-            dateKey: selectedDateKey,
-          }
-        })}
-        className={cn('tap w-full py-3.5 rounded-2xl font-semibold text-[14px] flex items-center justify-center gap-2', bookReady ? 'bg-obsidian text-paper' : 'bg-bone text-obsidian/40')}
+        disabled={!bookReady || validatingSlot}
+        onClick={handleStartBooking}
+        className={cn('tap w-full py-3.5 rounded-2xl font-semibold text-[14px] flex items-center justify-center gap-2 transition-all', bookReady && !validatingSlot ? 'bg-obsidian text-paper' : 'bg-bone text-obsidian/40')}
       >
-        {!bookReady ? 'Select date & time' : `Request to Book · ${inr(dep.advance)}`}
-        {bookReady && <ArrowRight size={16} />}
+        {validatingSlot ? (
+          <>
+            <Loader2 size={16} className="animate-spin" />
+            <span>Verifying slot…</span>
+          </>
+        ) : !bookReady ? (
+          'Select date & time'
+        ) : (
+          <>
+            <span>Request to Book · {inr(dep.advance)}</span>
+            <ArrowRight size={16} />
+          </>
+        )}
       </button>
     </div>
   )
@@ -760,6 +803,12 @@ export function CreatorDetailScreen() {
 
       {/* Sticky bottom CTA — mobile only; desktop uses the sidebar CTA above */}
       <div className="md:hidden absolute bottom-0 inset-x-0 px-5 pt-3 pb-[max(16px,env(safe-area-inset-bottom))] bg-paper/95 backdrop-blur-xl border-t border-line z-10">
+        {slotConflictError && (
+          <div className="mb-2 px-3 py-2 rounded-xl bg-danger/10 border border-danger/20 text-danger text-[11px] flex items-center gap-1.5 animate-fade-in leading-tight">
+            <AlertCircle size={13} className="shrink-0" />
+            <span>{slotConflictError}</span>
+          </div>
+        )}
         {bookReady && (
           <div className="flex items-center gap-1.5 mb-2 text-[11px] text-obsidian/60">
             <CalendarCheck size={12} className="text-success" />
@@ -771,28 +820,23 @@ export function CreatorDetailScreen() {
             <MessageCircle size={19} className="text-obsidian/70" />
           </button>
           <button
-            disabled={!bookReady}
-            onClick={() => dispatch({
-              type: 'START_BOOKING',
-              draft: {
-                creatorId: c.id,
-                creatorName: c.name,
-                creatorAvatar: c.avatar,
-                packageName: activePackage.name,
-                packagePrice: activePackage.price,
-                date: bookDateLabel,
-                dateLabel: bookDateLabel,
-                time: selectedTime ? formatSlotRange(selectedTime, durMins) : '',
-                location: c.area,
-                notes: '',
-                duration: activePackage.duration,
-                dateKey: selectedDateKey,
-              }
-            })}
-            className={cn('tap flex-1 py-3.5 rounded-2xl font-semibold text-[14px] flex items-center justify-center gap-2', bookReady ? 'bg-obsidian text-paper' : 'bg-bone text-obsidian/40')}
+            disabled={!bookReady || validatingSlot}
+            onClick={handleStartBooking}
+            className={cn('tap flex-1 py-3.5 rounded-2xl font-semibold text-[14px] flex items-center justify-center gap-2 transition-all', bookReady && !validatingSlot ? 'bg-obsidian text-paper' : 'bg-bone text-obsidian/40')}
           >
-            {!bookReady ? 'Select date & time' : `Request to Book · ${inr(dep.advance)}`}
-            {bookReady && <ArrowRight size={16} />}
+            {validatingSlot ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                <span>Verifying slot…</span>
+              </>
+            ) : !bookReady ? (
+              'Select date & time'
+            ) : (
+              <>
+                <span>Request to Book · {inr(dep.advance)}</span>
+                <ArrowRight size={16} />
+              </>
+            )}
           </button>
         </div>
       </div>

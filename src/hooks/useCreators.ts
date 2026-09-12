@@ -59,6 +59,20 @@ export function useCreatorAvailability(creatorId: string, fromDate: string, toDa
   })
 }
 
+import { apiClient } from '@/services/apiClient'
+
+export function useMonthAvailability(creatorId: string | null | undefined, monthStr: string, durationMinutes: number = 120) {
+  return useQuery({
+    queryKey: ['calendar', 'month-avail', creatorId, monthStr, durationMinutes],
+    queryFn: () => apiClient.getAvailability(creatorId!, monthStr, durationMinutes),
+    enabled: !!creatorId,
+    staleTime: 5 * 60_000,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: false,
+    refetchInterval: false,
+  })
+}
+
 // ─── Onboarding mutations ─────────────────────────────────────────────────────
 export function useUpsertCreatorProfile() {
   const qc = useQueryClient()

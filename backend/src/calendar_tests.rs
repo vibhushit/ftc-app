@@ -7,7 +7,6 @@ mod tests {
     use axum::{
         body::Body,
         http::{Request, StatusCode},
-        response::IntoResponse,
     };
     use chrono::Utc;
     use serde_json::Value;
@@ -215,44 +214,7 @@ mod tests {
         assert!(!sunday.slots.contains(&"09:00".to_string()));
     }
 
-    // ─── 2. RFC 5545 ICALENDAR SPEC VALIDATION ────────────────────────────────
-
-    #[tokio::test]
-    async fn test_ical_feed_rfc5545_conformance() {
-        let app_state = AppState::new(None);
-        let response = crate::routes::calendar::get_ical_feed(
-            axum::extract::State(app_state),
-            axum::extract::Path("c1".to_string()),
-        )
-        .await;
-
-        let res = response.into_response();
-        assert_eq!(res.status(), StatusCode::OK);
-
-        // Verify Content-Type
-        let ct = res.headers().get(axum::http::header::CONTENT_TYPE).unwrap();
-        assert_eq!(ct, "text/calendar; charset=utf-8");
-
-        let body_bytes = axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
-        let body_str = String::from_utf8(body_bytes.to_vec()).unwrap();
-
-        // Verify RFC 5545 structure
-        assert!(body_str.starts_with("BEGIN:VCALENDAR\r\n"));
-        assert!(body_str.contains("VERSION:2.0\r\n"));
-        assert!(body_str.contains("PRODID:-//FTC Creator Marketplace//Calendar 1.0//EN\r\n"));
-        assert!(body_str.contains("CALSCALE:GREGORIAN\r\n"));
-        assert!(body_str.contains("METHOD:PUBLISH\r\n"));
-        assert!(body_str.contains("BEGIN:VEVENT\r\n"));
-        assert!(body_str.contains("UID:"));
-        assert!(body_str.contains("DTSTART:"));
-        assert!(body_str.contains("DTEND:"));
-        assert!(body_str.contains("SUMMARY:FTC Shoot:"));
-        assert!(body_str.contains("STATUS:CONFIRMED\r\n"));
-        assert!(body_str.contains("END:VEVENT\r\n"));
-        assert!(body_str.ends_with("END:VCALENDAR\r\n"));
-    }
-
-    // ─── 3. REQUEST-TO-BOOK & 24H SLA UNIT TESTS ──────────────────────────────
+    // ─── 2. REQUEST-TO-BOOK & 24H SLA UNIT TESTS ──────────────────────────────
 
     #[tokio::test]
     async fn test_request_booking_24h_sla_expiry() {
@@ -353,6 +315,43 @@ mod tests {
         assert_eq!(val["duration_minutes"], 120);
         assert!(val["days"].is_object());
         assert!(val["days"]["2026-05-15"].is_object());
+    }
+
+    #[tokio::test]
+    async fn test_http_validate_slot_endpoint() {
+        let app_state = AppState::new(None);
+        let app = create_app(app_state);
+
+        // Test valid slot (Friday 2026-05-15 at 10:00)
+        let req = Request::builder()
+            .method("GET")
+            .uri("/api/calendar/c1/validate-slot?date=2026-05-15&time=10:00&duration=120")
+            .body(Body::empty())
+            .unwrap();
+
+        let res = app.oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+
+        let body_bytes = axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
+        let val: Value = serde_json::from_slice(&body_bytes).unwrap();
+        assert_eq!(val["valid"], true);
+        assert!(val["reason"].is_null());
+
+        // Test invalid/blocked slot (Sunday 2026-05-17 is off by default)
+        let app2 = create_app(AppState::new(None));
+        let req2 = Request::builder()
+            .method("GET")
+            .uri("/api/calendar/c1/validate-slot?date=2026-05-17&time=10:00&duration=120")
+            .body(Body::empty())
+            .unwrap();
+
+        let res2 = app2.oneshot(req2).await.unwrap();
+        assert_eq!(res2.status(), StatusCode::OK);
+
+        let body_bytes2 = axum::body::to_bytes(res2.into_body(), usize::MAX).await.unwrap();
+        let val2: Value = serde_json::from_slice(&body_bytes2).unwrap();
+        assert_eq!(val2["valid"], false);
+        assert_eq!(val2["reason"], "Day off");
     }
 
     #[tokio::test]

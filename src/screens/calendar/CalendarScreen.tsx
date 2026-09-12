@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { ShieldCheck, Loader2 } from 'lucide-react'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
@@ -27,6 +28,7 @@ const DEFAULT_SCHEDULES: WeekScheduleMap = {
 }
 
 export function CalendarScreen() {
+  const qc = useQueryClient()
   const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
 
   const today = new Date()
@@ -55,10 +57,8 @@ export function CalendarScreen() {
   const [newOverrideStartTime, setNewOverrideStartTime] = useState('18:00')
   const [newOverrideEndTime, setNewOverrideEndTime] = useState('22:00')
   const storedCid = typeof window !== 'undefined' ? (localStorage.getItem('ftc_creator_id') || '') : ''
-  const initialCid = (state.isCreator && (state.supabaseUserId || storedCid))
-    ? (state.supabaseUserId || storedCid)
-    : (state.selectedCreatorId || storedCid || state.supabaseUserId || '')
-  const [creatorId, setCreatorId] = useState<string>(initialCid)
+  const myCreatorId = state.supabaseUserId || storedCid || ''
+  const [creatorId, setCreatorId] = useState<string>(myCreatorId)
 
   // Live database load on mount
   useEffect(() => {
@@ -215,6 +215,8 @@ export function CalendarScreen() {
       if (res?.id) {
         setOverrides(prev => prev.map(o => o.id === localId ? { ...o, id: res.id } : o))
       }
+      qc.invalidateQueries({ queryKey: ['calendar'] })
+      qc.invalidateQueries({ queryKey: ['creatorAvailability'] })
     } catch (e) {
       console.error('Failed to persist override to PostgreSQL:', e)
     }
@@ -224,6 +226,8 @@ export function CalendarScreen() {
     setOverrides(prev => prev.filter(o => o.id !== id))
     try {
       await apiClient.deleteOverride(id, creatorId || undefined)
+      qc.invalidateQueries({ queryKey: ['calendar'] })
+      qc.invalidateQueries({ queryKey: ['creatorAvailability'] })
     } catch (e) {
       console.error('Failed to delete override from PostgreSQL:', e)
     }
@@ -247,6 +251,8 @@ export function CalendarScreen() {
         schedules: scheduleItems,
       }, creatorId || undefined)
 
+      qc.invalidateQueries({ queryKey: ['calendar'] })
+      qc.invalidateQueries({ queryKey: ['creatorAvailability'] })
       setSavedToast(true)
       setTimeout(() => setSavedToast(false), 3500)
     } catch (e) {

@@ -46,6 +46,8 @@ export function useCreateBooking() {
     mutationFn: bookingsApi.createBooking,
     onSuccess:  () => {
       qc.invalidateQueries({ queryKey: BOOKING_KEYS.mine })
+      qc.invalidateQueries({ queryKey: ['calendar'] })
+      qc.invalidateQueries({ queryKey: ['creatorAvailability'] })
     },
   })
 }
