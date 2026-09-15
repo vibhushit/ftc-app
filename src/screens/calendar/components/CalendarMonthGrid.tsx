@@ -70,7 +70,7 @@ export function CalendarMonthGrid({
       </div>
 
       {/* Legend */}
-      <div className="flex items-center gap-3 text-[10px] font-mono text-obsidian/50 mb-3 pb-2.5 border-b border-line">
+      <div className="flex items-center flex-wrap gap-x-3 gap-y-1.5 text-[10px] font-mono text-obsidian/50 mb-3 pb-2.5 border-b border-line">
         <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500" /> Open</span>
         <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-iris" /> Custom Hours</span>
         <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-rose-400" /> Leave</span>

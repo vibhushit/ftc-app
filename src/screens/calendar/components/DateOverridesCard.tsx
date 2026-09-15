@@ -116,21 +116,29 @@ export function DateOverridesCard({
           </div>
 
           {newOverrideType === 'custom_hours' && (
-            <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-line/60">
-              <div>
-                <label className="block text-[9.5px] font-mono text-obsidian/50 mb-1">Start Time</label>
-                <TimePicker
-                  value={newOverrideStartTime}
-                  onChange={onStartTimeChange}
-                />
+            <div className="space-y-1.5 pt-1.5 border-t border-line/60">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[9.5px] font-mono text-obsidian/50 mb-1">Start Time</label>
+                  <TimePicker
+                    value={newOverrideStartTime}
+                    onChange={onStartTimeChange}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[9.5px] font-mono text-obsidian/50 mb-1">End Time</label>
+                  <TimePicker
+                    value={newOverrideEndTime}
+                    align="right"
+                    onChange={onEndTimeChange}
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-[9.5px] font-mono text-obsidian/50 mb-1">End Time</label>
-                <TimePicker
-                  value={newOverrideEndTime}
-                  onChange={onEndTimeChange}
-                />
-              </div>
+              {newOverrideStartTime >= newOverrideEndTime && (
+                <div className="text-[10.5px] text-rose-600 font-mono animate-fade-in">
+                  End time must be after start time
+                </div>
+              )}
             </div>
           )}
 
@@ -145,7 +153,10 @@ export function DateOverridesCard({
             <button
               type="button"
               onClick={onAddOverride}
-              disabled={!newOverrideDate}
+              disabled={
+                !newOverrideDate ||
+                (newOverrideType === 'custom_hours' && newOverrideStartTime >= newOverrideEndTime)
+              }
               className={cn(
                 'tap px-3 py-1 rounded-lg text-paper text-[11px] font-semibold cursor-pointer disabled:opacity-40 transition',
                 newOverrideType === 'blocked' ? 'bg-rose-700 hover:bg-rose-800' : 'bg-obsidian hover:bg-obsidian/90'

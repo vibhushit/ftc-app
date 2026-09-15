@@ -48,41 +48,54 @@ export function WeeklyScheduleCard({
             <div
               key={dow}
               className={cn(
-                'p-2.5 rounded-xl border flex items-center justify-between gap-2 text-[12px] transition-all',
+                'p-2.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[12px] transition-all',
                 cfg.active ? 'bg-bone border-line' : 'bg-bone/40 border-line/50 opacity-60'
               )}
             >
-              <div className="flex items-center gap-2 min-w-[100px]">
-                <button
-                  type="button"
-                  onClick={() => onToggleDayActive(dow)}
-                  className={cn(
-                    'tap w-5 h-5 rounded-md flex items-center justify-center transition cursor-pointer',
-                    cfg.active ? 'bg-obsidian text-paper' : 'bg-obsidian/15 text-transparent'
-                  )}
-                  aria-label={`Toggle ${label}`}
-                >
-                  <Check size={12} />
-                </button>
-                <span className={cn('font-medium', cfg.active ? 'text-obsidian font-semibold' : 'text-obsidian/50')}>
-                  {label}
-                </span>
+              <div className="flex items-center justify-between sm:justify-start gap-2 min-w-[100px]">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onToggleDayActive(dow)}
+                    className={cn(
+                      'tap w-5 h-5 rounded-md flex items-center justify-center transition cursor-pointer shrink-0',
+                      cfg.active ? 'bg-obsidian text-paper' : 'bg-obsidian/15 text-transparent'
+                    )}
+                    aria-label={`Toggle ${label}`}
+                  >
+                    <Check size={12} />
+                  </button>
+                  <span className={cn('font-medium', cfg.active ? 'text-obsidian font-semibold' : 'text-obsidian/50')}>
+                    {label}
+                  </span>
+                </div>
+                {!cfg.active && (
+                  <span className="sm:hidden text-[11px] font-mono text-obsidian/40">Day Off</span>
+                )}
               </div>
 
               {cfg.active ? (
-                <div className="flex items-center gap-1.5">
-                  <TimePicker
-                    value={cfg.start}
-                    onChange={val => onScheduleTimeChange(dow, 'start', val)}
-                  />
-                  <span className="text-obsidian/40 text-[11px] font-mono">–</span>
-                  <TimePicker
-                    value={cfg.end}
-                    onChange={val => onScheduleTimeChange(dow, 'end', val)}
-                  />
+                <div className="flex flex-col items-end self-end sm:self-auto">
+                  <div className="flex items-center gap-1.5">
+                    <TimePicker
+                      value={cfg.start}
+                      onChange={val => onScheduleTimeChange(dow, 'start', val)}
+                    />
+                    <span className="text-obsidian/40 text-[11px] font-mono">–</span>
+                    <TimePicker
+                      value={cfg.end}
+                      align="right"
+                      onChange={val => onScheduleTimeChange(dow, 'end', val)}
+                    />
+                  </div>
+                  {cfg.start >= cfg.end && (
+                    <span className="text-[10px] text-rose-600 font-mono mt-0.5 animate-fade-in">
+                      End must be after start
+                    </span>
+                  )}
                 </div>
               ) : (
-                <span className="text-[11px] font-mono text-obsidian/40 pr-2">Day Off</span>
+                <span className="hidden sm:inline text-[11px] font-mono text-obsidian/40 pr-2">Day Off</span>
               )}
             </div>
           )

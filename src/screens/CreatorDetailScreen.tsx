@@ -490,13 +490,13 @@ export function CreatorDetailScreen() {
                 <Clock size={12} className="text-iris" />
                 <span>Available Slots</span>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 min-[380px]:grid-cols-2 sm:grid-cols-3 gap-2">
                 {daySlots.map(t => (
                   <button
                     key={t}
                     onClick={() => setSelectedTime(t)}
                     className={cn(
-                      'tap py-2 px-2.5 rounded-xl text-[11.5px] font-mono font-medium transition border text-center cursor-pointer whitespace-nowrap',
+                      'tap py-2 px-2.5 rounded-xl text-[11px] sm:text-[11.5px] font-mono font-medium transition border text-center cursor-pointer whitespace-nowrap',
                       selectedTime === t
                         ? 'bg-obsidian text-paper border-obsidian font-semibold shadow-xs'
                         : 'bg-bone border-line text-obsidian/80 hover:border-obsidian/30'
