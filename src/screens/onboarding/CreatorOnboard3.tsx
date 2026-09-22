@@ -45,15 +45,15 @@ export function CreatorOnboard3() {
 
   return (
     <OnboardShell
-      step={3} total={5}
+      step={4} total={5}
       title="Show your craft"
       sub="Upload 1 to 5 of your best photos. Images are automatically compressed for ultra-fast client loading."
-      onBack={() => dispatch({ type: 'GO', screen: 'creatorOnboard2' })}
+      onBack={() => dispatch({ type: 'GO', screen: 'creatorOnboardPackages' })}
       cta={left > 0 ? `Add ${left} photo to continue` : 'Continue'}
       ctaDisabled={imported.length < 1}
       ctaAction={() => {
         dispatch({ type: 'SET_ONBOARD', patch: { portfolio: imported } })
-        dispatch({ type: 'GO', screen: 'creatorOnboard4' })
+        dispatch({ type: 'GO', screen: 'creatorOnboard5' })
       }}
     >
       <input

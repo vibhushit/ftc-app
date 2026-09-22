@@ -429,4 +429,154 @@ mod tests {
         assert!(val["disciplines"].is_array());
         assert!(val["price_range"]["min"].as_u64().unwrap() > 0);
     }
+
+    #[test]
+    fn test_creator_onboard_payload_serialization_with_packages() {
+        use crate::models::creator::CreatorOnboardPayload;
+
+        let json_input = r#"{
+            "name": "Aarav Sharma",
+            "bio": "Fashion and editorial photographer in Mumbai",
+            "discipline": "Photography",
+            "sub_skills": ["Editorial", "Portraits"],
+            "years_exp": 4,
+            "city": "Mumbai",
+            "languages": ["English", "Hindi"],
+            "travel_mode": "travel",
+            "upi_id": "aarav@upi",
+            "instagram_handle": "aarav.shoots",
+            "youtube_handle": null,
+            "website_url": "https://aarav.me",
+            "portfolio_urls": ["https://img.com/1.jpg"],
+            "packages": [
+                {
+                    "name": "Standard Lookbook",
+                    "price": 12000,
+                    "duration": "3 hours",
+                    "inclusions": ["20 edited photos", "2 outfit changes"],
+                    "delivery_days": 5
+                }
+            ]
+        }"#;
+
+        let payload: CreatorOnboardPayload = serde_json::from_str(json_input).expect("Should deserialize payload");
+        assert_eq!(payload.name, "Aarav Sharma");
+        assert_eq!(payload.city, "Mumbai");
+        assert_eq!(payload.travel_mode, "travel");
+        assert_eq!(payload.packages.len(), 1);
+        assert_eq!(payload.packages[0].name, "Standard Lookbook");
+        assert_eq!(payload.packages[0].price, 12000);
+        assert_eq!(payload.packages[0].delivery_days, Some(5));
+
+        let serialized = serde_json::to_string(&payload).unwrap();
+        assert!(serialized.contains("Standard Lookbook"));
+        assert!(serialized.contains("12000"));
+    }
+
+    #[tokio::test]
+    async fn test_calendar_me_requires_auth_rejection() {
+        let app_state = AppState::new(None);
+        let app = create_app(app_state);
+
+        // Making request to /api/calendar/me/calendar-settings without Authorization header
+        let req = Request::builder()
+            .method("GET")
+            .uri("/api/calendar/me/calendar-settings")
+            .body(Body::empty())
+            .unwrap();
+
+        let res = app.oneshot(req).await.unwrap();
+        // Since database is unavailable and no token is passed, it rejects with 500 (db unavailable) or 401
+        assert!(res.status() == StatusCode::UNAUTHORIZED || res.status() == StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[tokio::test]
+    async fn test_check_handle_format_and_availability_endpoint() {
+        let app_state = AppState::new(None);
+        let app = create_app(app_state);
+
+        // 1. Empty handle (< 3 chars)
+        let req1 = Request::builder()
+            .method("GET")
+            .uri("/api/creators/check-handle?handle=")
+            .body(Body::empty())
+            .unwrap();
+        let res1 = app.clone().oneshot(req1).await.unwrap();
+        assert_eq!(res1.status(), StatusCode::OK);
+        let bytes1 = axum::body::to_bytes(res1.into_body(), usize::MAX).await.unwrap();
+        let val1: Value = serde_json::from_slice(&bytes1).unwrap();
+        assert_eq!(val1["available"], false);
+        assert!(val1["reason"].as_str().unwrap().contains("between 3 and 30 characters"));
+
+        // 2. Too short (< 3 characters)
+        let req2 = Request::builder()
+            .method("GET")
+            .uri("/api/creators/check-handle?handle=ab")
+            .body(Body::empty())
+            .unwrap();
+        let res2 = app.clone().oneshot(req2).await.unwrap();
+        assert_eq!(res2.status(), StatusCode::OK);
+        let bytes2 = axum::body::to_bytes(res2.into_body(), usize::MAX).await.unwrap();
+        let val2: Value = serde_json::from_slice(&bytes2).unwrap();
+        assert_eq!(val2["available"], false);
+        assert!(val2["reason"].as_str().unwrap().contains("between 3 and 30 characters"));
+
+        // 3. Invalid characters (spaces, exclamation marks)
+        let req3 = Request::builder()
+            .method("GET")
+            .uri("/api/creators/check-handle?handle=bad%20handle!")
+            .body(Body::empty())
+            .unwrap();
+        let res3 = app.clone().oneshot(req3).await.unwrap();
+        assert_eq!(res3.status(), StatusCode::OK);
+        let bytes3 = axum::body::to_bytes(res3.into_body(), usize::MAX).await.unwrap();
+        let val3: Value = serde_json::from_slice(&bytes3).unwrap();
+        assert_eq!(val3["available"], false);
+        assert!(val3["reason"].as_str().unwrap().contains("letters, numbers"));
+
+        // 4. Valid format handle (fallback to true when DB is not running in unittests)
+        let req4 = Request::builder()
+            .method("GET")
+            .uri("/api/creators/check-handle?handle=vibhushit.tyagi")
+            .body(Body::empty())
+            .unwrap();
+        let res4 = app.oneshot(req4).await.unwrap();
+        assert_eq!(res4.status(), StatusCode::OK);
+        let bytes4 = axum::body::to_bytes(res4.into_body(), usize::MAX).await.unwrap();
+        let val4: Value = serde_json::from_slice(&bytes4).unwrap();
+        assert_eq!(val4["available"], true);
+    }
+
+    #[tokio::test]
+    async fn test_creator_onboard_endpoint_requires_auth() {
+        let app_state = AppState::new(None);
+        let app = create_app(app_state);
+
+        let payload = serde_json::json!({
+            "name": "Test Creator",
+            "bio": "Bio",
+            "discipline": "Photography",
+            "sub_skills": ["Portraits"],
+            "years_exp": 3,
+            "city": "Delhi",
+            "languages": ["Hindi", "English"],
+            "travel_mode": "studio",
+            "upi_id": "test@upi",
+            "instagram_handle": "test.creator",
+            "portfolio_urls": [],
+            "packages": []
+        });
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/creators/onboard")
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&payload).unwrap()))
+            .unwrap();
+
+        let res = app.oneshot(req).await.unwrap();
+        // Missing Authorization header must be rejected with 401 Unauthorized
+        assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+    }
 }
+

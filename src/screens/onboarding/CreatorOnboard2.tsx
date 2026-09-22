@@ -31,7 +31,7 @@ export function CreatorOnboard2() {
   return (
     <OnboardShell
       step={2} total={5}
-      title="Your craft & packages"
+      title="Your craft & skills"
       sub="Pick what you do and tell us your experience level."
       onBack={() => dispatch({ type: 'GO', screen: 'creatorOnboard1' })}
       cta="Continue"
@@ -39,7 +39,7 @@ export function CreatorOnboard2() {
       ctaAction={() => {
         if (!ready) return
         dispatch({ type: 'SET_ONBOARD', patch: { discipline, subSkills: subs, yearsExp: years } })
-        dispatch({ type: 'GO', screen: 'creatorOnboard3' })
+        dispatch({ type: 'GO', screen: 'creatorOnboardPackages' })
       }}
     >
       <div className="space-y-5">

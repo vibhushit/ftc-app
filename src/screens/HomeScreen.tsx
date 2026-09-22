@@ -163,15 +163,15 @@ export function HomeScreen() {
           ) : featured.length === 0 ? (
             <div className="mx-5 p-6 rounded-3xl bg-bone border border-line text-center">
               <div className="text-3xl mb-2">✨</div>
-              <div className="font-display text-lg tracking-tight mb-1">No creators onboarded yet</div>
+              <div className="font-display text-lg tracking-tight mb-1">Explore Creators</div>
               <p className="text-[12.5px] text-obsidian/60 max-w-xs mx-auto mb-4">
-                Be the first to join as a founding verified creator on FTC!
+                Discover exceptional photographers, videographers, and stylists on FTC.
               </p>
               <button
-                onClick={() => dispatch({ type: 'GO', screen: 'creatorOnboard1' })}
+                onClick={() => dispatch({ type: 'GO', screen: 'discover' })}
                 className="tap px-5 py-2.5 rounded-2xl bg-obsidian text-paper text-[13px] font-semibold hover:bg-obsidian/90 transition"
               >
-                Create Creator Profile
+                Browse All Creators
               </button>
             </div>
           ) : (

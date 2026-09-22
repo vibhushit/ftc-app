@@ -1,5 +1,6 @@
 export { CreatorOnboard1 } from './CreatorOnboard1'
 export { CreatorOnboard2 } from './CreatorOnboard2'
+export { CreatorOnboardPackages } from './CreatorOnboardPackages'
 export { CreatorOnboard3 } from './CreatorOnboard3'
 export { CreatorOnboard4 } from './CreatorOnboard4'
 export { CreatorOnboard5 } from './CreatorOnboard5'

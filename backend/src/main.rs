@@ -122,6 +122,7 @@ mod tests {
 
         models::creator::Creator::export_all().unwrap();
         models::creator::CreatorPackage::export_all().unwrap();
+        models::creator::CreatePackageItem::export_all().unwrap();
         models::creator::CreatorOnboardPayload::export_all().unwrap();
 
         models::booking::Booking::export_all().unwrap();

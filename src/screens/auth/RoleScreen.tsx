@@ -1,36 +1,21 @@
 import { useState } from 'react'
 import { useAppStore } from '@/store/appStore'
 import { cn } from '@/utils'
-import { supabaseAvailable } from '@/lib/supabase'
-import * as authApi from '@/lib/api/auth'
-import { apiClient } from '@/services/apiClient'
 
 export function RoleScreen() {
   const dispatch = useAppStore(s => s.dispatch)
   const [hover, setHover] = useState<string | null>(null)
   const [sel, setSel] = useState<string | null>(null)
 
-  const choose = async (role: 'client' | 'creator') => {
+  const choose = (role: 'client' | 'creator') => {
     setSel(role)
-    try {
-      await apiClient.selectRole(role)
-    } catch (e) {
-      console.warn('[FTC] selectRole API failed:', e)
-    }
-    if (supabaseAvailable) {
-      try {
-        await authApi.setUserRole(role === 'creator' ? 'creator' : 'consumer')
-      } catch (e) {
-        console.error('[FTC] setUserRole failed:', e)
-      }
-    }
     setTimeout(() => {
       if (role === 'client') {
         dispatch({ type: 'GO', screen: 'clientOnboard' })
       } else {
         dispatch({ type: 'START_CREATOR_ONBOARD', origin: 'role' })
       }
-    }, 250)
+    }, 200)
   }
 
   const isOn = (key: string) => sel === key || (sel === null && hover === key)

@@ -200,6 +200,17 @@ export const apiClient = {
     }
   },
 
+  async checkHandle(handle: string): Promise<{ available: boolean; handle: string; reason?: string | null }> {
+    const endpoint = `${getBaseUrl()}/creators/check-handle?handle=${encodeURIComponent(handle)}`
+    try {
+      const res = await fetch(endpoint)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      return await res.json()
+    } catch {
+      return { available: true, handle: `@${handle.trim().replace(/^@/, '')}` }
+    }
+  },
+
   async onboardCreator(payload: CreatorOnboardPayload): Promise<{ success: boolean; creator_id: string }> {
     const endpoint = `${getBaseUrl()}/creators/onboard`
     try {

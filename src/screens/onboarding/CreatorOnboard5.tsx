@@ -3,7 +3,6 @@ import { Instagram, Film, Globe, Briefcase, Link2, AtSign, Check, ChevronDown } 
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { cn } from '@/utils'
-import { useUpsertCreatorProfile } from '@/hooks/useCreators'
 import { supabaseAvailable } from '@/lib/supabase'
 import * as authApi from '@/lib/api/auth'
 import { apiClient } from '@/services/apiClient'
@@ -11,7 +10,6 @@ import { OnboardShell } from './OnboardShell'
 
 export function CreatorOnboard5() {
   const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
-  const upsert = useUpsertCreatorProfile()
   const [soc, setSoc] = useState({ ig: '', yt: '', be: '', li: '', web: '' })
   const [upi, setUpi] = useState('')
   const [consents, setConsents] = useState<Record<string, boolean>>({ contract: false, conduct: false, tax: false, cancel: false })
@@ -26,44 +24,52 @@ export function CreatorOnboard5() {
   const submit = async () => {
     setSubmitting(true)
     const ob = state.onboard
+    const packages = (ob.builtPackages && ob.builtPackages.length > 0)
+      ? ob.builtPackages.map(p => ({
+          name: p.name || 'Standard Session',
+          price: Number(p.price) || 8000,
+          duration: p.duration || '2 hours',
+          inclusions: p.inclusions || ['High-resolution deliverables'],
+          delivery_days: parseInt(p.delivery) || 7,
+        }))
+      : [{
+          name: 'Standard Session',
+          price: ob.startingPrice || 8000,
+          duration: '2 hours',
+          inclusions: ['High-resolution deliverables'],
+          delivery_days: 7,
+        }]
+
     try {
       await apiClient.onboardCreator({
         name: ob.name || 'Creator',
+        handle: ob.handle || null,
         bio: ob.bio || '',
         discipline: ob.discipline || 'Photography',
         sub_skills: ob.subSkills || [],
         years_exp: ob.yearsExp || 2,
+        city: ob.city || 'Delhi',
+        languages: (ob.languages as string[]) ?? ['Hindi', 'English'],
+        travel_mode: (ob.travelMode as string) ?? 'studio',
         upi_id: upi,
         instagram_handle: soc.ig,
+        youtube_handle: soc.yt || null,
+        website_url: soc.web || null,
         portfolio_urls: ob.portfolio ?? [],
+        packages,
       })
 
       if (supabaseAvailable && state.supabaseUserId) {
-        const handle = `@${ob.name.replace(/\s+/g, '.').toLowerCase()}`
-        await authApi.updateMyProfile({ name: ob.name, city: ob.city })
-        await upsert.mutateAsync({
-          id:           state.supabaseUserId,
-          handle,
-          bio:          ob.bio,
-          tagline:      '',
-          discipline:   ob.discipline,
-          sub_skills:   ob.subSkills,
-          years_exp:    ob.yearsExp,
-          starting_at:  ob.startingPrice,
-          city:         ob.city,
-          area:         ob.area ?? '',
-          languages:    (ob.languages as string[]) ?? ['Hindi', 'English'],
-          travel_mode:  ob.travelMode ?? 'both',
-          ig_handle:    soc.ig  || null,
-          yt_handle:    soc.yt  || null,
-          website_url:    soc.web || null,
-          upi_id:         upi,
-          portfolio_urls: ob.portfolio ?? [],
-          onboard_step:   'live',
-          is_published:   true,
-        })
         await authApi.setUserRole('creator')
       }
+
+      // Clear draft session after successful creation
+      try {
+        localStorage.removeItem('ftc_saved_session')
+      } catch {}
+
+      dispatch({ type: 'SET_ROLE', isCreator: true })
+      dispatch({ type: 'MARK_CREATOR' })
     } catch (e) {
       console.error('[FTC] onboard submit failed:', e)
     } finally {
@@ -94,9 +100,9 @@ export function CreatorOnboard5() {
       step={5} total={5}
       title="Socials & paperwork"
       sub="Link every platform you're active on. Then sign four quick agreements that protect both sides."
-      onBack={() => dispatch({ type: 'GO', screen: 'creatorOnboard4' })}
-      cta={submitting || upsert.isPending ? 'Submitting…' : 'Submit for review'}
-      ctaDisabled={!isValidIg || !isValidUpi || !allConsent || submitting || upsert.isPending}
+      onBack={() => dispatch({ type: 'GO', screen: 'creatorOnboard3' })}
+      cta={submitting ? 'Launching profile…' : 'Launch My Profile 🚀'}
+      ctaDisabled={!isValidIg || !isValidUpi || !allConsent || submitting}
       ctaAction={submit}
     >
       <div className="space-y-5">

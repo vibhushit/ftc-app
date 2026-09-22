@@ -187,16 +187,12 @@ export function MeScreen() {
                 {state.hasCreatorProfile ? (
                   <button
                     onClick={() => {
-                      const activeCid = state.supabaseUserId || (typeof window !== 'undefined' ? localStorage.getItem('ftc_creator_id') : '')
                       dispatch({ type: 'SET_ROLE', isCreator: !isC })
-                      if (isC && activeCid) {
-                        dispatch({ type: 'OPEN_CREATOR', id: activeCid })
-                      }
                     }}
                     className="tap px-3 py-1.5 rounded-full bg-paper/10 text-paper text-[11px] font-semibold hover:bg-paper/20 transition flex items-center gap-1.5 cursor-pointer"
                   >
                     <Sparkles size={12} className="text-acid" />
-                    {isC ? 'Switch to Client View' : 'Switch to Creator View'}
+                    {isC ? 'Switch to Client Mode' : 'Switch to Creator Mode'}
                   </button>
                 ) : (
                   <button

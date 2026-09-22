@@ -129,13 +129,22 @@ export function CreatorDetailScreen() {
 
   type Pkg = { name: string; price: number; duration: string; revisions: number; delivery: string; inclusions: string[] }
   const startingPrice = c?.startingAt ?? 8000
-  const packages: Pkg[] = dbServices && dbServices.length > 0
-    ? dbServices.map((s: any) => ({ name: s.name, price: s.price, duration: s.duration, revisions: s.revisions, delivery: `${s.delivery_days} days`, inclusions: s.inclusions }))
-    : [
-        { name: 'Starter',  price: startingPrice,                     duration: '2 hours', revisions: 1, delivery: '7 days',  inclusions: ['Up to 30 edited photos', 'Digital delivery', '1 location'] },
-        { name: 'Standard', price: Math.round(startingPrice * 2.5),   duration: '4 hours', revisions: 2, delivery: '10 days', inclusions: ['Up to 80 edited photos', 'Digital + print', '2 locations'] },
-        { name: 'Premium',  price: Math.round(startingPrice * 6),     duration: '8 hours', revisions: 4, delivery: '14 days', inclusions: ['Unlimited photos', 'Album + print', 'Multiple locations'] },
-      ]
+  const packages: Pkg[] = (dbServices && dbServices.length > 0)
+    ? dbServices.map((s: any) => ({ name: s.name, price: s.price, duration: s.duration, revisions: s.revisions ?? 1, delivery: `${s.delivery_days} days`, inclusions: s.inclusions ?? [] }))
+    : (state.onboard.builtPackages && state.onboard.builtPackages.length > 0)
+      ? state.onboard.builtPackages.map(p => ({
+          name: p.name,
+          price: Number(p.price) || startingPrice,
+          duration: p.duration || '2 hours',
+          revisions: p.revisions || 2,
+          delivery: `${p.delivery || '7'} days`,
+          inclusions: p.inclusions || [],
+        }))
+      : [
+          { name: 'Starter',  price: startingPrice,                     duration: '2 hours', revisions: 1, delivery: '7 days',  inclusions: ['Up to 30 edited photos', 'Digital delivery', '1 location'] },
+          { name: 'Standard', price: Math.round(startingPrice * 2.5),   duration: '4 hours', revisions: 2, delivery: '10 days', inclusions: ['Up to 80 edited photos', 'Digital + print', '2 locations'] },
+          { name: 'Premium',  price: Math.round(startingPrice * 6),     duration: '8 hours', revisions: 4, delivery: '14 days', inclusions: ['Unlimited photos', 'Album + print', 'Multiple locations'] },
+        ]
 
   const activePackage = packages[selectedPkg] ?? packages[0] ?? { name: 'Starter', price: startingPrice, duration: '2 hours', revisions: 1, delivery: '7 days', inclusions: [] }
 

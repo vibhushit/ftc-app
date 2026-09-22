@@ -160,18 +160,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ? (profile?.name || '')
         : authUser.user_metadata?.full_name ?? authUser.user_metadata?.name ?? ''
 
-      // Check if user has an established creator profile
+      // Check if user has an established creator profile with real content
       const { data: creatorProfile } = await supabase
         .from('creator_profiles')
-        .select('id, is_published')
+        .select('id, is_published, discipline')
         .eq('id', userId)
         .maybeSingle()
 
-      const isCreator = profile?.role === 'creator' || profile?.role === 'both' || Boolean(creatorProfile)
+      const hasValidCreatorProfile = Boolean(creatorProfile && (creatorProfile as any).discipline)
+      const isCreator = profile?.role === 'creator' || profile?.role === 'both' || hasValidCreatorProfile
 
-      // Only mark onboarding complete if creator profile exists or consumer has finished preferences (city)
+      // Only mark onboarding complete if real creator profile exists or consumer has finished preferences (city)
       const hasCompletedOnboarding = isCreator
-        ? Boolean(creatorProfile)
+        ? hasValidCreatorProfile
         : (profile?.role === 'consumer' && Boolean(profile?.city))
 
       dispatch({
@@ -194,7 +195,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           email: profile?.email ?? authUser.email ?? undefined,
         })
       } else {
-        // Brand new user -> navigate to role selection
+        // User has not finished onboarding -> restore their in-progress step or navigate to role
+        try {
+          const savedSession = localStorage.getItem('ftc_saved_session')
+          if (savedSession) {
+            const parsed = JSON.parse(savedSession)
+            if (parsed?.screen && (parsed.screen.startsWith('creatorOnboard') || parsed.screen === 'clientOnboard')) {
+              dispatch({ type: 'GO', screen: parsed.screen })
+              return
+            }
+          }
+        } catch {}
         dispatch({ type: 'GO', screen: 'role' })
       }
     }

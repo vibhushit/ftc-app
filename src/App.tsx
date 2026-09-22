@@ -14,7 +14,7 @@ import { HomeScreen } from '@/screens/HomeScreen'
 import { DiscoverScreen } from '@/screens/DiscoverScreen'
 import { CreatorDetailScreen } from '@/screens/CreatorDetailScreen'
 import { BookingScreen, ConfirmedScreen, BookingsScreen, BookingDetailScreen } from '@/screens/BookingScreens'
-import { CreatorOnboard1, CreatorOnboard2, CreatorOnboard3, CreatorOnboard4, CreatorOnboard5, CreatorOnboardReview } from '@/screens/OnboardingScreens'
+import { CreatorOnboard1, CreatorOnboard2, CreatorOnboardPackages, CreatorOnboard3, CreatorOnboard4, CreatorOnboard5, CreatorOnboardReview } from '@/screens/OnboardingScreens'
 import { ChatScreen } from '@/screens/ChatScreen'
 import { SafetyScreen, LegalScreen, CompareScreen, ReviewsScreen, WalletScreen, ReferralScreen, OnboardKycScreen } from '@/screens/MiscScreens'
 import { SettingsScreen, LinkBioScreen, CalendarScreen, PayoutsScreen, PayoutSetupScreen } from '@/screens/SettingsScreens'
@@ -40,7 +40,7 @@ const PUBLIC_SCREENS: Screen[] = [
 // Dedicated wizard screens where the app shell (sidebar/bottom nav) is hidden
 const NO_SHELL_SCREENS: Screen[] = [
   'welcome', 'signup', 'login', 'phone', 'otp', 'magicLinkSent', 'forgotPassword', 'resetPassword', 'role', 'clientOnboard',
-  'creatorOnboard1', 'creatorOnboard2', 'creatorOnboard3', 'creatorOnboard4', 'creatorOnboard5', 'creatorOnboardReview',
+  'creatorOnboard1', 'creatorOnboard2', 'creatorOnboardPackages', 'creatorOnboard3', 'creatorOnboard4', 'creatorOnboard5', 'creatorOnboardReview',
 ]
 
 export function App() {
@@ -153,6 +153,7 @@ export function App() {
       case 'onboardKyc':          return <OnboardKycScreen />
       case 'creatorOnboard1':     return <CreatorOnboard1 />
       case 'creatorOnboard2':     return <CreatorOnboard2 />
+      case 'creatorOnboardPackages': return <CreatorOnboardPackages />
       case 'creatorOnboard3':     return <CreatorOnboard3 />
       case 'creatorOnboard4':     return <CreatorOnboard4 />
       case 'creatorOnboard5':     return <CreatorOnboard5 />

@@ -156,27 +156,16 @@ export function DiscoverScreen() {
             <div className="flex flex-col items-center justify-center py-20 text-center px-8">
               <div className="text-4xl mb-3">🔍</div>
               <div className="font-display text-xl">No creators found</div>
-              <p className="text-[13px] text-obsidian/50 mt-1 max-w-xs">
-                {hasFilters || query
-                  ? 'Try adjusting your filters, location, or search keywords.'
-                  : 'Be the first to join FTC as a verified founding creator!'}
-              </p>
-              {hasFilters || query ? (
+                <p className="text-[13px] text-obsidian/60 max-w-xs mx-auto">
+                  Try adjusting your filters, location, or search keywords.
+                </p>
                 <button
                   onClick={() => { dispatch({ type: 'RESET_FILTERS' }); setQuery('') }}
-                  className="tap mt-4 px-4 py-2 rounded-xl bg-bone text-[13px] font-medium"
+                  className="tap mt-4 px-5 py-2.5 rounded-2xl bg-bone text-[13px] font-medium hover:bg-line transition"
                 >
                   Clear all filters
                 </button>
-              ) : (
-                <button
-                  onClick={() => dispatch({ type: 'GO', screen: 'creatorOnboard1' })}
-                  className="tap mt-4 px-5 py-2.5 rounded-2xl bg-obsidian text-paper text-[13px] font-semibold"
-                >
-                  Create Creator Profile
-                </button>
-              )}
-            </div>
+              </div>
           ) : (
             <>
               {/* Mobile: stacked rows */}

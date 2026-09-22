@@ -22,7 +22,7 @@ export type Screen =
   | 'campaigns' | 'campaignDetail' | 'deal' | 'campaignCompose'
   | 'inbox' | 'chat'
   | 'me' | 'settings' | 'linkbio'
-  | 'creatorOnboard1' | 'creatorOnboard2' | 'creatorOnboard3'
+  | 'creatorOnboard1' | 'creatorOnboard2' | 'creatorOnboardPackages' | 'creatorOnboard3'
   | 'creatorOnboard4' | 'creatorOnboard5' | 'creatorOnboardReview'
   | 'payouts' | 'payoutSetup'
   | 'saved' | 'reviews' | 'calendar'
@@ -207,6 +207,7 @@ export interface Filters {
 
 export interface OnboardState {
   name: string
+  handle?: string
   displayName?: string
   creatorName?: string
   city: string
@@ -313,7 +314,7 @@ export interface AppState {
   pendingPhone: string | null
   supabaseUserId: string | null
   hasCreatorProfile: boolean
-  onboardOrigin?: 'me' | 'role'
+  onboardOrigin?: 'me' | 'role' | 'settings'
 }
 
 export type AppAction =
@@ -335,7 +336,7 @@ export type AppAction =
   | { type: 'RESET_FILTERS' }
   | { type: 'SET_VIEW_MODE'; mode: 'list' | 'map' }
   | { type: 'SET_ONBOARD'; patch: Partial<OnboardState> }
-  | { type: 'START_CREATOR_ONBOARD'; origin: 'me' | 'role' }
+  | { type: 'START_CREATOR_ONBOARD'; origin: 'me' | 'role' | 'settings' }
   | { type: 'COMPLETE_AUTH'; isCreator: boolean; name?: string; city?: string; phone?: string; email?: string }
   | { type: 'MARK_CREATOR' }
   | { type: 'SET_SPONSOR_ROLE'; role: 'creator' | 'brand' }
