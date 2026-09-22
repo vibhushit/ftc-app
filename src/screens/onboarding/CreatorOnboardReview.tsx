@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Check, Sparkles, Copy, ArrowRight } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Check, Sparkles, Copy, ArrowRight, X } from 'lucide-react'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { supabaseAvailable } from '@/lib/supabase'
@@ -9,6 +9,13 @@ export function CreatorOnboardReview() {
   const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
   const [finishing, setFinishing] = useState(false)
   const [copied, setCopied] = useState(false)
+
+  // Replace history state so pressing browser Back never returns to onboarding steps
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', '#screen=me')
+    }
+  }, [])
 
   const handle = state.onboard.handle || state.onboard.name.toLowerCase().replace(/[^a-z0-9]/g, '') || 'creator'
   const cleanHandle = handle.replace(/^@+/, '')
@@ -22,7 +29,7 @@ export function CreatorOnboardReview() {
     }
   }
 
-  const handleFinish = async () => {
+  const handleFinish = async (targetTab: 'me' | 'home' = 'me') => {
     setFinishing(true)
     try {
       if (supabaseAvailable) {
@@ -38,17 +45,32 @@ export function CreatorOnboardReview() {
 
     dispatch({ type: 'SET_ROLE', isCreator: true })
     dispatch({ type: 'MARK_CREATOR' })
-    dispatch({ type: 'GO_TAB', tab: 'me' })
+    dispatch({ type: 'GO_TAB', tab: targetTab })
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-obsidian text-paper relative overflow-hidden min-h-screen">
+    <div className="flex-1 flex flex-col bg-obsidian text-paper relative overflow-y-auto min-h-screen">
       <div className="absolute top-16 -right-20 w-80 h-80 dots-acid opacity-20 pointer-events-none" />
       <div className="absolute -bottom-20 -left-20 w-80 h-80 dots-acid opacity-15 pointer-events-none" />
 
-      <div className="relative flex-1 flex flex-col items-center justify-center px-6 py-10 text-center max-w-md mx-auto w-full">
+      {/* Top Header Bar with Done / Close Button */}
+      <div className="relative w-full flex items-center justify-between px-6 pt-6 pb-2 max-w-md mx-auto z-10">
+        <span className="text-[10px] font-mono uppercase tracking-widest text-acid bg-acid/15 border border-acid/20 px-3 py-1 rounded-full font-semibold">
+          Profile Published
+        </span>
+        <button
+          type="button"
+          onClick={() => handleFinish('me')}
+          className="tap w-8 h-8 rounded-full bg-paper/10 text-paper/80 hover:bg-paper/20 hover:text-paper grid place-items-center transition cursor-pointer"
+          title="Done"
+        >
+          <X size={16} />
+        </button>
+      </div>
+
+      <div className="relative flex-1 flex flex-col items-center justify-center px-6 py-6 text-center max-w-md mx-auto w-full">
         {/* Animated Celebration Icon */}
-        <div className="relative mb-6">
+        <div className="relative mb-5">
           <div className="w-20 h-20 rounded-full bg-success/20 border-2 border-success grid place-items-center">
             <Check size={38} className="text-success stroke-[2.5]" />
           </div>
@@ -57,20 +79,16 @@ export function CreatorOnboardReview() {
           </div>
         </div>
 
-        <span className="text-[11px] font-mono uppercase tracking-widest text-acid font-semibold mb-2">
-          Profile Published
-        </span>
-
         <h1 className="font-display text-4xl sm:text-5xl tracking-tight leading-none">
           You're live<br /><span className="italic text-acid">on FTC!</span>
         </h1>
 
-        <p className="mt-3.5 text-[14px] text-paper/70 leading-relaxed max-w-xs">
-          Your profile, packages, and calendar are ready. Share your link to start receiving client bookings.
+        <p className="mt-3 text-[14px] text-paper/70 leading-relaxed max-w-xs">
+          Your profile, packages, and calendar are live. Share your link to start receiving client bookings.
         </p>
 
         {/* Public Link Card */}
-        <div className="mt-7 w-full p-4 rounded-2xl bg-paper/10 border border-paper/15 text-left">
+        <div className="mt-6 w-full p-4 rounded-2xl bg-paper/10 border border-paper/15 text-left">
           <div className="text-[10px] font-mono uppercase tracking-wider text-paper/50 mb-1.5 flex items-center justify-between">
             <span>Your Personal Booking Link</span>
             <span className="text-success flex items-center gap-1 font-medium">● Active</span>
@@ -122,10 +140,10 @@ export function CreatorOnboardReview() {
         </div>
       </div>
 
-      {/* Bottom CTA */}
-      <div className="relative px-6 pb-10 pt-2 max-w-md mx-auto w-full">
+      {/* Bottom CTA Block */}
+      <div className="relative px-6 pb-10 pt-2 max-w-md mx-auto w-full space-y-2.5">
         <button
-          onClick={handleFinish}
+          onClick={() => handleFinish('me')}
           disabled={finishing}
           className="tap w-full py-4 rounded-2xl bg-acid text-obsidian font-semibold text-[15px] flex items-center justify-center gap-2 hover:bg-acid/90 transition shadow-lg cursor-pointer"
         >
@@ -137,6 +155,15 @@ export function CreatorOnboardReview() {
               <ArrowRight size={17} />
             </>
           )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleFinish('home')}
+          disabled={finishing}
+          className="tap w-full py-3 rounded-2xl bg-paper/10 text-paper/80 hover:bg-paper/20 hover:text-paper text-[13px] font-medium transition cursor-pointer text-center"
+        >
+          Explore FTC Marketplace as Client
         </button>
       </div>
     </div>

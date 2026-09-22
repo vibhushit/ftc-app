@@ -56,6 +56,9 @@ function reduce(state: AppState, action: AppAction): AppState {
     case 'GO_TAB':
       return { ...state, prevScreen: state.screen, screen: TAB_SCREENS[action.tab], activeTab: action.tab, drillIntoTab: !!action.viaMenu }
     case 'BACK':
+      if (state.screen === 'creatorOnboardReview') {
+        return { ...state, screen: 'me', activeTab: 'me', prevScreen: null, drillIntoTab: false }
+      }
       return { ...state, screen: state.prevScreen ?? TAB_SCREENS[state.activeTab], prevScreen: null, drillIntoTab: false }
     case 'OPEN_CREATOR':
       return { ...state, prevScreen: state.screen, screen: 'creator', selectedCreatorId: action.id, selectedClient: null }
