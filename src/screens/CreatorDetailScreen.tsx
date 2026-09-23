@@ -69,8 +69,7 @@ function depositInfo(price: number) {
 
 export function CreatorDetailScreen() {
   const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
-  const storedCid = typeof window !== 'undefined' ? (localStorage.getItem('ftc_creator_id') || '') : ''
-  const id = state.selectedCreatorId || (state.isCreator ? (state.supabaseUserId || storedCid) : (storedCid || state.supabaseUserId || null))
+  const id = state.selectedCreatorId || (state.isCreator ? state.supabaseUserId : null)
   const { data: dbCreator, isLoading } = useCreator(id)
   const { data: dbServices }           = useCreatorServices(id)
 
@@ -80,7 +79,7 @@ export function CreatorDetailScreen() {
   if (!c && (id === state.supabaseUserId || id === state.user.handle || (state.isCreator && state.user.name))) {
     const ob = state.onboard
     c = {
-      id: id || state.supabaseUserId || storedCid || 'my_profile',
+      id: id || state.supabaseUserId || 'my_profile',
       name: ob.name || state.user.name || 'Creator',
       handle: state.user.handle || `@${(ob.name || state.user.name || 'creator').toLowerCase().replace(/\s+/g, '_')}`,
       discipline: ob.discipline || 'Photography',

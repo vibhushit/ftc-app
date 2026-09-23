@@ -44,10 +44,11 @@ const NO_SHELL_SCREENS: Screen[] = [
 ]
 
 export function App() {
-  const { screen, activeTab, isAuthed, dispatch } = useAppStore(useShallow(s => ({
+  const { screen, activeTab, isAuthed, isCreator, dispatch } = useAppStore(useShallow(s => ({
     screen: s.screen,
     activeTab: s.activeTab,
     isAuthed: s.isAuthed,
+    isCreator: s.isCreator,
     dispatch: s.dispatch,
   })))
 
@@ -101,7 +102,7 @@ export function App() {
     return () => window.removeEventListener('popstate', handlePopState)
   }, [dispatch])
 
-  const showBottomNav = isAuthed && TAB_SCREENS.includes(screen)
+  const showBottomNav = isAuthed && (TAB_SCREENS.includes(screen) || (isCreator && screen === 'calendar'))
   const showSideNav = isAuthed && !NO_SHELL_SCREENS.includes(screen)
   const isWide = WIDE_SCREENS.includes(screen)
 

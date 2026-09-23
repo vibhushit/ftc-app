@@ -73,7 +73,7 @@ function reduce(state: AppState, action: AppAction): AppState {
     case 'DENY_LOCATION':
       return { ...state, locPerm: 'denied' }
     case 'OPEN_CLIENT_CHAT':
-      return { ...state, prevScreen: state.screen, screen: 'chat', selectedClient: action.client }
+      return { ...state, prevScreen: state.screen, screen: 'chat', activeTab: 'inbox', selectedClient: action.client }
     case 'OPEN_CAMPAIGN':
       return { ...state, prevScreen: state.screen, screen: 'campaignDetail', selectedCampaignId: action.id }
     case 'TOGGLE_SAVE':
@@ -91,8 +91,15 @@ function reduce(state: AppState, action: AppAction): AppState {
       return { ...state, filters: DEFAULT_FILTERS }
     case 'SET_VIEW_MODE':
       return { ...state, viewMode: action.mode }
-    case 'SET_ONBOARD':
-      return { ...state, onboard: { ...state.onboard, ...action.patch } }
+    case 'SET_ONBOARD': {
+      const nextOnboard = { ...state.onboard, ...action.patch }
+      if (typeof window !== 'undefined' && state.supabaseUserId) {
+        try {
+          localStorage.setItem(`ftc_creator_draft_${state.supabaseUserId}`, JSON.stringify(nextOnboard))
+        } catch {}
+      }
+      return { ...state, onboard: nextOnboard }
+    }
     case 'START_CREATOR_ONBOARD':
       return { ...state, prevScreen: state.screen, screen: 'creatorOnboard1', onboardOrigin: action.origin }
     case 'COMPLETE_AUTH': {
@@ -149,9 +156,14 @@ function reduce(state: AppState, action: AppAction): AppState {
     case 'CLEAR_COMPARE':
       return { ...state, compareIds: [] }
     case 'RESET':
-      try {
-        localStorage.removeItem('ftc_saved_session')
-      } catch {}
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.removeItem('ftc_saved_session')
+          if (state.supabaseUserId) {
+            localStorage.removeItem(`ftc_creator_draft_${state.supabaseUserId}`)
+          }
+        } catch {}
+      }
       return DEFAULT_STATE
     case 'SET_PENDING_PHONE':
       return { ...state, pendingPhone: action.phone }
@@ -185,30 +197,7 @@ function reduce(state: AppState, action: AppAction): AppState {
 function parseInitialHash(defaultState: AppState): AppState {
   if (typeof window === 'undefined') return defaultState
 
-  let baseState = defaultState
-
-  // 1. Try restoring from localStorage session draft
-  try {
-    const saved = localStorage.getItem('ftc_saved_session')
-    if (saved) {
-      const parsed = JSON.parse(saved)
-      if (parsed && typeof parsed === 'object') {
-        baseState = {
-          ...defaultState,
-          screen: parsed.screen || defaultState.screen,
-          activeTab: parsed.activeTab || defaultState.activeTab,
-          selectedCreatorId: parsed.selectedCreatorId || null,
-          onboard: { ...defaultState.onboard, ...(parsed.onboard || {}) },
-          isAuthed: parsed.isAuthed ?? defaultState.isAuthed,
-          isCreator: parsed.isCreator ?? defaultState.isCreator,
-        }
-      }
-    }
-  } catch (e) {
-    console.warn('[FTC] Failed to parse saved session from localStorage', e)
-  }
-
-  // 2. Auth Tokens in URL (PKCE code or Hash access_token) take highest precedence
+  // 1. Auth Tokens in URL (PKCE code or Hash access_token) take highest precedence
   const rawHash = typeof window !== 'undefined' ? window.location.hash : ''
   const rawSearch = typeof window !== 'undefined' ? window.location.search : ''
   const isAuthTokenUrl = rawHash.includes('type=recovery') ||
@@ -226,22 +215,21 @@ function parseInitialHash(defaultState: AppState): AppState {
     }
   }
 
-  // 3. URL hash overrides localStorage
+  // 2. URL hash is the single source of truth for deep links
   const hash = rawHash.replace(/^#/, '')
-  if (!hash) return baseState
+  if (!hash) return defaultState
 
   const params = new URLSearchParams(hash)
   const creator = params.get('creator')
   const screen = params.get('screen') as Screen | null
 
   if (screen === 'welcome') {
-    try { localStorage.removeItem('ftc_saved_session') } catch {}
     return { ...defaultState, screen: 'welcome', isAuthed: false }
   }
 
   if (creator) {
     return {
-      ...baseState,
+      ...defaultState,
       screen: 'creator',
       selectedCreatorId: creator,
     }
@@ -251,24 +239,13 @@ function parseInitialHash(defaultState: AppState): AppState {
     const validTabs: Tab[] = ['home', 'discover', 'inbox', 'me']
     const matchingTab = validTabs.find(t => t === screen)
     return {
-      ...baseState,
-      screen,
-      activeTab: matchingTab ?? baseState.activeTab,
-    }
-  }
-
-  // 4. Final Auth Guard: If not authenticated, only public screens are permitted
-  const PUBLIC_AUTH_SCREENS: Screen[] = ['welcome', 'signup', 'login', 'phone', 'otp', 'magicLinkSent', 'forgotPassword', 'resetPassword']
-  if (!baseState.isAuthed && !PUBLIC_AUTH_SCREENS.includes(baseState.screen)) {
-    try { localStorage.removeItem('ftc_saved_session') } catch {}
-    return {
       ...defaultState,
-      screen: 'welcome',
-      isAuthed: false,
+      screen,
+      activeTab: matchingTab ?? defaultState.activeTab,
     }
   }
 
-  return baseState
+  return defaultState
 }
 
 function syncUrlHash(state: AppState, isPopState = false) {
@@ -307,23 +284,7 @@ function syncUrlHash(state: AppState, isPopState = false) {
     }
   }
 
-  // Persist session state to localStorage unless on welcome/login screen
-  try {
-    if (state.screen === 'welcome' || !state.isAuthed) {
-      localStorage.removeItem('ftc_saved_session')
-    } else {
-      localStorage.setItem('ftc_saved_session', JSON.stringify({
-        screen: state.screen,
-        activeTab: state.activeTab,
-        selectedCreatorId: state.selectedCreatorId,
-        onboard: state.onboard,
-        isAuthed: state.isAuthed,
-        isCreator: state.isCreator,
-      }))
-    }
-  } catch (e) {
-    // Ignore quota errors
-  }
+
 }
 
 const INITIAL_STATE = parseInitialHash(DEFAULT_STATE)

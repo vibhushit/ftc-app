@@ -16,7 +16,7 @@ import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { inr } from '@/data/constants'
 import { cn, shareOrCopy } from '@/utils'
-import { supabase, supabaseAvailable } from '@/lib/supabase'
+import { supabaseAvailable } from '@/lib/supabase'
 import * as authApi from '@/lib/api/auth'
 import * as creatorsApi from '@/lib/api/creators'
 import { apiClient } from '@/services/apiClient'
@@ -125,20 +125,7 @@ export function SettingsScreen() {
   }
 
   const handleLogout = async () => {
-    try {
-      if (supabaseAvailable) {
-        await supabase.auth.signOut()
-      }
-    } catch (e) {
-      console.warn('[FTC] signOut error:', e)
-    }
-    try {
-      localStorage.removeItem('ftc_saved_session')
-    } catch {}
-    dispatch({ type: 'RESET' })
-    if (typeof window !== 'undefined') {
-      window.history.replaceState(null, '', window.location.pathname)
-    }
+    await authApi.signOutCleanly()
   }
 
   return (

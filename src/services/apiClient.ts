@@ -19,6 +19,7 @@ import type {
 import { compressImageToWebP } from '@/utils/imageCompressor'
 import { getApiBaseUrl } from '@/config/environmentMode'
 import { supabase, supabaseAvailable } from '@/lib/supabase'
+import { signOutCleanly } from '@/lib/api/auth'
 
 const getBaseUrl = () => getApiBaseUrl()
 
@@ -34,6 +35,16 @@ function notifyApiError(error: ApiErrorEvent) {
   console.error(`[FTC Live API Error] ${error.method} ${error.endpoint}:`, error.message)
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('ftc_api_error', { detail: error }))
+  }
+
+  // Reactive 401 Unauthorized / Token Revocation eviction
+  const isAuthError = error.status === 401 ||
+    error.message.includes('401') ||
+    error.message.toLowerCase().includes('unauthorized') ||
+    error.message.toLowerCase().includes('user not found')
+
+  if (isAuthError) {
+    signOutCleanly().catch(e => console.warn('[FTC] Auto signOut on 401 failed:', e))
   }
 }
 

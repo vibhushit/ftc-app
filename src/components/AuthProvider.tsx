@@ -123,15 +123,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         syncUser(session.user.id, session.user)
       } else if (event === 'SIGNED_OUT') {
-        try { localStorage.removeItem('ftc_saved_session') } catch {}
         dispatch({ type: 'RESET' })
       }
     })
 
     // ── 4. Cross-tab storage synchronization ─────────────────────────────────
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'ftc_saved_session' && !e.newValue) {
-        // Another tab logged out or cleared session
+      if (e.key && e.key.startsWith('sb-') && !e.newValue) {
+        // Another tab logged out
         dispatch({ type: 'RESET' })
       }
     }
@@ -195,13 +194,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           email: profile?.email ?? authUser.email ?? undefined,
         })
       } else {
-        // User has not finished onboarding -> restore their in-progress step or navigate to role
+        // User has not finished onboarding -> check for user-scoped draft or navigate to role selection
         try {
-          const savedSession = localStorage.getItem('ftc_saved_session')
-          if (savedSession) {
-            const parsed = JSON.parse(savedSession)
-            if (parsed?.screen && (parsed.screen.startsWith('creatorOnboard') || parsed.screen === 'clientOnboard')) {
-              dispatch({ type: 'GO', screen: parsed.screen })
+          const userScopedDraft = localStorage.getItem(`ftc_creator_draft_${userId}`)
+          if (userScopedDraft) {
+            const parsed = JSON.parse(userScopedDraft)
+            if (parsed && typeof parsed === 'object') {
+              dispatch({ type: 'SET_ONBOARD', patch: parsed })
+              dispatch({ type: 'GO', screen: 'creatorOnboard1' })
               return
             }
           }

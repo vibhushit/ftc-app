@@ -7,7 +7,7 @@ import {
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { cn, shareOrCopy } from '@/utils'
-import { supabase, supabaseAvailable } from '@/lib/supabase'
+import { signOutCleanly } from '@/lib/api/auth'
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 
 const INBOX: Array<{ id: string; name: string; avatar: string; last: string; time: string; unread: number; online: boolean }> = []
@@ -152,20 +152,7 @@ export function MeScreen() {
   const go = (s: string) => dispatch(s === 'inbox' ? { type: 'GO_TAB', tab: 'inbox', viaMenu: true } : { type: 'GO', screen: s as any })
 
   const handleLogout = async () => {
-    try {
-      if (supabaseAvailable) {
-        await supabase.auth.signOut()
-      }
-    } catch (e) {
-      console.warn('[FTC] signOut error:', e)
-    }
-    try {
-      localStorage.removeItem('ftc_saved_session')
-    } catch {}
-    dispatch({ type: 'RESET' })
-    if (typeof window !== 'undefined') {
-      window.history.replaceState(null, '', window.location.pathname)
-    }
+    await signOutCleanly()
   }
 
   return (
@@ -258,7 +245,7 @@ export function MeScreen() {
                     <button
                       type="button"
                       onClick={() => {
-                        const activeCid = state.supabaseUserId || (typeof window !== 'undefined' ? localStorage.getItem('ftc_creator_id') : '') || state.selectedCreatorId
+                        const activeCid = state.supabaseUserId || state.selectedCreatorId
                         if (activeCid) {
                           dispatch({ type: 'OPEN_CREATOR', id: activeCid })
                         }
@@ -320,21 +307,31 @@ export function MeScreen() {
 
           {/* Account Footer & Log Out */}
           <div className="mt-8 pt-6 border-t border-line flex flex-col sm:flex-row items-center justify-between gap-4 pb-8">
-            <div className="flex items-center gap-3">
-              {state.hasCreatorProfile ? (
-                <button
-                  onClick={() => {
-                    const activeCid = state.supabaseUserId || (typeof window !== 'undefined' ? localStorage.getItem('ftc_creator_id') : '')
-                    dispatch({ type: 'SET_ROLE', isCreator: !isC })
-                    if (isC && activeCid) {
-                      dispatch({ type: 'OPEN_CREATOR', id: activeCid })
-                    }
-                  }}
-                  className="tap px-4 py-2.5 rounded-xl bg-iris text-paper text-[12.5px] font-semibold flex items-center gap-1.5 shadow-sm cursor-pointer"
-                >
-                  <Sparkles size={14} /> {isC ? 'Switch to Client View' : 'Switch to Creator View'}
-                </button>
-              ) : (
+            <div className="flex flex-wrap items-center gap-2.5">
+              {state.hasCreatorProfile && (
+                <>
+                  <button
+                    onClick={() => dispatch({ type: 'SET_ROLE', isCreator: !isC })}
+                    className="tap px-4 py-2.5 rounded-xl bg-iris text-paper text-[12.5px] font-semibold flex items-center gap-1.5 shadow-sm cursor-pointer hover:bg-iris/90 transition"
+                  >
+                    <Sparkles size={14} /> {isC ? 'Switch to Client Mode' : 'Switch to Creator Mode'}
+                  </button>
+                  {isC && state.supabaseUserId && (
+                    <button
+                      onClick={() => {
+                        if (state.supabaseUserId) {
+                          dispatch({ type: 'OPEN_CREATOR', id: state.supabaseUserId })
+                        }
+                      }}
+                      className="tap px-4 py-2.5 rounded-xl bg-paper border border-line text-[12.5px] font-semibold text-obsidian hover:bg-bone transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                      title="Preview how clients see your profile"
+                    >
+                      <ExternalLink size={14} /> Preview Public Profile
+                    </button>
+                  )}
+                </>
+              )}
+              {!state.hasCreatorProfile && (
                 <button
                   onClick={() => setShowCreatorModal(true)}
                   className="tap px-4 py-2.5 rounded-xl bg-acid text-obsidian text-[12.5px] font-semibold flex items-center gap-1.5 shadow-sm hover:bg-acid/90"

@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { useAppStore } from '@/store/appStore'
 import type { UserRow, UserRole } from '@/lib/database.types'
 
 // ─── Check if Email is Already Registered ────────────────────────────────────
@@ -71,6 +72,42 @@ export async function signInWithGoogle() {
 export async function signOut() {
   const { error } = await supabase.auth.signOut()
   if (error) throw error
+}
+
+/**
+ * Resilient sign-out that guarantees complete client-side session destruction.
+ * Purges all Supabase tokens and FTC storage keys locally, even if the remote auth server
+ * rejects the request (e.g. user was deleted in the backend database or network offline).
+ */
+export async function signOutCleanly() {
+  try {
+    // Use local scope so local tokens are cleared even if remote revocation fails
+    await supabase.auth.signOut({ scope: 'local' })
+  } catch (e) {
+    console.warn('[FTC] Remote signOut failed, falling back to local sweep:', e)
+  }
+
+  // Sweep all ftc_* and sb-* keys from localStorage
+  if (typeof window !== 'undefined') {
+    try {
+      const keysToRemove: string[] = []
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i)
+        if (key && (key.startsWith('ftc_') || key.startsWith('sb-'))) {
+          keysToRemove.push(key)
+        }
+      }
+      keysToRemove.forEach(k => localStorage.removeItem(k))
+    } catch {}
+
+    // Reset browser address bar to clean root path
+    try {
+      window.history.replaceState(null, '', window.location.pathname)
+    } catch {}
+  }
+
+  // Reset store to pristine unauthenticated state
+  useAppStore.getState().dispatch({ type: 'RESET' })
 }
 
 // ─── Get current session ─────────────────────────────────────────────────────

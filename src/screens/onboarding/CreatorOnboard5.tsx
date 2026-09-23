@@ -132,9 +132,14 @@ export function CreatorOnboard5() {
     setSubmitting(false)
 
     if (success) {
-      try {
-        localStorage.removeItem('ftc_saved_session')
-      } catch {}
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.removeItem('ftc_saved_session')
+          if (state.supabaseUserId) {
+            localStorage.removeItem(`ftc_creator_draft_${state.supabaseUserId}`)
+          }
+        } catch {}
+      }
       dispatch({ type: 'SET_ROLE', isCreator: true })
       dispatch({ type: 'MARK_CREATOR' })
       dispatch({ type: 'GO', screen: 'creatorOnboardReview' })

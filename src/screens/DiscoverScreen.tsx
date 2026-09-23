@@ -151,7 +151,7 @@ export function DiscoverScreen() {
       {viewMode === 'map' ? (
         <MapPlaceholder count={results.length} onSwitch={() => dispatch({ type: 'SET_VIEW_MODE', mode: 'list' })} />
       ) : (
-        <div className="app-scroll">
+        <div className="app-scroll pb-nav">
           {results.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center px-8">
               <div className="text-4xl mb-3">🔍</div>

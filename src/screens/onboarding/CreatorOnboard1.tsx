@@ -126,6 +126,45 @@ export function CreatorOnboard1() {
       }}
     >
       <div className="space-y-4">
+        {/* Draft Notice if draft is present */}
+        {(ob.name || ob.handle || ob.bio) && (
+          <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-acid/10 border border-acid/25">
+            <span className="text-[12px] text-obsidian/75">
+              Draft restored from your session
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                if (typeof window !== 'undefined' && state.supabaseUserId) {
+                  try {
+                    localStorage.removeItem(`ftc_creator_draft_${state.supabaseUserId}`)
+                  } catch {}
+                }
+                dispatch({
+                  type: 'SET_ONBOARD',
+                  patch: {
+                    name: '', handle: '', city: '', area: '', bio: '',
+                    discipline: '', subSkills: [], yearsExp: 3, startingPrice: 8000,
+                    portfolio: [], idVerified: false, socialProof: false,
+                  }
+                })
+                setName('')
+                setHandle('')
+                setHandleEdited(false)
+                setHandleStatus('idle')
+                setHandleError(null)
+                setCity('')
+                setBio('')
+                setLangs(['Hindi', 'English'])
+                setTouched(false)
+              }}
+              className="text-[11px] font-semibold text-danger hover:underline cursor-pointer"
+            >
+              Start fresh
+            </button>
+          </div>
+        )}
+
         {/* Name input */}
         <div>
           <div className="flex items-center justify-between mb-1.5">

@@ -56,8 +56,7 @@ export function CalendarScreen() {
   const [newOverrideReason, setNewOverrideReason] = useState('')
   const [newOverrideStartTime, setNewOverrideStartTime] = useState('18:00')
   const [newOverrideEndTime, setNewOverrideEndTime] = useState('22:00')
-  const storedCid = typeof window !== 'undefined' ? (localStorage.getItem('ftc_creator_id') || '') : ''
-  const myCreatorId = state.supabaseUserId || storedCid || ''
+  const myCreatorId = state.supabaseUserId || ''
   const [creatorId, setCreatorId] = useState<string>(myCreatorId)
 
   // Live database load on mount
@@ -68,9 +67,6 @@ export function CalendarScreen() {
         if (!mounted) return
         if (data.creator_id) {
           setCreatorId(data.creator_id)
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('ftc_creator_id', data.creator_id)
-          }
         }
         if (data.slot_step_minutes) setSlotStep(data.slot_step_minutes)
         if (data.buffer_minutes !== undefined) setBuffer(data.buffer_minutes)
@@ -287,7 +283,7 @@ export function CalendarScreen() {
         }
       />
 
-      <div className="app-scroll px-5 md:px-6 py-4 md:py-6">
+      <div className="app-scroll px-5 md:px-6 py-4 pb-nav md:pb-6">
         <div className="max-w-4xl mx-auto w-full space-y-4">
           <div className="md:grid md:grid-cols-2 md:gap-6 md:items-start space-y-4 md:space-y-0">
             {/* Left Column: Calendar & Slots Preview */}
