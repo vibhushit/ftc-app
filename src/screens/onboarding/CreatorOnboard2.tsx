@@ -93,17 +93,29 @@ export function CreatorOnboard2() {
         )}
 
         <div>
-          <label className="text-[11px] font-mono uppercase tracking-wider text-obsidian/50">Years of professional experience</label>
-          <div className="mt-2 flex items-center gap-3">
-            <input
-              type="range"
-              min={1}
-              max={15}
-              value={years}
-              onChange={e => setYears(Number(e.target.value))}
-              className="flex-1 accent-obsidian"
-            />
-            <span className="font-display text-2xl tnum w-12 text-right">{years}y</span>
+          <label className="text-[11px] font-mono uppercase tracking-wider text-obsidian/50">Years of professional experience *</label>
+          <div className="mt-2 grid grid-cols-4 gap-2">
+            {[
+              { label: '< 1 yr', val: 1 },
+              { label: '1–3 yrs', val: 2 },
+              { label: '3–5 yrs', val: 4 },
+              { label: '5+ yrs', val: 6 },
+            ].map(tier => {
+              const active = years === tier.val
+              return (
+                <button
+                  key={tier.val}
+                  type="button"
+                  onClick={() => setYears(tier.val)}
+                  className={cn(
+                    'tap py-2.5 px-2 rounded-xl border text-center transition font-medium text-[12px]',
+                    active ? 'border-obsidian bg-obsidian text-paper font-semibold' : 'border-line bg-paper text-obsidian hover:border-obsidian/30'
+                  )}
+                >
+                  {tier.label}
+                </button>
+              )
+            })}
           </div>
         </div>
 

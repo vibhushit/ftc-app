@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Trash2, Check, Sparkles, Clock, AlertCircle } from 'lucide-react'
+import { Plus, Trash2, Check, Clock, AlertCircle } from 'lucide-react'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { cn } from '@/utils'
@@ -14,38 +14,16 @@ const DELIVERY_OPTIONS = [
   { label: '14 days (2 weeks)', val: '14' },
 ]
 
-const DISCIPLINE_SUGGESTIONS: Record<string, string[]> = {
-  Photography: [
-    '15 edited high-res photos',
-    'All original RAW images',
-    'Online digital gallery',
-    'Color grading included',
-    '2 outfit changes',
-    '48-hour preview delivery',
-  ],
-  Videography: [
-    '1 edited cinematic reel (60s)',
-    '4K Ultra HD delivery',
-    'Sound design & licensed music',
-    'Full event highlight video',
-    '2 revision rounds included',
-    'Color graded final cut',
-  ],
-  'Graphic Design': [
-    'Primary & secondary logo marks',
-    'Vector source files (.AI, .EPS)',
-    'Brand color palette & typography',
-    'High-res PNG & SVG assets',
-    'Full commercial usage rights',
-  ],
-  'UI/UX': [
-    'Complete Figma design source file',
-    'Mobile & desktop responsive screens',
-    'Interactive clickable prototype',
-    'Component design system & tokens',
-    'Developer handoff documentation',
-  ],
-}
+export const DELIVERABLE_DISCIPLINES = new Set([
+  'Photography',
+  'Videography',
+  'Graphic Design',
+  'UI/UX',
+  'Writing',
+  'Music',
+  'Illustration',
+  'Editing',
+])
 
 interface PackageDraft {
   id: string
@@ -60,34 +38,33 @@ export function CreatorOnboardPackages() {
   const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
   const ob = state.onboard
   const discipline = ob.discipline || 'Photography'
+  const isDeliverableCraft = DELIVERABLE_DISCIPLINES.has(discipline)
 
   const initialPackages: PackageDraft[] = (ob.builtPackages && ob.builtPackages.length > 0)
     ? ob.builtPackages.map(p => ({
         id: p.id || Math.random().toString(36).slice(2, 9),
-        name: p.name || 'Standard Session',
+        name: p.name || 'Standard Package',
         price: p.price ? String(p.price) : '8000',
         duration: p.duration || '2 hours',
-        delivery: p.delivery || '7',
+        delivery: p.delivery || (isDeliverableCraft ? '7' : '0'),
         inclusions: p.inclusions && p.inclusions.length > 0
           ? p.inclusions
-          : ['High-resolution edited deliverables', 'Commercial usage license'],
+          : [],
       }))
     : [
         {
           id: 'pkg-1',
-          name: discipline === 'Videography' ? 'Standard Reel & Video Shoot' : 'Standard Session',
-          price: '8000',
+          name: 'Standard Package',
+          price: ob.startingPrice ? String(ob.startingPrice) : '8000',
           duration: '2 hours',
-          delivery: '7',
-          inclusions: (DISCIPLINE_SUGGESTIONS[discipline] || DISCIPLINE_SUGGESTIONS.Photography).slice(0, 3),
+          delivery: isDeliverableCraft ? '7' : '0',
+          inclusions: [],
         },
       ]
 
   const [packages, setPackages] = useState<PackageDraft[]>(initialPackages)
   const [customInclusionInputs, setCustomInclusionInputs] = useState<Record<string, string>>({})
   const [touched, setTouched] = useState(false)
-
-  const suggestions = DISCIPLINE_SUGGESTIONS[discipline] || DISCIPLINE_SUGGESTIONS.Photography
 
   const updatePackage = (idx: number, patch: Partial<PackageDraft>) => {
     setPackages(cur => cur.map((p, i) => (i === idx ? { ...p, ...patch } : p)))
@@ -98,11 +75,11 @@ export function CreatorOnboardPackages() {
     const tierNum = packages.length + 1
     const newTier: PackageDraft = {
       id: `pkg-${Date.now()}`,
-      name: tierNum === 2 ? 'Extended / Half-Day' : 'Full Commercial Production',
+      name: tierNum === 2 ? 'Extended / Half-Day' : 'Full Production',
       price: tierNum === 2 ? '15000' : '28000',
       duration: tierNum === 2 ? '4 hours' : 'Full day (8 hours)',
-      delivery: '7',
-      inclusions: suggestions.slice(0, tierNum + 2),
+      delivery: isDeliverableCraft ? '7' : '0',
+      inclusions: [],
     }
     setPackages([...packages, newTier])
   }
@@ -268,30 +245,32 @@ export function CreatorOnboardPackages() {
                 </div>
               </div>
 
-              {/* Delivery Turnaround */}
-              <div className="mb-4">
-                <label className="text-[11px] font-mono uppercase tracking-wider text-obsidian/50 mb-1.5 flex items-center gap-1.5">
-                  <Clock size={12} className="text-obsidian/50" />
-                  Delivery Turnaround
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-                  {DELIVERY_OPTIONS.map(del => (
-                    <button
-                      key={del.val}
-                      type="button"
-                      onClick={() => updatePackage(idx, { delivery: del.val })}
-                      className={cn(
-                        'tap py-2 px-2.5 rounded-xl border text-[11px] font-medium transition text-center',
-                        pkg.delivery === del.val
-                          ? 'bg-obsidian text-paper border-obsidian'
-                          : 'bg-paper text-obsidian border-line hover:border-obsidian/30'
-                      )}
-                    >
-                      {del.label}
-                    </button>
-                  ))}
+              {/* Delivery Turnaround (Only for crafts that deliver post-session files) */}
+              {isDeliverableCraft && (
+                <div className="mb-4">
+                  <label className="text-[11px] font-mono uppercase tracking-wider text-obsidian/50 mb-1.5 flex items-center gap-1.5">
+                    <Clock size={12} className="text-obsidian/50" />
+                    Delivery Turnaround
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                    {DELIVERY_OPTIONS.map(del => (
+                      <button
+                        key={del.val}
+                        type="button"
+                        onClick={() => updatePackage(idx, { delivery: del.val })}
+                        className={cn(
+                          'tap py-2 px-2.5 rounded-xl border text-[11px] font-medium transition text-center',
+                          pkg.delivery === del.val
+                            ? 'bg-obsidian text-paper border-obsidian'
+                            : 'bg-paper text-obsidian border-line hover:border-obsidian/30'
+                        )}
+                      >
+                        {del.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Deliverables / Inclusions */}
               <div>
@@ -328,7 +307,7 @@ export function CreatorOnboardPackages() {
                 )}
 
                 {/* Custom Inclusion Input */}
-                <div className="flex items-center gap-2 mb-3">
+                <div className="flex items-center gap-2">
                   <input
                     value={customInput}
                     onChange={e =>
@@ -340,7 +319,11 @@ export function CreatorOnboardPackages() {
                         addInclusion(pkg.id, customInput)
                       }
                     }}
-                    placeholder="Add deliverable (e.g. 20 edited images, raw video)..."
+                    placeholder={
+                      isDeliverableCraft
+                        ? "e.g. 20 edited photos, full commercial usage, raw files..."
+                        : "e.g. 2-hour tattoo session, aftercare kit, custom stencil..."
+                    }
                     className="flex-1 py-2 px-3.5 rounded-xl bg-paper border border-line text-[12.5px] outline-none focus:ring-2 focus:ring-iris/20"
                   />
                   <button
@@ -356,28 +339,6 @@ export function CreatorOnboardPackages() {
                   >
                     Add
                   </button>
-                </div>
-
-                {/* Quick Add Suggestions */}
-                <div className="bg-paper/70 rounded-2xl p-3 border border-line">
-                  <div className="text-[10px] font-mono uppercase tracking-wider text-obsidian/40 mb-2 flex items-center gap-1">
-                    <Sparkles size={11} className="text-iris" /> Quick suggestions for {discipline}:
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {suggestions
-                      .filter(s => !pkg.inclusions.includes(s))
-                      .slice(0, 4)
-                      .map(s => (
-                        <button
-                          key={s}
-                          type="button"
-                          onClick={() => addInclusion(pkg.id, s)}
-                          className="tap px-2.5 py-1 rounded-lg bg-bone hover:bg-iris/10 hover:text-iris text-[11px] font-medium text-obsidian/70 transition border border-line/60 flex items-center gap-1"
-                        >
-                          <Plus size={11} /> {s}
-                        </button>
-                      ))}
-                  </div>
                 </div>
               </div>
             </div>

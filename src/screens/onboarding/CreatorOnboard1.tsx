@@ -19,8 +19,8 @@ export function CreatorOnboard1() {
   const [handleError, setHandleError] = useState<string | null>(null)
   const [city, setCity] = useState(ob.city)
   const [bio, setBio] = useState(ob.bio)
-  const [langs, setLangs] = useState<string[]>((ob.languages as string[]) ?? ['Hindi', 'English'])
-  const [travelMode, setTravelMode] = useState<'studio' | 'travel' | 'both'>(ob.travelMode ?? 'both')
+  const [langs, setLangs] = useState<string[]>((ob.languages as string[]) ?? [])
+  const [travelMode, setTravelMode] = useState<'studio' | 'travel' | 'both'>(ob.travelMode ?? 'studio')
   const [touched, setTouched] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -319,7 +319,7 @@ export function CreatorOnboard1() {
         <div>
           <label className="text-[11px] font-mono uppercase tracking-wider text-obsidian/50">Where do you work?</label>
           <div className="mt-1.5 grid grid-cols-3 gap-2">
-            {([['studio', Home, 'My studio', 'Clients visit you'], ['travel', MapPin, 'I travel', 'You go to them'], ['both', Globe, 'Both', 'Flexible']] as [typeof travelMode, typeof Home, string, string][]).map(([k, Ic, t, s]) => (
+            {([['studio', Home, 'Studio / In-city', 'Local sessions'], ['travel', MapPin, 'Travel Available', 'Client location'], ['both', Globe, 'Both', 'Flexible']] as [typeof travelMode, typeof Home, string, string][]).map(([k, Ic, t, s]) => (
               <button key={k} onClick={() => setTravelMode(k)} className={cn('tap p-3 rounded-2xl border-2 text-center transition', travelMode === k ? 'border-iris bg-iris-tint' : 'border-line bg-bone')}>
                 <Ic size={18} className={cn('mx-auto mb-1', travelMode === k ? 'text-iris' : 'text-obsidian/50')} />
                 <div className="text-[12px] font-semibold">{t}</div>
