@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { ArrowLeft, ArrowRight, Eye, EyeOff } from 'lucide-react'
 import { BrandIcon } from '@/components/ui/BrandIcon'
 import { useAppStore } from '@/store/appStore'
-import { supabaseAvailable } from '@/lib/supabase'
+import { supabaseAvailable, supabase } from '@/lib/supabase'
 import * as authApi from '@/lib/api/auth'
 import { GoogleG } from './GoogleG'
 
@@ -22,11 +22,81 @@ export function LoginScreen() {
     setError('')
     setLoading(true)
 
+    // Clean address bar so leftover tokens don't interfere
+    if (typeof window !== 'undefined' && (window.location.hash || window.location.search)) {
+      try {
+        window.history.replaceState(null, '', window.location.pathname)
+      } catch {}
+    }
+
     try {
       if (!supabaseAvailable) {
         throw new Error('Supabase client is not configured.')
       }
-      await authApi.signInWithPassword(email.trim(), password)
+      const authRes = await authApi.signInWithPassword(email.trim(), password)
+      const user = authRes?.user
+
+      if (user) {
+        // Explicitly check profile state so we transition immediately without waiting on passive listeners
+        try {
+          const { data: userProfile } = await (supabase.from('users') as any)
+            .select('name, role, city, phone')
+            .eq('id', user.id)
+            .maybeSingle()
+
+          const { data: creatorProfile } = await (supabase.from('creator_profiles') as any)
+            .select('id, discipline')
+            .eq('id', user.id)
+            .maybeSingle()
+
+          const hasValidCreatorProfile = Boolean(creatorProfile && creatorProfile.discipline)
+          const hasCreatorCapability = userProfile?.role === 'creator' || userProfile?.role === 'both' || hasValidCreatorProfile
+
+          const hasCompletedOnboarding = hasCreatorCapability
+            ? hasValidCreatorProfile
+            : (userProfile?.role === 'consumer' && Boolean(userProfile?.city))
+
+          let activeViewMode = hasCreatorCapability
+          if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem(`ftc_view_mode_${user.id}`)
+            if (saved === 'client') activeViewMode = false
+            else if (saved === 'creator' && hasCreatorCapability) activeViewMode = true
+          }
+
+          if (hasCompletedOnboarding) {
+            dispatch({
+              type: 'COMPLETE_AUTH',
+              isCreator: activeViewMode,
+              name: userProfile?.name || user.user_metadata?.name || 'User',
+              city: userProfile?.city ?? undefined,
+              phone: userProfile?.phone ?? user.phone ?? undefined,
+              email: user.email,
+            })
+            dispatch({ type: 'GO_TAB', tab: 'home' })
+            return
+          } else {
+            // Check for user-scoped draft
+            try {
+              const draft = localStorage.getItem(`ftc_creator_draft_${user.id}`)
+              if (draft) {
+                const parsed = JSON.parse(draft)
+                if (parsed && typeof parsed === 'object') {
+                  dispatch({ type: 'SET_ONBOARD', patch: parsed })
+                  dispatch({ type: 'GO', screen: 'creatorOnboard1' })
+                  return
+                }
+              }
+            } catch {}
+            dispatch({ type: 'GO', screen: 'role' })
+            return
+          }
+        } catch {
+          // If profile check encounters network delay, navigate to home as authenticated user
+          dispatch({ type: 'COMPLETE_AUTH', isCreator: false, email: user.email })
+          dispatch({ type: 'GO_TAB', tab: 'home' })
+          return
+        }
+      }
     } catch (e: any) {
       setError(e?.message || 'Invalid email or password. Please try again or use Forgot Password.')
     } finally {

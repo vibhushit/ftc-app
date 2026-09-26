@@ -63,6 +63,14 @@ export function ResetPasswordScreen() {
         await authApi.updateUserPassword(newPassword)
       }
       setSuccess(true)
+
+      // Clean address bar so stale #access_token or ?code= don't taint future logins
+      if (typeof window !== 'undefined') {
+        try {
+          window.history.replaceState(null, '', window.location.pathname)
+        } catch {}
+      }
+
       setTimeout(async () => {
         if (supabaseAvailable) {
           try {

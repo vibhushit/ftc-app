@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { ChevronRight, Clock, Plus, Bell, Check, X, ShieldCheck, AlertCircle } from 'lucide-react'
-import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { inr } from '@/data/constants'
 import { CRM_TABS, CRM_EMPTY } from '@/data/constants'
@@ -17,15 +16,19 @@ function getTimeRemaining(expiresAt?: string): string {
 }
 
 export function CreatorPipelineHome() {
-  const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
-  const tab = state.crmTab || 'pending_approval'
+  const crmTab = useAppStore(s => s.crmTab)
+  const creatorBookings = useAppStore(s => s.creatorBookings)
+  const trustScore = useAppStore(s => s.user?.trustScore)
+  const dispatch = useAppStore(s => s.dispatch)
+
+  const tab = crmTab || 'pending_approval'
   const [processingId, setProcessingId] = useState<string | null>(null)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
 
-  const pendingRequests = state.creatorBookings.filter(b => b.status === 'pending_approval')
-  const jobs = state.creatorBookings.filter(b => b.status === tab)
-  const revenue = state.creatorBookings.filter(b => b.status === 'completed').reduce((a, b) => a + b.price, 0)
-  const payout = state.creatorBookings
+  const pendingRequests = creatorBookings.filter(b => b.status === 'pending_approval')
+  const jobs = creatorBookings.filter(b => b.status === tab)
+  const revenue = creatorBookings.filter(b => b.status === 'completed').reduce((a, b) => a + b.price, 0)
+  const payout = creatorBookings
     .filter(b => b.status === 'pending' || b.status === 'upcoming' || b.status === 'pending_approval')
     .reduce((a, b) => a + (b.price - b.advancePaid), 0)
 
@@ -77,10 +80,12 @@ export function CreatorPipelineHome() {
             <div className="text-[11px] font-mono uppercase tracking-[0.14em] text-iris font-semibold">Creator pipeline</div>
             <div className="font-display text-3xl tracking-tight leading-none mt-1">Your jobs</div>
           </div>
-          <button onClick={() => dispatch({ type: 'GO', screen: 'notifications' })} className="tap w-10 h-10 rounded-full bg-bone border border-line grid place-items-center relative">
-            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-iris" />
-            <Bell size={18} className="text-obsidian/75" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => dispatch({ type: 'GO', screen: 'notifications' })} className="tap w-9 h-9 rounded-full bg-bone border border-line grid place-items-center relative">
+              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-iris" />
+              <Bell size={17} className="text-obsidian/75" />
+            </button>
+          </div>
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-2">
@@ -88,7 +93,7 @@ export function CreatorPipelineHome() {
             ['Revenue', inr(revenue), 'released'],
             ['Pending payout', inr(payout), 'in escrow'],
             ['Response rate', '98%', 'avg ~12 min'],
-            ['Trust score', String((state.user?.trustScore) || 94), 'out of 100'],
+            ['Trust score', String(trustScore || 94), 'out of 100'],
           ].map((s, i) => (
             <div key={i} className="p-3 rounded-2xl bg-bone border border-line">
               <div className="font-display text-xl tracking-tight tnum leading-none">{s[1]}</div>
@@ -102,7 +107,7 @@ export function CreatorPipelineHome() {
       {/* Tabs */}
       <div className="flex gap-2 overflow-x-auto no-scrollbar px-5 pb-3 border-b border-line">
         {CRM_TABS.map(t => {
-          const count = state.creatorBookings.filter(b => b.status === t.key).length
+          const count = creatorBookings.filter(b => b.status === t.key).length
           const isSelected = tab === t.key
           return (
             <button

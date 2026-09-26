@@ -2,7 +2,6 @@ import { useState, useMemo } from 'react'
 import { Search, SlidersHorizontal, Map, List, X } from 'lucide-react'
 import { CreatorCardRow } from '@/components/creator/CreatorCardRow'
 import { CreatorCardLarge } from '@/components/creator/CreatorCardLarge'
-import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { DISCIPLINE_CONFIG } from '@/data/creators'
 import { pic } from '@/data/constants'
@@ -58,11 +57,13 @@ function dbToCreator(row: {
 }
 
 export function DiscoverScreen() {
-  const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
+  const filters = useAppStore(s => s.filters)
+  const viewMode = useAppStore(s => s.viewMode)
+  const saved = useAppStore(s => s.saved)
+  const dispatch = useAppStore(s => s.dispatch)
   const [query, setQuery] = useState('')
-  const { filters, viewMode } = state
 
-  const searchParams = {
+  const searchParams = useMemo(() => ({
     query:      query.trim() || undefined,
     discipline: filters.discipline !== 'All' ? filters.discipline : undefined,
     city:       filters.city || undefined,
@@ -71,7 +72,8 @@ export function DiscoverScreen() {
     minRating:  filters.rating > 0 ? filters.rating : undefined,
     available:  filters.availableToday || undefined,
     limit:      50,
-  }
+  }), [query, filters.discipline, filters.city, filters.budgetMin, filters.budgetMax, filters.rating, filters.availableToday])
+
   const { data: dbData, isLoading: dbLoading } = useCreatorSearch(searchParams, supabaseAvailable)
 
   const results = useMemo((): Creator[] => {
@@ -174,7 +176,7 @@ export function DiscoverScreen() {
                   <CreatorCardRow
                     key={c.id}
                     c={c}
-                    isSaved={state.saved.includes(c.id)}
+                    isSaved={saved.includes(c.id)}
                     onOpen={() => dispatch({ type: 'OPEN_CREATOR', id: c.id })}
                     onToggleSave={() => dispatch({ type: 'TOGGLE_SAVE', id: c.id })}
                   />

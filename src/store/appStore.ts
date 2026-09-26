@@ -13,6 +13,7 @@ const DEFAULT_STATE: AppState = {
   screen: 'welcome',
   prevScreen: null,
   isAuthed: false,
+  isAuthLoading: true,
   isCreator: false,
   user: { name: '', city: '', locality: '', email: '', phone: '', handle: '', trustScore: 0 },
   selectedCreatorId: null,
@@ -106,10 +107,26 @@ function reduce(state: AppState, action: AppAction): AppState {
       const isInitialAuthScreen = ['welcome', 'signup', 'login', 'phone', 'otp', 'magicLinkSent', 'forgotPassword', 'resetPassword', 'clientOnboard'].includes(state.screen)
       const targetScreen = isInitialAuthScreen ? 'home' : (state.screen || 'home')
       const targetTab = TAB_SCREENS[state.activeTab] ? state.activeTab : 'home'
+      
+      // Determine active role based on user preference or profile
+      let resolvedIsCreator = action.isCreator ?? state.isCreator
+      if (typeof window !== 'undefined' && state.supabaseUserId) {
+        const savedViewMode = localStorage.getItem(`ftc_view_mode_${state.supabaseUserId}`)
+        if (savedViewMode === 'client') {
+          resolvedIsCreator = false
+        } else if (savedViewMode === 'creator' && (action.isCreator || state.hasCreatorProfile)) {
+          resolvedIsCreator = true
+        }
+      }
+
       return {
-        ...state, isAuthed: true,
-        isCreator: action.isCreator ?? state.isCreator,
-        hasCreatorProfile: action.isCreator ?? state.hasCreatorProfile,
+        ...state,
+        isAuthed: true,
+        isAuthLoading: false,
+        isCreator: resolvedIsCreator,
+        hasCreatorProfile: action.hasCreatorProfile !== undefined
+          ? action.hasCreatorProfile
+          : (action.isCreator ? true : state.hasCreatorProfile),
         user: {
           ...state.user,
           name:  action.name  ?? state.user.name,
@@ -122,6 +139,11 @@ function reduce(state: AppState, action: AppAction): AppState {
       }
     }
     case 'MARK_CREATOR':
+      if (typeof window !== 'undefined' && state.supabaseUserId) {
+        try {
+          localStorage.setItem(`ftc_view_mode_${state.supabaseUserId}`, 'creator')
+        } catch {}
+      }
       return { ...state, isCreator: true, hasCreatorProfile: true }
     case 'SET_SPONSOR_ROLE':
       return { ...state, sponsorRole: action.role }
@@ -137,6 +159,12 @@ function reduce(state: AppState, action: AppAction): AppState {
       if (action.isCreator && !state.hasCreatorProfile) {
         // Not a registered creator yet -> route to Onboarding
         return { ...state, prevScreen: state.screen, screen: 'creatorOnboard1', onboardOrigin: 'me' }
+      }
+      // Persist active view mode per user so tab switches / window focus do not reset it
+      if (typeof window !== 'undefined' && state.supabaseUserId) {
+        try {
+          localStorage.setItem(`ftc_view_mode_${state.supabaseUserId}`, action.isCreator ? 'creator' : 'client')
+        } catch {}
       }
       return { ...state, isCreator: action.isCreator }
     case 'SET_CRM_TAB':
@@ -161,19 +189,40 @@ function reduce(state: AppState, action: AppAction): AppState {
           localStorage.removeItem('ftc_saved_session')
           if (state.supabaseUserId) {
             localStorage.removeItem(`ftc_creator_draft_${state.supabaseUserId}`)
+            localStorage.removeItem(`ftc_view_mode_${state.supabaseUserId}`)
           }
         } catch {}
       }
-      return DEFAULT_STATE
+      return { ...DEFAULT_STATE, isAuthLoading: false }
+    case 'AUTH_READY':
+      return { ...state, isAuthLoading: false }
     case 'SET_PENDING_PHONE':
       return { ...state, pendingPhone: action.phone }
-    case 'SYNC_AUTH_USER':
+    case 'SYNC_AUTH_USER': {
+      const hasCap = action.hasCreatorProfile ?? action.isCreator ?? state.hasCreatorProfile
+      let activeIsCreator = state.isCreator
+
+      if (typeof window !== 'undefined' && action.userId) {
+        const savedViewMode = localStorage.getItem(`ftc_view_mode_${action.userId}`)
+        if (savedViewMode === 'client') {
+          activeIsCreator = false
+        } else if (savedViewMode === 'creator' && hasCap) {
+          activeIsCreator = true
+        } else if (!savedViewMode) {
+          // Default: if has creator capability, creator view; else client
+          activeIsCreator = Boolean(hasCap)
+        }
+      } else if (action.isCreator !== undefined) {
+        activeIsCreator = action.isCreator
+      }
+
       return {
         ...state,
         isAuthed: true,
+        isAuthLoading: false,
         supabaseUserId: action.userId,
-        isCreator: action.isCreator ?? state.isCreator,
-        hasCreatorProfile: action.isCreator ?? state.hasCreatorProfile,
+        isCreator: activeIsCreator,
+        hasCreatorProfile: hasCap,
         user: {
           ...state.user,
           name:  action.name  || state.user.name,
@@ -181,6 +230,7 @@ function reduce(state: AppState, action: AppAction): AppState {
           email: action.email || state.user.email,
         },
       }
+    }
     case 'POP_STATE':
       return {
         ...state,

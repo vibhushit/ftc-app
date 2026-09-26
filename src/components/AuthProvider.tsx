@@ -21,7 +21,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const dispatch = useAppStore(s => s.dispatch)
 
   useEffect(() => {
-    if (!supabaseAvailable) return
+    if (!supabaseAvailable) {
+      dispatch({ type: 'AUTH_READY' })
+      return
+    }
     let mounted = true
 
     const rawHash = typeof window !== 'undefined' ? window.location.hash : ''
@@ -45,8 +48,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (isLinkExpired) {
       console.warn('[FTC] Email auth link expired or invalid.')
       dispatch({ type: 'GO', screen: 'forgotPassword' })
+      dispatch({ type: 'AUTH_READY' })
     } else if (isRecoveryHash) {
       dispatch({ type: 'GO', screen: 'resetPassword' })
+      dispatch({ type: 'AUTH_READY' })
     }
 
     // ── 2. Explicitly Exchange PKCE code or Set Session from Hash ────────────
@@ -56,6 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const { data, error } = await supabase.auth.exchangeCodeForSession(code)
           if (!error && data.session) {
             dispatch({ type: 'GO', screen: 'resetPassword' })
+            dispatch({ type: 'AUTH_READY' })
             return
           }
         } catch (e) {
@@ -72,6 +78,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const { data, error } = await supabase.auth.setSession({ access_token, refresh_token })
             if (!error && data.session) {
               dispatch({ type: 'GO', screen: 'resetPassword' })
+              dispatch({ type: 'AUTH_READY' })
               return
             }
           }
@@ -93,6 +100,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!isAuthScreen && !isRecoveryHash) {
           // If session expired or unauthenticated trying to access internal screen
           dispatch({ type: 'RESET' })
+        } else {
+          dispatch({ type: 'AUTH_READY' })
         }
         return
       }
@@ -100,6 +109,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const currentScreen = useAppStore.getState().screen
       if (currentScreen === 'resetPassword' || isRecoveryHash) {
         // Recovery/Password setup in progress — don't auto-redirect to home
+        dispatch({ type: 'AUTH_READY' })
         return
       }
 
@@ -118,7 +128,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (event === 'SIGNED_IN' && session?.user) {
         const currentScreen = useAppStore.getState().screen
-        if (currentScreen === 'resetPassword' || isRecoveryHash) {
+        const liveHash = typeof window !== 'undefined' ? window.location.hash : ''
+        const liveSearch = typeof window !== 'undefined' ? window.location.search : ''
+        const hasLiveRecoveryToken = liveHash.includes('type=recovery') || liveHash.includes('#reset') || liveSearch.includes('code=')
+        if (currentScreen === 'resetPassword' || hasLiveRecoveryToken) {
           return
         }
         syncUser(session.user.id, session.user)
@@ -167,12 +180,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .maybeSingle()
 
       const hasValidCreatorProfile = Boolean(creatorProfile && (creatorProfile as any).discipline)
-      const isCreator = profile?.role === 'creator' || profile?.role === 'both' || hasValidCreatorProfile
+      const hasCreatorCapability = profile?.role === 'creator' || profile?.role === 'both' || hasValidCreatorProfile
 
       // Only mark onboarding complete if real creator profile exists or consumer has finished preferences (city)
-      const hasCompletedOnboarding = isCreator
+      const hasCompletedOnboarding = hasCreatorCapability
         ? hasValidCreatorProfile
         : (profile?.role === 'consumer' && Boolean(profile?.city))
+
+      // Check saved view preference
+      let resolvedViewMode: boolean = hasCreatorCapability
+      if (typeof window !== 'undefined') {
+        const saved = localStorage.getItem(`ftc_view_mode_${userId}`)
+        if (saved === 'client') resolvedViewMode = false
+        else if (saved === 'creator' && hasCreatorCapability) resolvedViewMode = true
+      }
 
       dispatch({
         type: 'SYNC_AUTH_USER',
@@ -180,20 +201,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         name: name || (authUser.email ? authUser.email.split('@')[0] : 'User'),
         phone: profile?.phone ?? authUser.phone ?? undefined,
         email: profile?.email ?? authUser.email ?? undefined,
-        isCreator,
+        isCreator: resolvedViewMode,
+        hasCreatorProfile: hasCreatorCapability,
       })
 
       // If returning user with established profile
       if (hasCompletedOnboarding) {
         dispatch({
           type: 'COMPLETE_AUTH',
-          isCreator,
+          isCreator: resolvedViewMode,
+          hasCreatorProfile: hasCreatorCapability,
           name: name || 'User',
           city: profile?.city ?? undefined,
           phone: profile?.phone ?? authUser.phone ?? undefined,
           email: profile?.email ?? authUser.email ?? undefined,
         })
       } else {
+        dispatch({ type: 'AUTH_READY' })
         // User has not finished onboarding -> check for user-scoped draft or navigate to role selection
         try {
           const userScopedDraft = localStorage.getItem(`ftc_creator_draft_${userId}`)

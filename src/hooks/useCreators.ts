@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import * as creatorsApi from '@/lib/api/creators'
 import * as favoritesApi from '@/lib/api/favorites'
+import { apiClient } from '@/services/apiClient'
 import type { CreatorProfileRow } from '@/lib/database.types'
 
 const CREATOR_KEYS = {
@@ -9,6 +10,18 @@ const CREATOR_KEYS = {
   handle:  (h: string) => ['creators', 'handle', h] as const,
   avail:   (id: string, from: string, to: string) => ['creators', 'avail', id, from, to] as const,
   saved:   ['creators', 'saved'] as const,
+  featured: ['creators', 'featured'] as const,
+}
+
+// ─── Home / Featured creators (cached) ───────────────────────────────────────
+export function useHomeCreators(enabled = true) {
+  return useQuery({
+    queryKey:  CREATOR_KEYS.featured,
+    queryFn:   () => apiClient.getCreators(),
+    staleTime: 300_000,
+    gcTime:    600_000,
+    enabled,
+  })
 }
 
 // ─── Search / discover ────────────────────────────────────────────────────────
@@ -58,8 +71,6 @@ export function useCreatorAvailability(creatorId: string, fromDate: string, toDa
     staleTime: 60_000,
   })
 }
-
-import { apiClient } from '@/services/apiClient'
 
 export function useMonthAvailability(creatorId: string | null | undefined, monthStr: string, durationMinutes: number = 120) {
   return useQuery({

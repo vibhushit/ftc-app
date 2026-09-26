@@ -1,6 +1,5 @@
 import { useEffect } from 'react'
 import { useShallow } from 'zustand/shallow'
-import { motion, AnimatePresence } from 'framer-motion'
 import { useAppStore } from '@/store/appStore'
 import { AuthProvider } from '@/components/AuthProvider'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
@@ -44,10 +43,11 @@ const NO_SHELL_SCREENS: Screen[] = [
 ]
 
 export function App() {
-  const { screen, activeTab, isAuthed, isCreator, dispatch } = useAppStore(useShallow(s => ({
+  const { screen, activeTab, isAuthed, isAuthLoading, isCreator, dispatch } = useAppStore(useShallow(s => ({
     screen: s.screen,
     activeTab: s.activeTab,
     isAuthed: s.isAuthed,
+    isAuthLoading: s.isAuthLoading,
     isCreator: s.isCreator,
     dispatch: s.dispatch,
   })))
@@ -56,10 +56,10 @@ export function App() {
 
   // ─── Route Guard: If unauthenticated visitor tries to access protected screens ───
   useEffect(() => {
-    if (!isAuthed && !isPublicScreen) {
+    if (!isAuthLoading && !isAuthed && !isPublicScreen) {
       dispatch({ type: 'RESET' })
     }
-  }, [isAuthed, isPublicScreen, dispatch])
+  }, [isAuthLoading, isAuthed, isPublicScreen, dispatch])
 
   // ─── Browser History Sync (Back / Forward Button & Swipe Support) ───
   useEffect(() => {
@@ -107,6 +107,15 @@ export function App() {
   const isWide = WIDE_SCREENS.includes(screen)
 
   const renderScreen = () => {
+    // While checking initial session, hold cleanly without flashing welcome screen
+    if (isAuthLoading && !isPublicScreen) {
+      return (
+        <div className="flex-1 flex items-center justify-center bg-paper">
+          <div className="w-7 h-7 rounded-full border-2 border-obsidian/10 border-t-obsidian animate-spin" />
+        </div>
+      )
+    }
+
     // Strict Guard: If not authenticated and attempting to view internal screen, render WelcomeScreen
     if (!isAuthed && !isPublicScreen) {
       return <WelcomeScreen />
@@ -188,18 +197,9 @@ export function App() {
             />
           )}
           <div className={cn('app-main', isWide && 'app-main--wide')}>
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.div
-                key={screen}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.14, ease: 'easeOut' }}
-                className="flex-1 flex flex-col min-h-0 min-w-0"
-              >
-                {renderScreen()}
-              </motion.div>
-            </AnimatePresence>
+            <main className="flex-1 flex flex-col min-h-0 min-w-0 relative">
+              {renderScreen()}
+            </main>
             {showBottomNav && (
               <BottomNav
                 active={activeTab as Tab}

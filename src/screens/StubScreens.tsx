@@ -4,7 +4,6 @@ import {
   Settings, Calendar, Wallet, Link2, MapPin, Edit3, Sparkles, Copy,
   Check, LogOut, ChevronRight, ExternalLink, ArrowLeft, X
 } from 'lucide-react'
-import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { cn, shareOrCopy } from '@/utils'
 import { signOutCleanly } from '@/lib/api/auth'
@@ -13,7 +12,8 @@ import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 const INBOX: Array<{ id: string; name: string; avatar: string; last: string; time: string; unread: number; online: boolean }> = []
 
 export function InboxList() {
-  const { drillIntoTab, dispatch } = useAppStore(useShallow(s => ({ drillIntoTab: s.drillIntoTab, dispatch: s.dispatch })))
+  const drillIntoTab = useAppStore(s => s.drillIntoTab)
+  const dispatch = useAppStore(s => s.dispatch)
   return (
     <div className="flex-1 flex flex-col bg-paper overflow-hidden h-full">
       <div className="px-5 pt-4 pb-3 border-b border-line flex items-center justify-between shrink-0">
@@ -90,16 +90,24 @@ export function InboxScreen() {
 
 /* ─── Me Screen (Profile) ─── */
 export function MeScreen() {
-  const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
+  const user = useAppStore(s => s.user)
+  const isC = useAppStore(s => s.isCreator)
+  const hasCreatorProfile = useAppStore(s => s.hasCreatorProfile)
+  const creatorBookingsCount = useAppStore(s => s.creatorBookings.length)
+  const lastBooking = useAppStore(s => s.lastBooking)
+  const savedCount = useAppStore(s => s.saved.length)
+  const supabaseUserId = useAppStore(s => s.supabaseUserId)
+  const selectedCreatorId = useAppStore(s => s.selectedCreatorId)
+  const dispatch = useAppStore(s => s.dispatch)
+
   const [copied, setCopied] = useState(false)
   const [showCreatorModal, setShowCreatorModal] = useState(false)
   useBodyScrollLock(showCreatorModal)
-  const u = state.user ?? {}
-  const name: string = (u as any).name || (state.isCreator ? 'Creator' : 'Client')
+  const u = user ?? {}
+  const name: string = (u as any).name || (isC ? 'Creator' : 'Client')
   const handle: string = (u as any).handle || `@${name.toLowerCase().replace(/\s+/g, '')}`
   const city: string = (u as any).city || 'Delhi NCR'
   const locality: string = (u as any).locality || ''
-  const isC = state.isCreator
 
   const copyBookingLink = async () => {
     const link = `https://ftc.app/${handle.replace(/^@/, '')}`
@@ -119,11 +127,11 @@ export function MeScreen() {
     dispatch({ type: 'START_CREATOR_ONBOARD', origin: 'me' })
   }
 
-  const bookingCount = isC ? state.creatorBookings.length : state.lastBooking ? 1 : 0
+  const bookingCount = isC ? creatorBookingsCount : lastBooking ? 1 : 0
 
   const clientMenu = [
     { icon: CalendarCheck, label: 'My Bookings',    sub: bookingCount > 0 ? `${bookingCount} active booking` : 'No upcoming bookings', s: 'bookings' },
-    { icon: Bookmark,      label: 'Saved Creators', sub: `${state.saved.length} creators saved`,       s: 'saved' },
+    { icon: Bookmark,      label: 'Saved Creators', sub: `${savedCount} creators saved`,       s: 'saved' },
     { icon: Bell,          label: 'Notifications',  sub: 'Account & booking updates',              s: 'notifications' },
     { icon: MessageCircle, label: 'Messages',       sub: 'Client chats & custom quotes',           s: 'inbox' },
     { icon: Star,          label: 'My Reviews',     sub: 'Reviews you\'ve submitted',              s: 'reviews' },
@@ -147,7 +155,7 @@ export function MeScreen() {
   const menu = isC ? creatorMenu : clientMenu
   const stats = isC
     ? [[String(bookingCount), 'Jobs'], [bookingCount > 0 ? '4.9' : '5.0', 'Rating'], [String(bookingCount), 'Reviews']]
-    : [[String(bookingCount), 'Bookings'], [String(state.saved.length), 'Saved'], [String(bookingCount), 'Reviews']]
+    : [[String(bookingCount), 'Bookings'], [String(savedCount), 'Saved'], [String(bookingCount), 'Reviews']]
 
   const go = (s: string) => dispatch(s === 'inbox' ? { type: 'GO_TAB', tab: 'inbox', viaMenu: true } : { type: 'GO', screen: s as any })
 
@@ -171,7 +179,7 @@ export function MeScreen() {
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                {state.hasCreatorProfile ? (
+                {hasCreatorProfile ? (
                   <button
                     onClick={() => {
                       dispatch({ type: 'SET_ROLE', isCreator: !isC })
@@ -245,7 +253,7 @@ export function MeScreen() {
                     <button
                       type="button"
                       onClick={() => {
-                        const activeCid = state.supabaseUserId || state.selectedCreatorId
+                        const activeCid = supabaseUserId || selectedCreatorId
                         if (activeCid) {
                           dispatch({ type: 'OPEN_CREATOR', id: activeCid })
                         }
@@ -308,7 +316,7 @@ export function MeScreen() {
           {/* Account Footer & Log Out */}
           <div className="mt-8 pt-6 border-t border-line flex flex-col sm:flex-row items-center justify-between gap-4 pb-8">
             <div className="flex flex-wrap items-center gap-2.5">
-              {state.hasCreatorProfile && (
+              {hasCreatorProfile && (
                 <>
                   <button
                     onClick={() => dispatch({ type: 'SET_ROLE', isCreator: !isC })}
@@ -316,11 +324,11 @@ export function MeScreen() {
                   >
                     <Sparkles size={14} /> {isC ? 'Switch to Client Mode' : 'Switch to Creator Mode'}
                   </button>
-                  {isC && state.supabaseUserId && (
+                  {isC && supabaseUserId && (
                     <button
                       onClick={() => {
-                        if (state.supabaseUserId) {
-                          dispatch({ type: 'OPEN_CREATOR', id: state.supabaseUserId })
+                        if (supabaseUserId) {
+                          dispatch({ type: 'OPEN_CREATOR', id: supabaseUserId })
                         }
                       }}
                       className="tap px-4 py-2.5 rounded-xl bg-paper border border-line text-[12.5px] font-semibold text-obsidian hover:bg-bone transition flex items-center gap-1.5 cursor-pointer shadow-xs"
@@ -331,7 +339,7 @@ export function MeScreen() {
                   )}
                 </>
               )}
-              {!state.hasCreatorProfile && (
+              {!hasCreatorProfile && (
                 <button
                   onClick={() => setShowCreatorModal(true)}
                   className="tap px-4 py-2.5 rounded-xl bg-acid text-obsidian text-[12.5px] font-semibold flex items-center gap-1.5 shadow-sm hover:bg-acid/90"
@@ -592,7 +600,8 @@ export function OnboardKycScreen() {
 }
 
 export function FiltersScreen() {
-  const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
+  const filters = useAppStore(s => s.filters)
+  const dispatch = useAppStore(s => s.dispatch)
   return (
     <div className="flex-1 flex flex-col bg-paper overflow-hidden">
       <div className="px-5 pt-4 pb-3 border-b border-line flex items-center justify-between">
@@ -607,7 +616,7 @@ export function FiltersScreen() {
             <button
               key={d}
               onClick={() => dispatch({ type: 'SET_FILTER', patch: { discipline: d } })}
-              className={cn('tap px-3.5 py-2 rounded-xl text-[12.5px] font-medium border transition', state.filters.discipline === d ? 'bg-obsidian text-paper border-obsidian' : 'bg-bone border-line')}
+              className={cn('tap px-3.5 py-2 rounded-xl text-[12.5px] font-medium border transition', filters.discipline === d ? 'bg-obsidian text-paper border-obsidian' : 'bg-bone border-line')}
             >
               {d}
             </button>

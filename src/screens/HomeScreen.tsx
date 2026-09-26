@@ -1,35 +1,28 @@
-import { useEffect, useState } from 'react'
-import { Heart, Bell, Search, SlidersHorizontal, ChevronRight, MessageCircle, ArrowRight, ShieldCheck, Sparkles } from 'lucide-react'
+import { Heart, Bell, Search, SlidersHorizontal, ChevronRight, MessageCircle, ArrowRight, ShieldCheck } from 'lucide-react'
 import { CreatorCardLarge } from '@/components/creator/CreatorCardLarge'
-import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { DISCIPLINE_CONFIG } from '@/data/creators'
 import { inr } from '@/data/constants'
 import { CreatorPipelineHome } from './CreatorPipelineHome'
-import { apiClient } from '@/services/apiClient'
+import { useHomeCreators } from '@/hooks/useCreators'
 import type { Creator } from '@/types/bindings'
 
 export function HomeScreen() {
-  const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
-  const [creators, setCreators] = useState<Creator[]>([])
-  const [loading, setLoading] = useState(true)
+  const isCreator = useAppStore(s => s.isCreator)
+  const campaigns = useAppStore(s => s.campaigns)
+  const userName = useAppStore(s => s.user?.name)
+  const savedCount = useAppStore(s => s.saved.length)
+  const lastBooking = useAppStore(s => s.lastBooking)
+  const dispatch = useAppStore(s => s.dispatch)
 
-  useEffect(() => {
-    setLoading(true)
-    apiClient.getCreators()
-      .then(setCreators)
-      .catch(err => {
-        console.warn('[HomeScreen] Failed to load creators:', err)
-        setCreators([])
-      })
-      .finally(() => setLoading(false))
-  }, [])
+  const { data: creatorsData, isLoading: loading } = useHomeCreators(!isCreator)
+  const creators = (creatorsData as Creator[]) ?? []
 
-  if (state.isCreator) return <CreatorPipelineHome />
+  if (isCreator) return <CreatorPipelineHome />
 
   const featured = creators
   const rising = creators.slice(0, 4)
-  const liveCampaigns = state.campaigns.slice(0, 3)
+  const liveCampaigns = campaigns.slice(0, 3)
 
   return (
     <div className="flex-1 flex flex-col bg-paper overflow-hidden">
@@ -37,15 +30,15 @@ export function HomeScreen() {
         <div>
           <div className="text-[11px] font-mono uppercase tracking-[0.14em] text-obsidian/50">Mumbai · Thursday</div>
           <div className="font-display text-xl tracking-tight mt-0.5">
-            Good morning, <span className="italic">{state.user?.name ? state.user.name.split(' ')[0] : 'there'}</span>.
+            Good morning, <span className="italic">{userName ? userName.split(' ')[0] : 'there'}</span>.
           </div>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => dispatch({ type: 'GO', screen: 'saved' })} className="tap w-10 h-10 rounded-full border border-line grid place-items-center relative">
             <Heart size={18} />
-            {state.saved.length > 0 && (
+            {savedCount > 0 && (
               <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-acid text-obsidian text-[9px] font-bold rounded-full grid place-items-center">
-                {state.saved.length}
+                {savedCount}
               </span>
             )}
           </button>
@@ -90,7 +83,7 @@ export function HomeScreen() {
 
         {/* Active Booking Banner / Explore Banner */}
         <div className="px-5 mb-8">
-          {state.lastBooking ? (
+          {lastBooking ? (
             <div className="rounded-3xl bg-obsidian text-paper p-5 relative overflow-hidden shadow-md">
               <div className="absolute top-0 right-0 w-40 h-40 dots-acid opacity-20 pointer-events-none" style={{ transform: 'translate(25%, -25%)' }} />
               <div className="relative">
@@ -98,13 +91,13 @@ export function HomeScreen() {
                   <div className="w-1.5 h-1.5 rounded-full bg-acid animate-pulse" />
                   Upcoming Confirmed Booking
                 </div>
-                <div className="font-display text-2xl tracking-tight">{state.lastBooking.projectType} with {state.lastBooking.clientName}</div>
-                <div className="text-[12px] text-paper/70 mt-1">{state.lastBooking.date} · {inr(state.lastBooking.price)}</div>
+                <div className="font-display text-2xl tracking-tight">{lastBooking.projectType} with {lastBooking.clientName}</div>
+                <div className="text-[12px] text-paper/70 mt-1">{lastBooking.date} · {inr(lastBooking.price)}</div>
                 <div className="flex items-center gap-3 mt-5">
-                  <img src={state.lastBooking.clientAvatar} className="w-10 h-10 rounded-full object-cover border-2 border-paper" alt="" />
+                  <img src={lastBooking.clientAvatar} className="w-10 h-10 rounded-full object-cover border-2 border-paper" alt="" />
                   <div className="flex-1 flex gap-2">
                     <button
-                      onClick={() => { dispatch({ type: 'OPEN_CLIENT_CHAT', client: { name: state.lastBooking!.clientName, avatar: state.lastBooking!.clientAvatar } }) }}
+                      onClick={() => { dispatch({ type: 'OPEN_CLIENT_CHAT', client: { name: lastBooking.clientName, avatar: lastBooking.clientAvatar } }) }}
                       className="tap flex-1 py-2.5 rounded-xl bg-paper/10 text-paper text-[12px] font-medium flex items-center justify-center gap-1 hover:bg-paper/15 transition cursor-pointer"
                     >
                       <MessageCircle size={13} /> Message
@@ -238,30 +231,6 @@ export function HomeScreen() {
             </div>
           </div>
         )}
-
-        {/* Creator CTA */}
-        <div className="px-5 mb-6">
-          <button
-            onClick={() => dispatch(state.hasCreatorProfile ? { type: 'SET_ROLE', isCreator: true } : { type: 'GO', screen: 'creatorOnboard1' })}
-            className="tap w-full p-5 rounded-3xl bg-acid relative overflow-hidden text-left shadow-sm"
-          >
-            <div className="absolute top-0 right-0 w-40 h-40 dots-obsidian opacity-30 pointer-events-none" style={{ transform: 'translate(25%, -25%)' }} />
-            <div className="relative flex items-center gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-obsidian grid place-items-center">
-                <Sparkles size={26} className="text-acid" />
-              </div>
-              <div className="flex-1">
-                <div className="font-display text-xl tracking-tight">Are you a <span className="italic">creator?</span></div>
-                <div className="text-[12px] text-obsidian/70">
-                  {state.hasCreatorProfile
-                    ? 'Switch to creator view — manage your pipeline, quotes & calendar.'
-                    : 'Join FTC as a verified creator — list packages & earn directly.'}
-                </div>
-              </div>
-              <ChevronRight size={18} />
-            </div>
-          </button>
-        </div>
       </div>
     </div>
   )
