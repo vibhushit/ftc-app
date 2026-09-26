@@ -130,8 +130,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const currentScreen = useAppStore.getState().screen
         const liveHash = typeof window !== 'undefined' ? window.location.hash : ''
         const liveSearch = typeof window !== 'undefined' ? window.location.search : ''
-        const hasLiveRecoveryToken = liveHash.includes('type=recovery') || liveHash.includes('#reset') || liveSearch.includes('code=')
-        if (currentScreen === 'resetPassword' || hasLiveRecoveryToken) {
+        const hasLiveRecoveryToken = liveHash.includes('type=recovery') ||
+          liveHash.includes('#reset') ||
+          liveHash.includes('type=signup') ||
+          liveHash.includes('type=magiclink') ||
+          liveHash.includes('type=invite') ||
+          (liveHash.includes('access_token=') && !liveHash.includes('error=')) ||
+          liveSearch.includes('code=')
+
+        if (currentScreen === 'resetPassword' || hasLiveRecoveryToken || isRecoveryHash) {
           return
         }
         syncUser(session.user.id, session.user)
