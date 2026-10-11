@@ -65,7 +65,7 @@ export async function getMyJobs(status?: BookingRow['status'][]): Promise<Bookin
   let q = (supabase.from('bookings') as any)
     .select('*, consumer:consumer_id(id, name, avatar_url), service:service_id(name, price, duration)')
     .eq('creator_id', user.id)
-    .order('session_date', { ascending: true, nullsFirst: false })
+    .order('created_at', { ascending: false })
 
   if (status?.length) q = q.in('status', status)
 

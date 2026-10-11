@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import {
-  Check, Lock, FileText, Upload, MessageCircle,
+  Check, Lock, MessageCircle,
   KeyRound, Clock, XCircle, AlertCircle, RefreshCw
 } from 'lucide-react'
 import { SimpleHeader } from '@/components/ui/SimpleHeader'
@@ -17,6 +17,48 @@ function depositInfo(price: number) {
     : { full: false, pct: 30, advance: Math.round(price * 0.3), balance: Math.round(price * 0.7) }
 }
 
+function calcRemainingSla(createdAtStr?: string, expiresAtStr?: string) {
+  let expiryMs: number | null = null
+  if (expiresAtStr) {
+    const t = new Date(expiresAtStr).getTime()
+    if (!isNaN(t)) expiryMs = t
+  }
+  if (!expiryMs && createdAtStr) {
+    const t = new Date(createdAtStr).getTime()
+    if (!isNaN(t)) expiryMs = t + 24 * 60 * 60 * 1000
+  }
+  if (!expiryMs) {
+    expiryMs = Date.now() + 24 * 60 * 60 * 1000
+  }
+
+  const diffMs = expiryMs - Date.now()
+  if (diffMs <= 0) {
+    return { expired: true, hours: 0, minutes: 0 }
+  }
+  const totalMinutes = Math.floor(diffMs / (1000 * 60))
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  return { expired: false, hours, minutes }
+}
+
+function formatDateTime(isoString?: string | null) {
+  if (!isoString) return null
+  try {
+    const d = new Date(isoString)
+    if (isNaN(d.getTime())) return null
+    return d.toLocaleString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    })
+  } catch {
+    return null
+  }
+}
+
 const BOOKING_STAGES = [
   'Requested', 'Confirmed', 'In Progress', 'Completed'
 ]
@@ -25,8 +67,6 @@ export function BookingDetailScreen() {
   const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
   const { showSuccess, showError } = useToast()
   const b = ((state.viewBooking ?? state.lastBooking) as unknown as Record<string, unknown> | null)
-
-  const [invoiceSaved, setInvoiceSaved] = useState(false)
 
   // ─── OTP Generator State (Client-Side) ───────────────────────────────────
   const [activeOtp, setActiveOtp] = useState<string | null>(null)
@@ -40,6 +80,16 @@ export function BookingDetailScreen() {
   const [cancelReason, setCancelReason] = useState<string>('')
   const [cancelling, setCancelling] = useState(false)
 
+  // ─── 24h SLA Countdown State ─────────────────────────────────────────────
+  const bStatus = (b?.status as string) || 'pending'
+  const isPending = bStatus === 'pending' || bStatus === 'pending_approval'
+  const createdAtStr = (b?.created_at as string) || (b?.createdAt as string) || ''
+  const expiresAtStr = (b?.request_expires_at as string) || (b?.requestExpiresAt as string) || ''
+
+  const [remaining, setRemaining] = useState<{ expired: boolean; hours: number; minutes: number } | null>(() => {
+    return isPending ? calcRemainingSla(createdAtStr, expiresAtStr) : null
+  })
+
   // Live countdown ticker for cooldown
   useEffect(() => {
     if (cooldownSecs <= 0) return
@@ -48,6 +98,19 @@ export function BookingDetailScreen() {
     }, 1000)
     return () => clearInterval(timer)
   }, [cooldownSecs])
+
+  // Live countdown ticker for 24h confirmation SLA
+  useEffect(() => {
+    if (!isPending) {
+      setRemaining(null)
+      return
+    }
+    setRemaining(calcRemainingSla(createdAtStr, expiresAtStr))
+    const timer = setInterval(() => {
+      setRemaining(calcRemainingSla(createdAtStr, expiresAtStr))
+    }, 30000)
+    return () => clearInterval(timer)
+  }, [createdAtStr, expiresAtStr, isPending])
 
   if (!b) {
     return (
@@ -72,7 +135,8 @@ export function BookingDetailScreen() {
 
   const bookingId = String(b.id)
   const creatorName = (b.creatorName as string) || (b.creator_name as string) || (b.clientName as string) || 'Creator'
-  const creatorAvatar = (b.creatorAvatar as string) || (b.creator_avatar as string) || (b.clientAvatar as string) || ''
+  const rawAvatar = (b.creatorAvatar as string) || (b.creator_avatar as string) || (b.clientAvatar as string) || (b.creator as any)?.avatar_url || ''
+  const creatorAvatar = (rawAvatar.includes('picsum.photos') || rawAvatar.includes('photo-1534528741775')) ? '' : rawAvatar
   const base = typeof b.total === 'number' ? b.total : (typeof b.price === 'number' ? b.price : (typeof b.total_price === 'number' ? b.total_price : 0))
   const platform = Math.max(99, Math.round(base * 0.05))
   const total = base + platform
@@ -81,6 +145,10 @@ export function BookingDetailScreen() {
   const curStage = status === 'completed' ? 3 : status === 'in_progress' ? 2 : status === 'confirmed' ? 1 : 0
   const locLabel = b.locType === 'studio' || b.location_type === 'studio' ? 'Creator studio' : b.locType === 'local' || b.location_type === 'local' ? 'Client venue (Local)' : 'Outstation destination'
   const currentNotes = (b.notes as string) || (b.client_notes as string) || (b.clientNotes as string) || ''
+  const createdRaw = (b.created_at as string) || (b.createdAt as string) || ''
+  const confirmedRaw = (b.confirmed_at as string) || (b.confirmedAt as string) || ''
+  const createdFormatted = formatDateTime(createdRaw)
+  const confirmedFormatted = formatDateTime(confirmedRaw)
 
   // ─── Actions ─────────────────────────────────────────────────────────────
   const handleGenerateOtp = async () => {
@@ -160,6 +228,43 @@ export function BookingDetailScreen() {
               </span>
             </div>
 
+            {/* 24-Hour Confirmation SLA Countdown Banner */}
+            {isPending && remaining && (
+              <div className={cn(
+                "mb-4 p-4 rounded-2xl border flex items-start gap-3.5 shadow-xs transition-all",
+                remaining.expired
+                  ? "bg-rose-50 border-rose-200 text-rose-950"
+                  : "bg-amber-50/90 border-amber-200 text-amber-950"
+              )}>
+                <div className={cn(
+                  "w-9 h-9 rounded-xl grid place-items-center shrink-0 mt-0.5",
+                  remaining.expired ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-800"
+                )}>
+                  <Clock size={18} strokeWidth={2.5} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <span className="font-semibold text-[13.5px] tracking-tight">
+                      {remaining.expired ? 'Confirmation window expired' : 'Awaiting Creator Confirmation'}
+                    </span>
+                    <span className={cn(
+                      "font-mono text-[11.5px] font-bold px-2.5 py-0.5 rounded-full",
+                      remaining.expired
+                        ? "bg-rose-200 text-rose-800"
+                        : "bg-amber-200 text-amber-900"
+                    )}>
+                      {remaining.expired ? 'Window Expired' : `${remaining.hours}h ${remaining.minutes}m remaining`}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[12px] text-amber-900/80 leading-relaxed">
+                    {remaining.expired
+                      ? `The 24-hour response window for ${creatorName} has ended. You can cancel this request below to instantly release your escrow advance.`
+                      : `${creatorName} has 24 hours to confirm your booking. If unconfirmed within this window, your advance is automatically refunded.`}
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Status Timeline */}
             <Card title="Status timeline">
               <div className="pt-2">
@@ -235,9 +340,11 @@ export function BookingDetailScreen() {
             {/* Session Details */}
             <Card title="Session Details">
               <KV k="Package" v={(b.pkg as string) || (b.pkg_name as string) || 'Standard Session'} />
-              <KV k="Date & time" v={(b.when as string) || (b.date as string) || (b.date_time as string) || 'Scheduled'} />
+              <KV k="Shoot slot" v={(b.when as string) || (b.date as string) || (b.date_time as string) || 'Scheduled'} />
               <KV k="Location" v={locLabel} />
               <KV k="Booking ID" v={`#${bookingId}`} />
+              {createdFormatted && <KV k="Requested on" v={createdFormatted} />}
+              {confirmedFormatted && <KV k="Confirmed on" v={confirmedFormatted} />}
               {currentNotes && <KV k="Location / notes" v={currentNotes} />}
             </Card>
           </div>
@@ -265,15 +372,6 @@ export function BookingDetailScreen() {
               >
                 <MessageCircle size={16} /> Message {creatorName.split(' ')[0]}
               </button>
-
-              <div className="grid grid-cols-2 gap-2">
-                <button onClick={() => dispatch({ type: 'GO', screen: 'legal' })} className="tap py-3 px-3 rounded-xl bg-paper border border-line text-[12.5px] font-semibold flex items-center justify-center gap-1.5 hover:bg-bone transition">
-                  <FileText size={14} /> Contract
-                </button>
-                <button onClick={() => setInvoiceSaved(true)} className="tap py-3 px-3 rounded-xl bg-paper border border-line text-[12.5px] font-semibold flex items-center justify-center gap-1.5 hover:bg-bone transition">
-                  <Upload size={14} /> {invoiceSaved ? 'Saved ✓' : 'Invoice'}
-                </button>
-              </div>
 
               {/* Cancel Booking Action (Client) */}
               {status !== 'completed' && status !== 'cancelled' && (

@@ -330,7 +330,7 @@ export type AppAction =
   | { type: 'OPEN_CREATOR'; id: string }
   | { type: 'START_BOOKING'; draft: BookingDraft }
   | { type: 'CONFIRM_BOOKING'; booking: Booking }
-  | { type: 'OPEN_BOOKING'; booking: Booking }
+  | { type: 'OPEN_BOOKING'; booking: Booking; prevScreen?: Screen }
   | { type: 'SET_LOCATION'; coords: [number, number] }
   | { type: 'DENY_LOCATION' }
   | { type: 'OPEN_CLIENT_CHAT'; client: { name: string; avatar: string } }

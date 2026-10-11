@@ -24,7 +24,7 @@ function dbToCreatorFull(db: CreatorWithUser): Creator {
     subSkills:    db.sub_skills,
     city:         db.city,
     area:         db.area,
-    avatar:       db.users.avatar_url ?? pic(db.users.name + '-av', 200, 200),
+    avatar:       db.users.avatar_url || '',
     portfolio:    db.portfolio_urls?.length
                     ? db.portfolio_urls
                     : [pic(db.users.name + '-1', 1200, 1500), pic(db.users.name + '-2', 1200, 1200)],
@@ -86,7 +86,7 @@ export function CreatorDetailScreen() {
       subSkills: ob.subSkills?.length ? ob.subSkills : ['Commercial', 'Editorial'],
       city: ob.city || state.user.city || 'Delhi',
       area: ob.area || '',
-      avatar: (state.user as any).avatar || pic(state.user.name + '-av', 200, 200),
+      avatar: (state.user as any).avatar || '',
       portfolio: ob.portfolio?.length ? ob.portfolio : [pic('my-1', 1200, 1500), pic('my-2', 1200, 1200)],
       rating: 5.0,
       reviews: 0,

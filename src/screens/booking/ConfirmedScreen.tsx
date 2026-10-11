@@ -1,4 +1,4 @@
-import { Check, Calendar, Download, Clock, ExternalLink } from 'lucide-react'
+import { Check, Calendar, Download, Clock, ExternalLink, X } from 'lucide-react'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { useCreator } from '@/hooks/useCreators'
@@ -35,7 +35,8 @@ export function ConfirmedScreen() {
 
   const bookingId = String(lb.id)
   const creatorName = (lb.creatorName as string) || dbCreator?.users?.name || 'Creator'
-  const creatorAvatar = (lb.creatorAvatar as string) || dbCreator?.users?.avatar_url || ''
+  const rawAvatar = (lb.creatorAvatar as string) || dbCreator?.users?.avatar_url || ''
+  const creatorAvatar = (rawAvatar.includes('picsum.photos') || rawAvatar.includes('photo-1534528741775')) ? '' : rawAvatar
   const creatorArea = dbCreator?.area || 'Studio'
   const totalAmt = typeof lb.total === 'number' ? lb.total : (typeof lb.price === 'number' ? lb.price : 0)
   const dep = depositInfo(totalAmt)
@@ -80,7 +81,22 @@ export function ConfirmedScreen() {
   return (
     <div className="flex-1 flex flex-col bg-obsidian text-paper relative overflow-hidden">
       <div className="absolute top-20 right-0 w-80 h-80 dots-acid opacity-20 pointer-events-none" style={{ transform: 'translateX(30%)' }} />
-      <div className="app-scroll relative flex-1 flex flex-col items-center justify-center px-6 py-10 text-center">
+
+      {/* Top Header with Close Button */}
+      <div className="relative z-10 flex items-center justify-between px-5 pt-4 pb-1 shrink-0">
+        <div className="text-[11px] font-mono tracking-widest uppercase text-paper/40">
+          Booking Status
+        </div>
+        <button
+          onClick={() => dispatch({ type: 'GO_TAB', tab: 'home' })}
+          className="tap w-9 h-9 rounded-full bg-paper/10 hover:bg-paper/20 text-paper/80 hover:text-paper grid place-items-center transition"
+          aria-label="Close and return home"
+        >
+          <X size={18} />
+        </button>
+      </div>
+
+      <div className="app-scroll relative flex-1 flex flex-col items-center justify-center px-6 py-6 text-center">
         <div className="w-20 h-20 rounded-full bg-acid grid place-items-center mb-5">
           {isPending ? (
             <Clock size={38} className="text-obsidian" strokeWidth={2.5} />
@@ -152,7 +168,7 @@ export function ConfirmedScreen() {
       {/* Clean Bottom Navigation Buttons */}
       <div className="relative px-6 pb-8 pt-3 space-y-2 shrink-0 bg-obsidian border-t border-paper/10 max-w-sm w-full mx-auto">
         <button
-          onClick={() => dispatch({ type: 'OPEN_BOOKING', booking: lb as any })}
+          onClick={() => dispatch({ type: 'OPEN_BOOKING', booking: lb as any, prevScreen: 'bookings' })}
           className="tap w-full py-3.5 rounded-2xl bg-acid text-obsidian font-semibold text-[14px] hover:opacity-90 transition shadow-xs"
         >
           View Booking Details

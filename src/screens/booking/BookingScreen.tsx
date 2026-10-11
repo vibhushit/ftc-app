@@ -43,7 +43,8 @@ export function BookingScreen() {
   // Prioritize real creator avatar and name from the booking draft
   const creatorId = (draft.creatorId as string) || dbCreator?.id || state.selectedCreatorId || ''
   const creatorName = (draft.creatorName as string) || dbCreator?.users?.name || 'Creator'
-  const creatorAvatar = (draft.creatorAvatar as string) || dbCreator?.users?.avatar_url || ''
+  const rawAvatar = (draft.creatorAvatar as string) || dbCreator?.users?.avatar_url || ''
+  const creatorAvatar = (rawAvatar.includes('picsum.photos') || rawAvatar.includes('photo-1534528741775')) ? '' : rawAvatar
   const creatorArea = dbCreator?.area || (draft.location as string) || 'Studio'
   const creatorCity = dbCreator?.city || ''
   const travelMode = dbCreator?.travel_mode || 'both'
@@ -102,6 +103,7 @@ export function BookingScreen() {
         booking: {
           ...createdBooking,
           id: createdBooking.id,
+          created_at: createdBooking.created_at || new Date().toISOString(),
           cid: creatorId,
           creatorName,
           creatorAvatar,

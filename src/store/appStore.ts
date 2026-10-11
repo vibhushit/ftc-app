@@ -60,7 +60,13 @@ function reduce(state: AppState, action: AppAction): AppState {
       if (state.screen === 'creatorOnboardReview') {
         return { ...state, screen: 'me', activeTab: 'me', prevScreen: null, drillIntoTab: false }
       }
-      return { ...state, screen: state.prevScreen ?? TAB_SCREENS[state.activeTab], prevScreen: null, drillIntoTab: false }
+      {
+        const fallback = TAB_SCREENS[state.activeTab] || 'home'
+        const prev = (state.prevScreen === 'confirmed' || state.prevScreen === 'booking')
+          ? (state.screen === 'bookingDetail' ? 'bookings' : fallback)
+          : (state.prevScreen ?? fallback)
+        return { ...state, screen: prev, prevScreen: null, drillIntoTab: false }
+      }
     case 'OPEN_CREATOR':
       return { ...state, prevScreen: state.screen, screen: 'creator', selectedCreatorId: action.id, selectedClient: null }
     case 'START_BOOKING':
@@ -68,7 +74,7 @@ function reduce(state: AppState, action: AppAction): AppState {
     case 'CONFIRM_BOOKING':
       return { ...state, prevScreen: state.screen, screen: 'confirmed', lastBooking: action.booking }
     case 'OPEN_BOOKING':
-      return { ...state, prevScreen: state.screen, screen: 'bookingDetail', viewBooking: action.booking }
+      return { ...state, prevScreen: action.prevScreen ?? state.screen, screen: 'bookingDetail', viewBooking: action.booking }
     case 'SET_LOCATION':
       return { ...state, userLoc: action.coords, locPerm: 'granted' }
     case 'DENY_LOCATION':

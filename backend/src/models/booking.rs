@@ -24,6 +24,10 @@ pub struct Booking {
     pub request_expires_at: Option<String>,
     #[serde(default)]
     pub client_notes: Option<String>,
+    #[serde(default)]
+    pub created_at: Option<String>,
+    #[serde(default)]
+    pub confirmed_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

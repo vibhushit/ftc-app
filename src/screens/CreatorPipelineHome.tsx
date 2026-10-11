@@ -1,14 +1,16 @@
 import { useState } from 'react'
 import {
   Clock, Plus, Bell, Check, X,
-  AlertCircle, KeyRound, ShieldAlert, LifeBuoy
+  AlertCircle, KeyRound, ShieldAlert, LifeBuoy, Loader2
 } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useAppStore } from '@/store/appStore'
 import { inr } from '@/data/constants'
 import { CRM_TABS, CRM_EMPTY } from '@/data/constants'
 import { cn } from '@/utils'
 import { apiClient } from '@/services/apiClient'
 import { useToast } from '@/components/ui/ToastNotification'
+import { useMyJobs } from '@/hooks/useBookings'
 
 function getTimeRemaining(expiresAt?: string): string {
   if (!expiresAt) return '24h SLA active'
@@ -20,11 +22,14 @@ function getTimeRemaining(expiresAt?: string): string {
 }
 
 export function CreatorPipelineHome() {
+  const qc = useQueryClient()
   const crmTab = useAppStore(s => s.crmTab)
   const creatorBookings = useAppStore(s => s.creatorBookings)
   const trustScore = useAppStore(s => s.user?.trustScore)
   const dispatch = useAppStore(s => s.dispatch)
   const { showSuccess, showError } = useToast()
+
+  const { data: dbJobs, isLoading } = useMyJobs()
 
   const tab = crmTab || 'pending_approval'
   const [processingId, setProcessingId] = useState<string | null>(null)
@@ -36,20 +41,34 @@ export function CreatorPipelineHome() {
   const [verifyError, setVerifyError] = useState<string | null>(null)
   const [isLockedOut, setIsLockedOut] = useState<boolean>(false)
 
-  const pendingRequests = creatorBookings.filter(b => b.status === 'pending_approval' || b.status === 'pending')
+  // Live Supabase jobs merged with fallback
+  const allJobs: any[] = (dbJobs && dbJobs.length > 0) ? dbJobs : creatorBookings
+
+  const pendingRequests = allJobs.filter((b: any) => b.status === 'pending_approval' || b.status === 'pending')
   const jobs = tab === 'pending_approval'
     ? pendingRequests
-    : creatorBookings.filter(b => b.status === tab)
-  const revenue = creatorBookings.filter(b => b.status === 'completed').reduce((a, b) => a + b.price, 0)
-  const payout = creatorBookings
-    .filter(b => b.status === 'pending' || b.status === 'upcoming' || b.status === 'pending_approval')
-    .reduce((a, b) => a + (b.price - b.advancePaid), 0)
+    : tab === 'upcoming'
+      ? allJobs.filter((b: any) => b.status === 'upcoming' || b.status === 'confirmed' || b.status === 'in_progress')
+      : allJobs.filter((b: any) => b.status === tab)
+
+  const revenue = allJobs
+    .filter((b: any) => b.status === 'completed')
+    .reduce((a: number, b: any) => a + (b.total_price ?? b.price ?? 0), 0)
+
+  const payout = allJobs
+    .filter((b: any) => b.status === 'pending' || b.status === 'upcoming' || b.status === 'confirmed' || b.status === 'in_progress')
+    .reduce((a: number, b: any) => {
+      const total = b.total_price ?? b.price ?? 0
+      const adv = b.advance_amount ?? b.advancePaid ?? Math.round(total * 0.3)
+      return a + (total - adv)
+    }, 0)
 
   const handleAccept = async (e: React.MouseEvent, bookingId: string) => {
     e.stopPropagation()
     setProcessingId(bookingId)
     try {
       await apiClient.acceptBooking(bookingId)
+      qc.invalidateQueries({ queryKey: ['bookings'] })
       dispatch({ type: 'UPDATE_CREATOR_BOOKING', id: bookingId, patch: { status: 'upcoming' } })
       showSuccess('Booking accepted! Calendar slot locked and advance held in escrow.')
     } catch (err: any) {
@@ -64,6 +83,7 @@ export function CreatorPipelineHome() {
     setProcessingId(bookingId)
     try {
       await apiClient.declineBooking(bookingId, 'Creator unavailable')
+      qc.invalidateQueries({ queryKey: ['bookings'] })
       dispatch({ type: 'UPDATE_CREATOR_BOOKING', id: bookingId, patch: { status: 'declined' } })
       showSuccess('Booking declined. Advance deposit released back to client.')
     } catch (err: any) {
@@ -82,6 +102,7 @@ export function CreatorPipelineHome() {
 
     try {
       await apiClient.verifyCompletionOtp(activeVerifyBooking.id, otpInput.trim())
+      qc.invalidateQueries({ queryKey: ['bookings'] })
       showSuccess('Completion code verified! Session completed and funds released.')
       dispatch({
         type: 'UPDATE_CREATOR_BOOKING',
@@ -137,7 +158,12 @@ export function CreatorPipelineHome() {
       <div className="border-b border-line">
         <div className="max-w-5xl mx-auto w-full px-5 flex gap-4 overflow-x-auto no-scrollbar shrink-0">
         {CRM_TABS.map(t => {
-          const count = t.key === 'pending_approval' ? pendingRequests.length : creatorBookings.filter(b => b.status === t.key).length
+          const count = t.key === 'pending_approval'
+            ? pendingRequests.length
+            : t.key === 'upcoming'
+              ? allJobs.filter((b: any) => b.status === 'upcoming' || b.status === 'confirmed' || b.status === 'in_progress').length
+              : allJobs.filter((b: any) => b.status === t.key).length
+
           const active = tab === t.key
           return (
             <button
@@ -166,7 +192,12 @@ export function CreatorPipelineHome() {
       {/* Jobs List */}
       <div className="flex-1 overflow-y-auto px-5 py-4 pb-28">
         <div className="max-w-5xl mx-auto w-full">
-        {jobs.length === 0 ? (
+        {isLoading ? (
+          <div className="py-16 text-center">
+            <Loader2 size={24} className="animate-spin text-iris mx-auto mb-2" />
+            <div className="text-[12px] text-obsidian/50 font-mono">Loading your pipeline…</div>
+          </div>
+        ) : jobs.length === 0 ? (
           <div className="py-16 text-center">
             <div className="w-12 h-12 rounded-full bg-bone grid place-items-center mx-auto mb-3 text-obsidian/30">
               <Clock size={20} />
@@ -184,6 +215,15 @@ export function CreatorPipelineHome() {
               const isPending = b.status === 'pending_approval' || b.status === 'pending'
               const isConfirmedOrActive = b.status === 'confirmed' || b.status === 'upcoming' || b.status === 'in_progress'
 
+              const clientName = b.consumer?.name || b.clientName || 'Client'
+              const clientAvatar = b.consumer?.avatar_url || b.clientAvatar || ''
+              const price = typeof b.total_price === 'number' ? b.total_price : (typeof b.price === 'number' ? b.price : 0)
+              const pkgName = b.service?.name || b.packageName || b.projectType || 'Standard Session'
+              const dateSlot = b.session_date ? `${b.session_date}${b.session_time ? ` · ${b.session_time}` : ''}` : (b.date || b.when || 'Scheduled')
+              const clientNotes = b.notes || b.clientNotes || ''
+              const requestExpiresAt = b.request_expires_at || b.requestExpiresAt
+              const advance = typeof b.advance_amount === 'number' ? b.advance_amount : (typeof b.advancePaid === 'number' ? b.advancePaid : Math.round(price * 0.3))
+
               return (
                 <div
                   key={b.id}
@@ -196,18 +236,24 @@ export function CreatorPipelineHome() {
                   )}
                 >
                   <div className="flex items-start gap-3">
-                    <img src={b.clientAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80'} className="w-12 h-12 rounded-xl object-cover shrink-0" alt="" />
+                    {clientAvatar ? (
+                      <img src={clientAvatar} className="w-12 h-12 rounded-xl object-cover shrink-0" alt="" />
+                    ) : (
+                      <div className="w-12 h-12 rounded-xl bg-obsidian text-paper font-semibold grid place-items-center text-sm shrink-0">
+                        {clientName.charAt(0)}
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
-                        <div className="font-semibold text-[14px]">{b.clientName}</div>
-                        <div className="font-mono text-[13px] font-bold text-obsidian">{inr(b.price)}</div>
+                        <div className="font-semibold text-[14px] truncate">{clientName}</div>
+                        <div className="font-mono text-[13px] font-bold text-obsidian">{inr(price)}</div>
                       </div>
-                      <div className="text-[12px] text-obsidian/70 mt-0.5 font-medium">
-                        {b.packageName || b.projectType || 'Standard Session'}
+                      <div className="text-[12px] text-obsidian/70 mt-0.5 font-medium truncate">
+                        {pkgName}
                       </div>
                       <div className="text-[11px] font-mono text-obsidian/50 mt-0.5 flex items-center gap-1.5">
                         <Clock size={11} className="text-iris" />
-                        <span>{b.date || b.when || 'Scheduled'}</span>
+                        <span>{dateSlot}</span>
                       </div>
                     </div>
                   </div>
@@ -215,19 +261,19 @@ export function CreatorPipelineHome() {
                   {/* Client Notes & SLA Urgency for Pending Requests */}
                   {isPending && (
                     <div className="mt-3 pt-3 border-t border-line space-y-2.5">
-                      {b.clientNotes && (
+                      {clientNotes && (
                         <div className="p-2.5 rounded-xl bg-bone border border-line text-[11.5px] text-obsidian/75 italic">
-                          "{b.clientNotes}"
+                          "{clientNotes}"
                         </div>
                       )}
 
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-1.5 text-[11px] font-mono text-rose-600 font-semibold bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-lg">
                           <AlertCircle size={12} className="text-rose-600" />
-                          <span>{getTimeRemaining(b.requestExpiresAt)}</span>
+                          <span>{getTimeRemaining(requestExpiresAt)}</span>
                         </div>
                         <div className="text-[11px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md font-semibold">
-                          {inr(b.advancePaid || Math.round(b.price * 0.3))} in Escrow
+                          {inr(advance)} in Escrow
                         </div>
                       </div>
 
@@ -287,7 +333,7 @@ export function CreatorPipelineHome() {
         <Plus size={22} />
       </button>
 
-      {/* ─── MODAL: Creator Enter Completion OTP ───────────────────────────── */}
+      {/* MODAL: Creator Enter Completion OTP */}
       {activeVerifyBooking && (
         <div className="fixed inset-0 z-50 bg-obsidian/40 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-paper rounded-2xl border border-line p-5 w-full max-w-md shadow-2xl">
@@ -295,7 +341,7 @@ export function CreatorPipelineHome() {
               <div>
                 <h3 className="font-display text-lg leading-tight">Verify Session Completion</h3>
                 <p className="text-[12px] text-obsidian/60 mt-0.5">
-                  Ask {activeVerifyBooking.clientName} for their 4-digit code.
+                  Ask {activeVerifyBooking.consumer?.name || activeVerifyBooking.clientName || 'Client'} for their 4-digit code.
                 </p>
               </div>
               <button

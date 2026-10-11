@@ -25,7 +25,7 @@ function dbToCreator(row: {
     subSkills: [],
     city: row.city,
     area: row.area,
-    avatar: row.avatar_url ?? pic((row.name || row.handle) + '-av', 200, 200),
+    avatar: row.avatar_url || '',
     portfolio: row.portfolio_urls?.length
       ? row.portfolio_urls
       : [

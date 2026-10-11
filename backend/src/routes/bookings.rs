@@ -57,6 +57,27 @@ fn resolve_user_id(headers: &HeaderMap) -> Option<String> {
 }
 
 // ─── 1. LIST BOOKINGS (REAL POSTGRESQL QUERY) ────────────────────────────────
+#[derive(sqlx::FromRow)]
+struct BookingListRow {
+    id: String,
+    creator_id: String,
+    creator_name: String,
+    creator_avatar: Option<String>,
+    client_name: String,
+    pkg_name: Option<String>,
+    session_date: Option<String>,
+    session_time: Option<String>,
+    status: String,
+    total_price: Option<i32>,
+    advance_amount: Option<i32>,
+    balance_amount: Option<i32>,
+    location_type: String,
+    request_expires_at: Option<String>,
+    client_notes: Option<String>,
+    created_at: Option<String>,
+    confirmed_at: Option<String>,
+}
+
 async fn list_bookings(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -69,29 +90,26 @@ async fn list_bookings(
     let user_id = resolve_user_id(&headers)
         .unwrap_or_else(|| "00000000-0000-0000-0000-000000000000".to_string());
 
-    let rows = sqlx::query_as::<_, (
-        String, String, String, Option<String>, String,
-        Option<String>, Option<String>, Option<String>,
-        String, Option<i32>, Option<i32>, Option<i32>,
-        String, Option<String>, Option<String>
-    )>(
+    let rows = sqlx::query_as::<_, BookingListRow>(
         r#"
         SELECT
-            b.id::text,
-            b.creator_id::text,
-            COALESCE(u_creator.name, 'Creator'),
-            u_creator.avatar_url,
-            COALESCE(u_consumer.name, 'Client'),
-            s.name,
-            b.session_date::text,
-            b.session_time::text,
-            b.status::text,
-            b.total_price::int,
-            b.advance_amount::int,
-            b.balance_amount::int,
-            COALESCE(b.location_type::text, 'studio'),
-            b.request_expires_at::text,
-            b.notes
+            b.id::text as id,
+            b.creator_id::text as creator_id,
+            COALESCE(u_creator.name, 'Creator') as creator_name,
+            u_creator.avatar_url as creator_avatar,
+            COALESCE(u_consumer.name, 'Client') as client_name,
+            s.name as pkg_name,
+            b.session_date::text as session_date,
+            b.session_time::text as session_time,
+            b.status::text as status,
+            b.total_price::int as total_price,
+            b.advance_amount::int as advance_amount,
+            b.balance_amount::int as balance_amount,
+            COALESCE(b.location_type::text, 'studio') as location_type,
+            b.request_expires_at::text as request_expires_at,
+            b.notes as client_notes,
+            b.created_at::text as created_at,
+            b.confirmed_at::text as confirmed_at
         FROM bookings b
         LEFT JOIN users u_creator ON u_creator.id = b.creator_id
         LEFT JOIN users u_consumer ON u_consumer.id = b.consumer_id
@@ -107,27 +125,29 @@ async fn list_bookings(
     .map_err(|e| AppError::InternalServerError(format!("Database query failed: {}", e)))?;
 
     let bookings = rows.into_iter().map(|r| {
-        let date_str = r.6.unwrap_or_default();
-        let time_str = r.7.unwrap_or_default();
+        let date_str = r.session_date.unwrap_or_default();
+        let time_str = r.session_time.unwrap_or_default();
         let date_time = format!("{} {}", date_str, time_str).trim().to_string();
 
         Booking {
-            id: r.0,
-            creator_id: r.1,
-            creator_name: r.2,
-            creator_avatar: r.3.unwrap_or_else(|| "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80".to_string()),
-            client_name: r.4,
-            pkg_name: r.5.unwrap_or_else(|| "Session".to_string()),
+            id: r.id,
+            creator_id: r.creator_id,
+            creator_name: r.creator_name,
+            creator_avatar: r.creator_avatar.unwrap_or_default(),
+            client_name: r.client_name,
+            pkg_name: r.pkg_name.unwrap_or_else(|| "Session".to_string()),
             date_time,
-            status: r.8,
-            price: r.9.unwrap_or(0).max(0) as u32,
-            deposit_amount: r.10.unwrap_or(0).max(0) as u32,
-            balance_amount: r.11.unwrap_or(0).max(0) as u32,
-            location_type: r.12,
+            status: r.status,
+            price: r.total_price.unwrap_or(0).max(0) as u32,
+            deposit_amount: r.advance_amount.unwrap_or(0).max(0) as u32,
+            balance_amount: r.balance_amount.unwrap_or(0).max(0) as u32,
+            location_type: r.location_type,
             start_time: None,
             end_time: None,
-            request_expires_at: r.13,
-            client_notes: r.14,
+            request_expires_at: r.request_expires_at,
+            client_notes: r.client_notes,
+            created_at: r.created_at,
+            confirmed_at: r.confirmed_at,
         }
     }).collect();
 
@@ -148,7 +168,7 @@ async fn request_booking(
                 id: format!("FTC-REQ-{}", &uuid::Uuid::new_v4().to_string()[..8]),
                 creator_id: payload.creator_id,
                 creator_name: "Test Creator".into(),
-                creator_avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80".into(),
+                creator_avatar: "".into(),
                 client_name: "You".into(),
                 pkg_name: payload.pkg_name,
                 date_time: payload.date_time,
@@ -161,6 +181,8 @@ async fn request_booking(
                 end_time: payload.end_time,
                 request_expires_at: Some(expires_at.to_rfc3339()),
                 client_notes: payload.client_notes,
+                created_at: Some(chrono::Utc::now().to_rfc3339()),
+                confirmed_at: None,
             }));
         }
     };
@@ -248,7 +270,7 @@ async fn request_booking(
         id: booking_id.to_string(),
         creator_id: payload.creator_id,
         creator_name,
-        creator_avatar: creator_avatar.unwrap_or_else(|| "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80".to_string()),
+        creator_avatar: creator_avatar.unwrap_or_default(),
         client_name: "You".into(),
         pkg_name: payload.pkg_name,
         date_time: payload.date_time,
@@ -261,6 +283,8 @@ async fn request_booking(
         end_time: payload.end_time,
         request_expires_at: Some(expires_at.to_rfc3339()),
         client_notes: payload.client_notes,
+        created_at: Some(chrono::Utc::now().to_rfc3339()),
+        confirmed_at: None,
     }))
 }
 
