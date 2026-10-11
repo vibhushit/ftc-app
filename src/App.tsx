@@ -27,6 +27,8 @@ import {
 } from '@/screens/StubScreens'
 import { cn } from '@/utils'
 import type { Tab, Screen } from '@/types'
+import { useToast } from '@/components/ui/ToastNotification'
+import type { ApiErrorEvent } from '@/services/apiClient'
 
 const TAB_SCREENS: Screen[] = ['home', 'discover', 'inbox', 'me']
 const WIDE_SCREENS: Screen[] = ['home', 'discover', 'inbox', 'me', 'saved', 'campaigns', 'creator', 'booking', 'bookingDetail', 'campaignDetail', 'bookings', 'compare', 'chat', 'calendar']
@@ -52,7 +54,24 @@ export function App() {
     dispatch: s.dispatch,
   })))
 
+  const { showError } = useToast()
   const isPublicScreen = PUBLIC_SCREENS.includes(screen)
+
+  // ─── Global Live API Error Listener ──────────────────────────────────────
+  useEffect(() => {
+    const handleApiError = (e: Event) => {
+      const customEvent = e as CustomEvent<ApiErrorEvent>
+      const detail = customEvent.detail
+      if (detail?.message) {
+        showError(detail.message, {
+          title: detail.status ? `Request Error (${detail.status})` : 'Network Error',
+        })
+      }
+    }
+
+    window.addEventListener('ftc_api_error', handleApiError)
+    return () => window.removeEventListener('ftc_api_error', handleApiError)
+  }, [showError])
 
   // ─── Route Guard: If unauthenticated visitor tries to access protected screens ───
   useEffect(() => {

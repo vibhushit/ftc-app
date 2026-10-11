@@ -1,16 +1,17 @@
-import { ArrowLeft, ChevronRight, Calendar } from 'lucide-react'
+import { ArrowLeft, ChevronRight, Calendar, Loader2 } from 'lucide-react'
 import { useAppStore } from '@/store/appStore'
 import { useShallow } from 'zustand/shallow'
+import { useMyBookings } from '@/hooks/useBookings'
 import { cn } from '@/utils'
 import { pic } from '@/data/constants'
 
 export function BookingsScreen() {
   const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
-  const bookings = state.creatorBookings.length > 0
-    ? state.creatorBookings
-    : state.lastBooking
-      ? [state.lastBooking]
-      : []
+  const { data: dbBookings, isLoading, error } = useMyBookings()
+
+  const bookings = dbBookings && dbBookings.length > 0
+    ? dbBookings
+    : (state.lastBooking ? [state.lastBooking] : [])
 
   return (
     <div className="flex-1 flex flex-col bg-bone overflow-hidden min-h-0">
@@ -20,7 +21,26 @@ export function BookingsScreen() {
         <div className="w-8" />
       </div>
 
-      {bookings.length === 0 ? (
+      {isLoading ? (
+        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-paper">
+          <Loader2 size={24} className="animate-spin text-iris mb-2" />
+          <p className="text-[12px] text-obsidian/50 font-mono">Loading your bookings…</p>
+        </div>
+      ) : error ? (
+        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-paper">
+          <div className="text-3xl mb-2">⚠️</div>
+          <h2 className="font-display text-lg mb-1">Failed to load bookings</h2>
+          <p className="text-[12px] text-obsidian/60 max-w-xs mb-4">
+            Could not retrieve your bookings from the server. Please check connection.
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="tap px-4 py-2 rounded-xl bg-obsidian text-paper text-[12px] font-semibold"
+          >
+            Retry
+          </button>
+        </div>
+      ) : bookings.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-paper">
           <div className="w-16 h-16 rounded-full bg-bone grid place-items-center mb-4 text-obsidian/40">
             <Calendar size={28} />
@@ -43,7 +63,9 @@ export function BookingsScreen() {
               ? { cls: 'bg-iris text-paper', t: 'Confirmed' }
               : b.status === 'pending_approval' || b.status === 'pending'
                 ? { cls: 'bg-acid text-obsidian', t: 'Awaiting creator' }
-                : { cls: 'bg-bone border border-line text-obsidian/70', t: 'Completed' }
+                : b.status === 'cancelled'
+                  ? { cls: 'bg-rose-50 border border-rose-200 text-rose-700', t: 'Cancelled' }
+                  : { cls: 'bg-bone border border-line text-obsidian/70', t: 'Completed' }
             const name = b.creatorName || b.clientName || 'Creator'
             const avatar = b.creatorAvatar || b.clientAvatar || pic(name, 100, 100)
             const when = b.when || b.date || 'Upcoming'

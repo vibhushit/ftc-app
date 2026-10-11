@@ -49,6 +49,44 @@ function notifyApiError(error: ApiErrorEvent) {
 }
 
 /**
+ * Universal response handler for Rust Axum and Supabase backends.
+ * Extracts JSON error fields: `error`, `message`, or `detail`, falling back to statusText.
+ */
+export async function handleApiResponse<T = any>(res: Response, endpoint: string, method: string): Promise<T> {
+  if (res.ok) {
+    if (res.status === 204) return {} as T
+    return await res.json()
+  }
+
+  let errorMessage = res.statusText || `Request failed with HTTP ${res.status}`
+  try {
+    const errorJson = await res.json()
+    if (typeof errorJson === 'string') {
+      errorMessage = errorJson
+    } else if (errorJson) {
+      errorMessage = errorJson.message || errorJson.error || errorJson.detail || errorMessage
+    }
+  } catch {
+    // If not JSON, try text
+    try {
+      const text = await res.text()
+      if (text) errorMessage = text
+    } catch {}
+  }
+
+  const errorEvent: ApiErrorEvent = {
+    endpoint,
+    method,
+    status: res.status,
+    message: errorMessage,
+    timestamp: new Date().toLocaleTimeString(),
+  }
+
+  notifyApiError(errorEvent)
+  throw new Error(errorMessage)
+}
+
+/**
  * Helper to acquire authorization and JSON headers.
  */
 async function getHeaders(customHeaders?: Record<string, string>): Promise<HeadersInit> {
@@ -345,44 +383,22 @@ export const apiClient = {
   // ─── BOOKINGS & ESCROW ────────────────────────────────────────────────────────
   async requestBooking(payload: CreateBookingPayload): Promise<Booking> {
     const endpoint = `${getBaseUrl()}/bookings/request`
-    try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: await getHeaders(),
-        body: JSON.stringify(payload),
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      return await res.json()
-    } catch (err: any) {
-      notifyApiError({
-        endpoint: '/bookings/request',
-        method: 'POST',
-        message: err?.message || 'Failed to submit booking request',
-        timestamp: new Date().toLocaleTimeString(),
-      })
-      throw err
-    }
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: await getHeaders(),
+      body: JSON.stringify(payload),
+    })
+    return handleApiResponse<Booking>(res, '/bookings/request', 'POST')
   },
 
   async createBooking(payload: CreateBookingPayload): Promise<Booking> {
     const endpoint = `${getBaseUrl()}/bookings`
-    try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: await getHeaders(),
-        body: JSON.stringify(payload),
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      return await res.json()
-    } catch (err: any) {
-      notifyApiError({
-        endpoint: '/bookings',
-        method: 'POST',
-        message: err?.message || 'Failed to create live booking',
-        timestamp: new Date().toLocaleTimeString(),
-      })
-      throw err
-    }
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: await getHeaders(),
+      body: JSON.stringify(payload),
+    })
+    return handleApiResponse<Booking>(res, '/bookings', 'POST')
   },
 
   async acceptBooking(bookingId: string): Promise<{ success: boolean; status: string }> {
@@ -391,8 +407,7 @@ export const apiClient = {
       method: 'POST',
       headers: await getHeaders(),
     })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    return await res.json()
+    return handleApiResponse<{ success: boolean; status: string }>(res, `/bookings/${bookingId}/accept`, 'POST')
   },
 
   async declineBooking(bookingId: string, reason?: string): Promise<{ success: boolean; status: string }> {
@@ -402,8 +417,68 @@ export const apiClient = {
       headers: await getHeaders(),
       body: JSON.stringify({ reason }),
     })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    return await res.json()
+    return handleApiResponse<{ success: boolean; status: string }>(res, `/bookings/${bookingId}/decline`, 'POST')
+  },
+
+  async cancelBooking(bookingId: string, reason: string): Promise<{ success: boolean; status: string }> {
+    const endpoint = `${getBaseUrl()}/bookings/${bookingId}/cancel`
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: await getHeaders(),
+      body: JSON.stringify({ reason }),
+    })
+    return handleApiResponse<{ success: boolean; status: string }>(res, `/bookings/${bookingId}/cancel`, 'POST')
+  },
+
+  async updateBookingNotes(bookingId: string, notes: string): Promise<Booking> {
+    const endpoint = `${getBaseUrl()}/bookings/${bookingId}/notes`
+    const res = await fetch(endpoint, {
+      method: 'PATCH',
+      headers: await getHeaders(),
+      body: JSON.stringify({ notes }),
+    })
+    return handleApiResponse<Booking>(res, `/bookings/${bookingId}/notes`, 'PATCH')
+  },
+
+  async requestCompletionOtp(bookingId: string): Promise<{
+    otp: string
+    expires_at: string
+    generation_count: number
+    cooldown_seconds: number
+  }> {
+    const endpoint = `${getBaseUrl()}/bookings/${bookingId}/request-completion-otp`
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: await getHeaders(),
+    })
+    return handleApiResponse<{
+      otp: string
+      expires_at: string
+      generation_count: number
+      cooldown_seconds: number
+    }>(res, `/bookings/${bookingId}/request-completion-otp`, 'POST')
+  },
+
+  async verifyCompletionOtp(bookingId: string, otp: string): Promise<{
+    success: boolean
+    status: string
+    remaining_attempts?: number
+    locked_until?: string
+    error?: string
+  }> {
+    const endpoint = `${getBaseUrl()}/bookings/${bookingId}/verify-completion-otp`
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: await getHeaders(),
+      body: JSON.stringify({ otp }),
+    })
+    return handleApiResponse<{
+      success: boolean
+      status: string
+      remaining_attempts?: number
+      locked_until?: string
+      error?: string
+    }>(res, `/bookings/${bookingId}/verify-completion-otp`, 'POST')
   },
 
   // ─── MESSAGING & QUOTES ──────────────────────────────────────────────────────

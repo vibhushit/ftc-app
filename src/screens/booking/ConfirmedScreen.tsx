@@ -14,16 +14,37 @@ export function ConfirmedScreen() {
   const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
   const { data: dbCreator } = useCreator(state.selectedCreatorId)
   const lb = (state.lastBooking ?? {}) as Record<string, unknown>
+
+  if (!lb.id) {
+    return (
+      <div className="flex-1 flex flex-col bg-obsidian text-paper items-center justify-center p-8 text-center">
+        <div className="text-4xl mb-3">⚠️</div>
+        <h2 className="font-display text-xl mb-1">No Booking Found</h2>
+        <p className="text-[13px] text-paper/60 max-w-xs mb-6">
+          Unable to display confirmation because no active booking request was recorded.
+        </p>
+        <button
+          onClick={() => dispatch({ type: 'GO_TAB', tab: 'home' })}
+          className="tap px-5 py-2.5 rounded-2xl bg-acid text-obsidian text-[13px] font-semibold"
+        >
+          Go to Home
+        </button>
+      </div>
+    )
+  }
+
+  const bookingId = String(lb.id)
   const creatorName = (lb.creatorName as string) || dbCreator?.users?.name || 'Creator'
   const creatorAvatar = (lb.creatorAvatar as string) || dbCreator?.users?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80'
   const creatorArea = dbCreator?.area || 'Studio'
-  const dep = depositInfo((lb.total as number) || (dbCreator?.starting_at ? Math.round(dbCreator.starting_at * 2.5) : 20000))
-  const advAmt = (lb.advance as number) ?? dep.advance
-  const dateLine = `${(lb.when as string) || 'May 15 · 10:00 AM'} · ${(lb.pkg as string) || 'Standard'}`
+  const totalAmt = typeof lb.total === 'number' ? lb.total : (typeof lb.price === 'number' ? lb.price : 0)
+  const dep = depositInfo(totalAmt)
+  const advAmt = typeof lb.advance === 'number' ? lb.advance : (typeof lb.deposit_amount === 'number' ? lb.deposit_amount : dep.advance)
+  const dateLine = `${(lb.when as string) || (lb.date_time as string) || 'Scheduled'} · ${(lb.pkg as string) || (lb.pkg_name as string) || 'Session'}`
   const isPending = (lb.status as string) === 'pending_approval'
 
-  const titleText = encodeURIComponent(`FTC Shoot: ${creatorName} (${(lb.pkg as string) || 'Session'})`)
-  const detailsText = encodeURIComponent(`Creator: ${creatorName}\nPackage: ${(lb.pkg as string) || 'Session'}\nShoot Timing: ${(lb.when as string) || ''}\nLocation: ${creatorArea}\nBooking Code: ${(lb.id as string) || 'FTC8472'}\nStatus: ${isPending ? 'Pending Creator Acceptance (24h SLA)' : 'Confirmed'}`)
+  const titleText = encodeURIComponent(`FTC Shoot: ${creatorName} (${(lb.pkg as string) || (lb.pkg_name as string) || 'Session'})`)
+  const detailsText = encodeURIComponent(`Creator: ${creatorName}\nPackage: ${(lb.pkg as string) || (lb.pkg_name as string) || 'Session'}\nShoot Timing: ${(lb.when as string) || (lb.date_time as string) || ''}\nLocation: ${creatorArea}\nBooking Code: #${bookingId}\nStatus: ${isPending ? 'Pending Creator Acceptance (24h SLA)' : 'Confirmed'}`)
   const locationText = encodeURIComponent(creatorArea)
   const googleCalUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${titleText}&details=${detailsText}&location=${locationText}`
 
@@ -36,12 +57,12 @@ export function ConfirmedScreen() {
       'CALSCALE:GREGORIAN',
       'METHOD:PUBLISH',
       'BEGIN:VEVENT',
-      `UID:${(lb.id as string) || 'FTC8472'}@ftc.co`,
+      `UID:${bookingId}@ftc.co`,
       `DTSTAMP:${nowStr}`,
       `DTSTART:${nowStr}`,
-      `SUMMARY:FTC Shoot: ${creatorName} (${(lb.pkg as string) || 'Session'})`,
+      `SUMMARY:FTC Shoot: ${creatorName} (${(lb.pkg as string) || (lb.pkg_name as string) || 'Session'})`,
       `LOCATION:${creatorArea}`,
-      `DESCRIPTION:Shoot booking on FTC with ${creatorName}. Booking ID: ${(lb.id as string) || 'FTC8472'}`,
+      `DESCRIPTION:Shoot booking on FTC with ${creatorName}. Booking ID: ${bookingId}`,
       `STATUS:${isPending ? 'TENTATIVE' : 'CONFIRMED'}`,
       'END:VEVENT',
       'END:VCALENDAR',
@@ -51,7 +72,7 @@ export function ConfirmedScreen() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `FTC-Shoot-${(lb.id as string) || '8472'}.ics`
+    a.download = `FTC-Shoot-${bookingId}.ics`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -101,7 +122,7 @@ export function ConfirmedScreen() {
           </div>
           <div className="mt-3.5 p-3 rounded-xl bg-paper/5 flex items-center gap-2 text-[11px] text-paper/70">
             <Lock size={12} className="text-acid shrink-0" />
-            <span className="truncate">{inr(advAmt)} {dep.full ? 'in escrow' : `(${dep.pct}%) in escrow`} · #{(lb.id as string) || 'FTC8472'}</span>
+            <span className="truncate">{inr(advAmt)} {dep.full ? 'in escrow' : `(${dep.pct}%) in escrow`} · #{bookingId}</span>
           </div>
         </div>
 

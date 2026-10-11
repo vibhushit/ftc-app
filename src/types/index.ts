@@ -150,13 +150,18 @@ export interface Booking {
   date: string
   price: number
   advancePaid: number
-  status: 'inquiry' | 'upcoming' | 'pending' | 'completed' | 'pending_approval' | 'declined'
+  status: 'inquiry' | 'upcoming' | 'pending' | 'completed' | 'pending_approval' | 'declined' | 'cancelled' | 'confirmed' | 'in_progress'
+  when?: string
   requestExpiresAt?: string
   clientNotes?: string
   startTime?: string
   endTime?: string
   packageName?: string
   locationType?: string
+  cancelledBy?: string
+  cancellationReason?: string
+  otpExpiresAt?: string
+  otpAttempts?: number
 }
 
 export interface Quote {

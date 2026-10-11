@@ -156,6 +156,15 @@ export interface Database {
           completed_at:        string | null
           cancelled_at:        string | null
           cancellation_reason: string | null
+          cancelled_by:        string | null
+          request_expires_at:  string | null
+          completion_otp_hash: string | null
+          otp_expires_at:      string | null
+          otp_attempts:        number
+          last_otp_attempt_at: string | null
+          otp_generation_count: number
+          last_otp_generated_at: string | null
+          creator_locked_until: string | null
         }
         Insert: Omit<Database['public']['Tables']['bookings']['Row'], 'id' | 'booking_ref' | 'created_at' | 'updated_at'>
         Update: Partial<Database['public']['Tables']['bookings']['Row']>

@@ -1,10 +1,14 @@
 import { useState } from 'react'
-import { ChevronRight, Clock, Plus, Bell, Check, X, ShieldCheck, AlertCircle } from 'lucide-react'
+import {
+  Clock, Plus, Bell, Check, X,
+  AlertCircle, KeyRound, ShieldAlert, LifeBuoy
+} from 'lucide-react'
 import { useAppStore } from '@/store/appStore'
 import { inr } from '@/data/constants'
 import { CRM_TABS, CRM_EMPTY } from '@/data/constants'
 import { cn } from '@/utils'
 import { apiClient } from '@/services/apiClient'
+import { useToast } from '@/components/ui/ToastNotification'
 
 function getTimeRemaining(expiresAt?: string): string {
   if (!expiresAt) return '24h SLA active'
@@ -20,10 +24,17 @@ export function CreatorPipelineHome() {
   const creatorBookings = useAppStore(s => s.creatorBookings)
   const trustScore = useAppStore(s => s.user?.trustScore)
   const dispatch = useAppStore(s => s.dispatch)
+  const { showSuccess, showError } = useToast()
 
   const tab = crmTab || 'pending_approval'
   const [processingId, setProcessingId] = useState<string | null>(null)
-  const [toastMessage, setToastMessage] = useState<string | null>(null)
+
+  // ─── OTP Verification Modal State ────────────────────────────────────────
+  const [activeVerifyBooking, setActiveVerifyBooking] = useState<any | null>(null)
+  const [otpInput, setOtpInput] = useState<string>('')
+  const [verifyingOtp, setVerifyingOtp] = useState<boolean>(false)
+  const [verifyError, setVerifyError] = useState<string | null>(null)
+  const [isLockedOut, setIsLockedOut] = useState<boolean>(false)
 
   const pendingRequests = creatorBookings.filter(b => b.status === 'pending_approval')
   const jobs = creatorBookings.filter(b => b.status === tab)
@@ -38,11 +49,9 @@ export function CreatorPipelineHome() {
     try {
       await apiClient.acceptBooking(bookingId)
       dispatch({ type: 'UPDATE_CREATOR_BOOKING', id: bookingId, patch: { status: 'upcoming' } })
-      setToastMessage('Booking accepted! Client advance secured in escrow.')
-      setTimeout(() => setToastMessage(null), 4000)
+      showSuccess('Booking accepted! Calendar slot locked and advance held in escrow.')
     } catch (err: any) {
-      setToastMessage('Failed to accept booking. Please try again.')
-      setTimeout(() => setToastMessage(null), 4000)
+      showError(err?.message || 'Failed to accept booking. Please try again.')
     } finally {
       setProcessingId(null)
     }
@@ -54,27 +63,45 @@ export function CreatorPipelineHome() {
     try {
       await apiClient.declineBooking(bookingId, 'Creator unavailable')
       dispatch({ type: 'UPDATE_CREATOR_BOOKING', id: bookingId, patch: { status: 'declined' } })
-      setToastMessage('Booking declined. Advance deposit automatically refunded to client.')
-      setTimeout(() => setToastMessage(null), 4000)
+      showSuccess('Booking declined. Advance deposit released back to client.')
     } catch (err: any) {
-      setToastMessage('Failed to decline booking. Please try again.')
-      setTimeout(() => setToastMessage(null), 4000)
+      showError(err?.message || 'Failed to decline booking. Please try again.')
     } finally {
       setProcessingId(null)
     }
   }
 
+  const handleVerifyOtpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!activeVerifyBooking || otpInput.trim().length !== 4) return
+
+    setVerifyingOtp(true)
+    setVerifyError(null)
+
+    try {
+      await apiClient.verifyCompletionOtp(activeVerifyBooking.id, otpInput.trim())
+      showSuccess('Completion code verified! Session completed and funds released.')
+      dispatch({
+        type: 'UPDATE_CREATOR_BOOKING',
+        id: activeVerifyBooking.id,
+        patch: { status: 'completed' }
+      })
+      setActiveVerifyBooking(null)
+      setOtpInput('')
+    } catch (err: any) {
+      const msg = err?.message || 'Incorrect completion code'
+      setVerifyError(msg)
+      if (msg.toLowerCase().includes('locked')) {
+        setIsLockedOut(true)
+      }
+    } finally {
+      setVerifyingOtp(false)
+    }
+  }
+
   return (
     <div className="flex-1 flex flex-col bg-paper overflow-hidden relative">
-      {/* Toast Feedback */}
-      {toastMessage && (
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-50 bg-obsidian text-paper text-[12px] font-medium px-4 py-2.5 rounded-full shadow-lg border border-paper/10 flex items-center gap-2 animate-fade-in">
-          <ShieldCheck size={14} className="text-acid shrink-0" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
-
-      <div className="px-5 pt-4 pb-3">
+      <div className="px-5 pt-4 pb-3 max-w-5xl mx-auto w-full">
         <div className="flex items-end justify-between">
           <div>
             <div className="text-[11px] font-mono uppercase tracking-[0.14em] text-iris font-semibold">Creator pipeline</div>
@@ -88,7 +115,7 @@ export function CreatorPipelineHome() {
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-2">
+        <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
           {[
             ['Revenue', inr(revenue), 'released'],
             ['Pending payout', inr(payout), 'in escrow'],
@@ -98,101 +125,63 @@ export function CreatorPipelineHome() {
             <div key={i} className="p-3 rounded-2xl bg-bone border border-line">
               <div className="font-display text-xl tracking-tight tnum leading-none">{s[1]}</div>
               <div className="text-[10px] font-mono uppercase tracking-[0.1em] text-obsidian/50 mt-1">{s[0]}</div>
-              <div className="text-[10px] text-obsidian/40">{s[2]}</div>
+              <div className="text-[10px] text-obsidian/40 font-mono mt-0.5">{s[2]}</div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2 overflow-x-auto no-scrollbar px-5 pb-3 border-b border-line">
+      {/* Tabs Bar */}
+      <div className="border-b border-line">
+        <div className="max-w-5xl mx-auto w-full px-5 flex gap-4 overflow-x-auto no-scrollbar shrink-0">
         {CRM_TABS.map(t => {
-          const count = creatorBookings.filter(b => b.status === t.key).length
-          const isSelected = tab === t.key
+          const count = t.key === 'pending_approval' ? pendingRequests.length : creatorBookings.filter(b => b.status === t.key).length
+          const active = tab === t.key
           return (
             <button
               key={t.key}
               onClick={() => dispatch({ type: 'SET_CRM_TAB', tab: t.key })}
               className={cn(
-                'tap shrink-0 px-3.5 py-2 rounded-xl text-[12px] font-semibold transition flex items-center gap-1.5',
-                isSelected ? 'bg-obsidian text-paper' : 'bg-bone text-obsidian/60'
+                'tap py-3 text-[13px] font-medium whitespace-nowrap flex items-center gap-1.5 border-b-2 -mb-px transition-colors',
+                active ? 'border-obsidian text-obsidian font-semibold' : 'border-transparent text-obsidian/45'
               )}
             >
               <span>{t.label}</span>
               {count > 0 && (
-                <span
-                  className={cn(
-                    'text-[10px] px-1.5 py-0.2 rounded-full font-mono font-semibold',
-                    isSelected
-                      ? 'bg-paper/20 text-paper'
-                      : t.key === 'pending_approval'
-                      ? 'bg-rose-500 text-white'
-                      : 'bg-obsidian/10 text-obsidian/70'
-                  )}
-                >
+                <span className={cn(
+                  'px-1.5 py-0.2 rounded-full text-[10px] font-mono',
+                  t.key === 'pending_approval' ? 'bg-acid text-obsidian font-bold' : 'bg-bone text-obsidian/70'
+                )}>
                   {count}
                 </span>
               )}
             </button>
           )
         })}
+        </div>
       </div>
 
-      <div className="app-scroll pb-nav px-5 pt-3">
-        {/* Urgent 24h Action Required Banner (shown regardless of tab if pending items exist) */}
-        {tab !== 'pending_approval' && pendingRequests.length > 0 && (
-          <div
-            onClick={() => dispatch({ type: 'SET_CRM_TAB', tab: 'pending_approval' })}
-            className="tap mb-4 p-3.5 rounded-2xl bg-amber-50 border border-amber-200/80 flex items-center justify-between cursor-pointer"
-          >
-            <div className="flex items-center gap-2.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
-              <div>
-                <div className="text-[12px] font-bold text-amber-950">
-                  {pendingRequests.length} Booking Request{pendingRequests.length > 1 ? 's' : ''} Awaiting Approval
-                </div>
-                <div className="text-[11px] text-amber-800">
-                  Respond within 24 hours to secure client escrow deposit.
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-1 text-[11px] font-mono font-bold text-iris">
-              <span>View</span>
-              <ChevronRight size={14} />
-            </div>
-          </div>
-        )}
-
+      {/* Jobs List */}
+      <div className="flex-1 overflow-y-auto px-5 py-4 pb-28">
+        <div className="max-w-5xl mx-auto w-full">
         {jobs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-10 px-4 text-center max-w-sm mx-auto">
-            <div className="w-16 h-16 rounded-3xl bg-bone border border-line grid place-items-center mb-4 shadow-xs">
-              <Clock size={26} className="text-obsidian/40" />
+          <div className="py-16 text-center">
+            <div className="w-12 h-12 rounded-full bg-bone grid place-items-center mx-auto mb-3 text-obsidian/30">
+              <Clock size={20} />
             </div>
-            <div className="font-display text-xl text-obsidian">{CRM_EMPTY[tab]?.[0] || 'No jobs yet'}</div>
-            <p className="text-[13px] text-obsidian/55 mt-1 leading-relaxed">
-              {CRM_EMPTY[tab]?.[1] || 'Inquiries and bookings from clients will appear here.'}
+            <div className="font-display text-base text-obsidian/70">{CRM_EMPTY[tab] || 'No jobs here'}</div>
+            <p className="text-[12px] text-obsidian/45 mt-1 max-w-xs mx-auto">
+              {tab === 'pending_approval'
+                ? 'When clients submit requests, you have 24 hours to review and accept them.'
+                : 'Jobs matching this lifecycle state will appear here.'}
             </p>
-
-            {/* Link-in-Bio Quick Share Card */}
-            <div className="mt-6 p-4 rounded-2xl bg-obsidian text-paper w-full text-left relative overflow-hidden shadow-md">
-              <div className="text-[10px] font-mono uppercase tracking-wider text-acid mb-1">Get Booked Faster</div>
-              <div className="font-display text-base text-paper">Share your Link-in-Bio</div>
-              <p className="text-[11.5px] text-paper/70 mt-0.5 leading-snug">
-                Put your FTC link on Instagram to get direct client bookings with 0% commission.
-              </p>
-              <button
-                onClick={() => dispatch({ type: 'GO', screen: 'linkbio' })}
-                className="tap mt-3 w-full py-2.5 rounded-xl bg-acid text-obsidian font-semibold text-[12.5px] flex items-center justify-center gap-1.5 cursor-pointer hover:bg-acid/90 transition"
-              >
-                <span>Open Link-in-Bio Dashboard</span>
-                <ChevronRight size={14} />
-              </button>
-            </div>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-3 md:space-y-0 md:grid md:grid-cols-2 md:gap-3">
             {jobs.map(b => {
               const isPending = b.status === 'pending_approval'
+              const isConfirmedOrActive = b.status === 'confirmed' || b.status === 'upcoming' || b.status === 'in_progress'
+
               return (
                 <div
                   key={b.id}
@@ -205,18 +194,18 @@ export function CreatorPipelineHome() {
                   )}
                 >
                   <div className="flex items-start gap-3">
-                    <img src={b.clientAvatar} className="w-12 h-12 rounded-xl object-cover shrink-0" alt="" />
+                    <img src={b.clientAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80'} className="w-12 h-12 rounded-xl object-cover shrink-0" alt="" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
                         <div className="font-semibold text-[14px]">{b.clientName}</div>
                         <div className="font-mono text-[13px] font-bold text-obsidian">{inr(b.price)}</div>
                       </div>
                       <div className="text-[12px] text-obsidian/70 mt-0.5 font-medium">
-                        {b.packageName || b.projectType}
+                        {b.packageName || b.projectType || 'Standard Session'}
                       </div>
                       <div className="text-[11px] font-mono text-obsidian/50 mt-0.5 flex items-center gap-1.5">
                         <Clock size={11} className="text-iris" />
-                        <span>{b.date}</span>
+                        <span>{b.date || b.when || 'Scheduled'}</span>
                       </div>
                     </div>
                   </div>
@@ -236,7 +225,7 @@ export function CreatorPipelineHome() {
                           <span>{getTimeRemaining(b.requestExpiresAt)}</span>
                         </div>
                         <div className="text-[11px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md font-semibold">
-                          {inr(b.advancePaid)} in Escrow
+                          {inr(b.advancePaid || Math.round(b.price * 0.3))} in Escrow
                         </div>
                       </div>
 
@@ -261,20 +250,128 @@ export function CreatorPipelineHome() {
                       </div>
                     </div>
                   )}
+
+                  {/* Active / Confirmed Job: Verify Completion Code CTA */}
+                  {isConfirmedOrActive && (
+                    <div className="mt-3 pt-3 border-t border-line">
+                      <button
+                        onClick={e => {
+                          e.stopPropagation()
+                          setActiveVerifyBooking(b)
+                          setOtpInput('')
+                          setVerifyError(null)
+                          setIsLockedOut(false)
+                        }}
+                        className="tap w-full py-2.5 rounded-xl bg-iris text-paper text-[12.5px] font-semibold flex items-center justify-center gap-1.5 hover:bg-iris/90 transition shadow-xs"
+                      >
+                        <KeyRound size={14} />
+                        <span>Complete Session & Verify OTP</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               )
             })}
           </div>
         )}
+        </div>
       </div>
 
+      {/* Floating Action Button */}
       <button
         onClick={() => dispatch({ type: 'GO', screen: 'campaigns' })}
         className="absolute bottom-24 right-5 w-14 h-14 bg-obsidian text-paper rounded-2xl grid place-items-center shadow-lg tap"
       >
         <Plus size={22} />
       </button>
+
+      {/* ─── MODAL: Creator Enter Completion OTP ───────────────────────────── */}
+      {activeVerifyBooking && (
+        <div className="fixed inset-0 z-50 bg-obsidian/40 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-paper rounded-2xl border border-line p-5 w-full max-w-md shadow-2xl">
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <h3 className="font-display text-lg leading-tight">Verify Session Completion</h3>
+                <p className="text-[12px] text-obsidian/60 mt-0.5">
+                  Ask {activeVerifyBooking.clientName} for their 4-digit code.
+                </p>
+              </div>
+              <button
+                onClick={() => setActiveVerifyBooking(null)}
+                className="tap p-1.5 text-obsidian/40 hover:text-obsidian -mr-2 -mt-2"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {verifyError && (
+              <div className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-[12px] flex items-start gap-2">
+                <ShieldAlert size={15} className="shrink-0 mt-0.5" />
+                <span className="leading-snug">{verifyError}</span>
+              </div>
+            )}
+
+            {isLockedOut ? (
+              <div className="text-center py-4">
+                <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 grid place-items-center mx-auto mb-2">
+                  <ShieldAlert size={24} />
+                </div>
+                <h4 className="font-display text-base text-rose-700">Verification Locked</h4>
+                <p className="text-[12px] text-obsidian/65 max-w-xs mx-auto mt-1 mb-4">
+                  Too many incorrect attempts were entered. For security, OTP verification is locked for 1 hour.
+                </p>
+                <button
+                  onClick={() => {
+                    setActiveVerifyBooking(null)
+                    dispatch({ type: 'GO', screen: 'safety' })
+                  }}
+                  className="tap w-full py-2.5 rounded-xl bg-obsidian text-paper text-[13px] font-semibold flex items-center justify-center gap-1.5"
+                >
+                  <LifeBuoy size={14} /> Contact Support
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleVerifyOtpSubmit}>
+                <div className="py-2">
+                  <label className="block text-[11px] font-mono uppercase tracking-[0.12em] text-obsidian/50 mb-2 text-center">
+                    Client 4-Digit Code
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={4}
+                    autoFocus
+                    value={otpInput}
+                    onChange={e => setOtpInput(e.target.value.replace(/\D/g, ''))}
+                    placeholder="••••"
+                    className="w-full py-3.5 text-center font-mono text-3xl tracking-[0.5em] bg-bone border border-line rounded-2xl outline-none focus:border-iris focus:ring-2 focus:ring-iris/20"
+                  />
+                  <div className="text-center text-[11px] text-obsidian/45 font-mono mt-2">
+                    5 attempts allowed per hour
+                  </div>
+                </div>
+
+                <div className="flex gap-2 mt-4">
+                  <button
+                    type="button"
+                    onClick={() => setActiveVerifyBooking(null)}
+                    className="tap flex-1 py-2.5 rounded-xl border border-line text-[13px] font-semibold hover:bg-bone transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={verifyingOtp || otpInput.trim().length !== 4}
+                    className="tap flex-1 py-2.5 rounded-xl bg-obsidian text-paper text-[13px] font-semibold hover:bg-obsidian/90 transition disabled:opacity-40"
+                  >
+                    {verifyingOtp ? 'Verifying…' : 'Verify & Complete'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
-
