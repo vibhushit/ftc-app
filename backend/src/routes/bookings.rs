@@ -152,7 +152,7 @@ async fn request_booking(
                 client_name: "You".into(),
                 pkg_name: payload.pkg_name,
                 date_time: payload.date_time,
-                status: "pending_approval".into(),
+                status: "pending".into(),
                 price: 20000,
                 deposit_amount: 6000,
                 balance_amount: 14000,
@@ -222,9 +222,9 @@ async fn request_booking(
             notes, base_price, platform_fee, total_price, advance_amount, balance_amount,
             location_type, request_expires_at, created_at, updated_at
         ) VALUES (
-            $1, $2, $3, $4, 'pending_approval',
+            $1, $2, $3, $4, 'pending',
             $5, $6, $7, $8, $9, $10,
-            $11, $12, now(), now()
+            $11::location_type, $12, now(), now()
         )
         "#
     )
@@ -252,7 +252,7 @@ async fn request_booking(
         client_name: "You".into(),
         pkg_name: payload.pkg_name,
         date_time: payload.date_time,
-        status: "pending_approval".into(),
+        status: "pending".into(),
         price: total_price.max(0) as u32,
         deposit_amount: advance_amount.max(0) as u32,
         balance_amount: balance_amount.max(0) as u32,
@@ -350,7 +350,7 @@ async fn accept_booking(
         r#"
         UPDATE bookings
         SET status = 'confirmed', confirmed_at = now(), updated_at = now()
-        WHERE id = $1::uuid AND status = 'pending_approval'
+        WHERE id = $1::uuid AND status = 'pending'
         "#
     )
     .bind(booking_uuid)
@@ -360,7 +360,7 @@ async fn accept_booking(
     .rows_affected();
 
     if rows_affected == 0 {
-        return Err(AppError::BadRequest("Booking is not in pending_approval state or does not exist".into()));
+        return Err(AppError::BadRequest("Booking is not in pending state or does not exist".into()));
     }
 
     Ok(Json(json!({
@@ -398,8 +398,8 @@ async fn decline_booking(
     let rows_affected = sqlx::query(
         r#"
         UPDATE bookings
-        SET status = 'declined', cancellation_reason = $2, updated_at = now()
-        WHERE id = $1::uuid AND status = 'pending_approval'
+        SET status = 'cancelled', cancellation_reason = $2, updated_at = now()
+        WHERE id = $1::uuid AND status = 'pending'
         "#
     )
     .bind(booking_uuid)
@@ -429,13 +429,22 @@ async fn cancel_booking(
     Path(id): Path<String>,
     Json(payload): Json<Value>,
 ) -> Result<Json<Value>, AppError> {
-    let pool = state.pool.as_ref()
-        .ok_or_else(|| AppError::InternalServerError("Database pool unavailable".into()))?;
+    let reason = payload.get("reason").and_then(|v| v.as_str()).unwrap_or("No reason provided");
+    let pool = match state.pool.as_ref() {
+        Some(p) => p,
+        None => {
+            return Ok(Json(json!({
+                "success": true,
+                "booking_id": id,
+                "status": "cancelled",
+                "reason": reason
+            })));
+        }
+    };
 
     let booking_uuid = uuid::Uuid::parse_str(&id)
         .map_err(|_| AppError::BadRequest("Invalid booking UUID".into()))?;
 
-    let reason = payload.get("reason").and_then(|v| v.as_str()).unwrap_or("No reason provided");
     let user_id = resolve_user_id(&headers);
     let user_uuid = user_id.and_then(|u| uuid::Uuid::parse_str(&u).ok());
 
@@ -443,7 +452,7 @@ async fn cancel_booking(
         r#"
         UPDATE bookings
         SET status = 'cancelled', cancelled_at = now(), cancellation_reason = $2, cancelled_by = $3, updated_at = now()
-        WHERE id = $1::uuid AND status IN ('pending_approval', 'confirmed')
+        WHERE id = $1::uuid AND status IN ('pending', 'confirmed')
         "#
     )
     .bind(booking_uuid)

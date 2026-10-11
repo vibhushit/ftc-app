@@ -3,7 +3,6 @@ import { useAppStore } from '@/store/appStore'
 import { useShallow } from 'zustand/shallow'
 import { useMyBookings } from '@/hooks/useBookings'
 import { cn } from '@/utils'
-import { pic } from '@/data/constants'
 
 export function BookingsScreen() {
   const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
@@ -66,14 +65,20 @@ export function BookingsScreen() {
                 : b.status === 'cancelled'
                   ? { cls: 'bg-rose-50 border border-rose-200 text-rose-700', t: 'Cancelled' }
                   : { cls: 'bg-bone border border-line text-obsidian/70', t: 'Completed' }
-            const name = b.creatorName || b.clientName || 'Creator'
-            const avatar = b.creatorAvatar || b.clientAvatar || pic(name, 100, 100)
-            const when = b.when || b.date || 'Upcoming'
+            const name = b.creator?.name || b.creatorName || b.clientName || 'Creator'
+            const avatar = b.creator?.avatar_url || b.creatorAvatar || b.clientAvatar || ''
+            const when = b.session_date ? `${b.session_date}${b.session_time ? ` · ${b.session_time}` : ''}` : (b.when || b.date || 'Upcoming')
 
             return (
               <button key={b.id} onClick={() => dispatch({ type: 'OPEN_BOOKING', booking: b })} className="tap w-full text-left p-4 rounded-2xl bg-paper border border-line active:bg-bone md:h-full">
                 <div className="flex items-center gap-3">
-                  <img src={avatar} className="w-11 h-11 rounded-full object-cover" alt="" />
+                  {avatar ? (
+                    <img src={avatar} className="w-11 h-11 rounded-full object-cover shrink-0" alt="" />
+                  ) : (
+                    <div className="w-11 h-11 rounded-full bg-obsidian text-paper font-semibold grid place-items-center text-sm shrink-0">
+                      {name.charAt(0)}
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0">
                     <div className="text-[14px] font-semibold">{name}</div>
                     <div className="text-[11px] text-obsidian/60">{when}</div>

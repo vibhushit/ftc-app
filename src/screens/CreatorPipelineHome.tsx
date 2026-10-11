@@ -36,8 +36,10 @@ export function CreatorPipelineHome() {
   const [verifyError, setVerifyError] = useState<string | null>(null)
   const [isLockedOut, setIsLockedOut] = useState<boolean>(false)
 
-  const pendingRequests = creatorBookings.filter(b => b.status === 'pending_approval')
-  const jobs = creatorBookings.filter(b => b.status === tab)
+  const pendingRequests = creatorBookings.filter(b => b.status === 'pending_approval' || b.status === 'pending')
+  const jobs = tab === 'pending_approval'
+    ? pendingRequests
+    : creatorBookings.filter(b => b.status === tab)
   const revenue = creatorBookings.filter(b => b.status === 'completed').reduce((a, b) => a + b.price, 0)
   const payout = creatorBookings
     .filter(b => b.status === 'pending' || b.status === 'upcoming' || b.status === 'pending_approval')
@@ -179,7 +181,7 @@ export function CreatorPipelineHome() {
         ) : (
           <div className="space-y-3 md:space-y-0 md:grid md:grid-cols-2 md:gap-3">
             {jobs.map(b => {
-              const isPending = b.status === 'pending_approval'
+              const isPending = b.status === 'pending_approval' || b.status === 'pending'
               const isConfirmedOrActive = b.status === 'confirmed' || b.status === 'upcoming' || b.status === 'in_progress'
 
               return (

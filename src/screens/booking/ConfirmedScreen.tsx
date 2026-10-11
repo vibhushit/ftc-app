@@ -1,4 +1,4 @@
-import { Check, Lock, Calendar, Download, Clock, ExternalLink } from 'lucide-react'
+import { Check, Calendar, Download, Clock, ExternalLink } from 'lucide-react'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { useCreator } from '@/hooks/useCreators'
@@ -18,7 +18,7 @@ export function ConfirmedScreen() {
   if (!lb.id) {
     return (
       <div className="flex-1 flex flex-col bg-obsidian text-paper items-center justify-center p-8 text-center">
-        <div className="text-4xl mb-3">⚠️</div>
+        <div className="text-4xl mb-3">📋</div>
         <h2 className="font-display text-xl mb-1">No Booking Found</h2>
         <p className="text-[13px] text-paper/60 max-w-xs mb-6">
           Unable to display confirmation because no active booking request was recorded.
@@ -35,16 +35,16 @@ export function ConfirmedScreen() {
 
   const bookingId = String(lb.id)
   const creatorName = (lb.creatorName as string) || dbCreator?.users?.name || 'Creator'
-  const creatorAvatar = (lb.creatorAvatar as string) || dbCreator?.users?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80'
+  const creatorAvatar = (lb.creatorAvatar as string) || dbCreator?.users?.avatar_url || ''
   const creatorArea = dbCreator?.area || 'Studio'
   const totalAmt = typeof lb.total === 'number' ? lb.total : (typeof lb.price === 'number' ? lb.price : 0)
   const dep = depositInfo(totalAmt)
   const advAmt = typeof lb.advance === 'number' ? lb.advance : (typeof lb.deposit_amount === 'number' ? lb.deposit_amount : dep.advance)
   const dateLine = `${(lb.when as string) || (lb.date_time as string) || 'Scheduled'} · ${(lb.pkg as string) || (lb.pkg_name as string) || 'Session'}`
-  const isPending = (lb.status as string) === 'pending_approval'
+  const isPending = (lb.status as string) === 'pending' || (lb.status as string) === 'pending_approval'
 
   const titleText = encodeURIComponent(`FTC Shoot: ${creatorName} (${(lb.pkg as string) || (lb.pkg_name as string) || 'Session'})`)
-  const detailsText = encodeURIComponent(`Creator: ${creatorName}\nPackage: ${(lb.pkg as string) || (lb.pkg_name as string) || 'Session'}\nShoot Timing: ${(lb.when as string) || (lb.date_time as string) || ''}\nLocation: ${creatorArea}\nBooking Code: #${bookingId}\nStatus: ${isPending ? 'Pending Creator Acceptance (24h SLA)' : 'Confirmed'}`)
+  const detailsText = encodeURIComponent(`Creator: ${creatorName}\nPackage: ${(lb.pkg as string) || (lb.pkg_name as string) || 'Session'}\nShoot Timing: ${(lb.when as string) || (lb.date_time as string) || ''}\nLocation: ${creatorArea}\nBooking Code: #${bookingId}`)
   const locationText = encodeURIComponent(creatorArea)
   const googleCalUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${titleText}&details=${detailsText}&location=${locationText}`
 
@@ -97,32 +97,30 @@ export function ConfirmedScreen() {
           )}
         </h1>
 
-        {isPending && (
-          <div className="mt-3 py-1.5 px-3.5 rounded-full bg-paper/10 text-acid font-mono text-[11px] flex items-center gap-1.5">
-            <Clock size={13} />
-            <span>24-Hour Creator Guarantee Active</span>
-          </div>
-        )}
-
         <p className="mt-3 text-[13.5px] text-paper/70 max-w-xs leading-relaxed">
           {isPending
-            ? `${creatorName} has 24 hours to accept your shoot request. Your ${inr(advAmt)} advance is safely authorized in FTC escrow.`
-            : dep.full
-            ? `${inr(advAmt)} is held safely in FTC escrow and released to the creator once you approve the delivery.`
-            : `${inr(advAmt)} (${dep.pct}%) collected and held in escrow. Balance due on delivery approval.`}
+            ? `Your request has been sent to ${creatorName}. They have 24 hours to confirm your slot.`
+            : `Your session booking with ${creatorName} has been confirmed.`}
         </p>
 
-        <div className="mt-6 p-5 rounded-2xl bg-paper/10 w-full max-w-sm border border-paper/10">
+        {/* Creator & Booking Card */}
+        <div className="mt-6 p-4 rounded-2xl bg-paper/10 w-full max-w-sm border border-paper/10 text-left">
           <div className="flex items-center gap-3">
-            <img src={creatorAvatar} className="w-12 h-12 rounded-full object-cover" alt="" />
-            <div className="text-left flex-1 min-w-0">
+            {creatorAvatar ? (
+              <img src={creatorAvatar} className="w-12 h-12 rounded-full object-cover shrink-0" alt="" />
+            ) : (
+              <div className="w-12 h-12 rounded-full bg-paper/20 font-semibold text-paper grid place-items-center shrink-0">
+                {creatorName.charAt(0)}
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
               <div className="font-display text-lg leading-tight truncate">{creatorName}</div>
-              <div className="text-[11px] text-paper/60 truncate">{dateLine}</div>
+              <div className="text-[11px] text-paper/60 truncate mt-0.5">{dateLine}</div>
             </div>
-          </div>
-          <div className="mt-3.5 p-3 rounded-xl bg-paper/5 flex items-center gap-2 text-[11px] text-paper/70">
-            <Lock size={12} className="text-acid shrink-0" />
-            <span className="truncate">{inr(advAmt)} {dep.full ? 'in escrow' : `(${dep.pct}%) in escrow`} · #{bookingId}</span>
+            <div className="text-right">
+              <div className="font-mono text-[13px] font-bold text-acid">{inr(advAmt)}</div>
+              <div className="text-[10px] text-paper/50 font-mono">Advance</div>
+            </div>
           </div>
         </div>
 
@@ -151,12 +149,19 @@ export function ConfirmedScreen() {
         </div>
       </div>
 
-      <div className="relative px-6 pb-8 pt-3 space-y-2.5 shrink-0 bg-obsidian border-t border-paper/10">
+      {/* Clean Bottom Navigation Buttons */}
+      <div className="relative px-6 pb-8 pt-3 space-y-2 shrink-0 bg-obsidian border-t border-paper/10 max-w-sm w-full mx-auto">
         <button
-          onClick={() => dispatch({ type: 'GO_TAB', tab: 'home' })}
-          className="tap w-full py-3.5 rounded-2xl bg-acid text-obsidian font-semibold text-[14px]"
+          onClick={() => dispatch({ type: 'OPEN_BOOKING', booking: lb as any })}
+          className="tap w-full py-3.5 rounded-2xl bg-acid text-obsidian font-semibold text-[14px] hover:opacity-90 transition shadow-xs"
         >
-          Done · View My Pipeline
+          View Booking Details
+        </button>
+        <button
+          onClick={() => dispatch({ type: 'GO', screen: 'discover' })}
+          className="tap w-full py-3 rounded-2xl bg-paper/10 text-paper font-semibold text-[13px] hover:bg-paper/15 transition border border-paper/10"
+        >
+          Explore More Creators
         </button>
       </div>
     </div>

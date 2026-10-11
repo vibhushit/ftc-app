@@ -244,7 +244,7 @@ mod tests {
         let body_bytes = axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
         let val: Value = serde_json::from_slice(&body_bytes).unwrap();
 
-        assert_eq!(val["status"], "pending_approval");
+        assert_eq!(val["status"], "pending");
         assert_eq!(val["creator_id"], "c1");
         assert!(val["id"].as_str().unwrap().starts_with("FTC-REQ-"));
 

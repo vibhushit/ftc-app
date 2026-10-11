@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react'
 import {
-  Check, Lock, FileText, Upload, MessageCircle, Star, HelpCircle,
-  KeyRound, Clock, Edit3, XCircle, AlertCircle, RefreshCw
+  Check, Lock, FileText, Upload, MessageCircle,
+  KeyRound, Clock, XCircle, AlertCircle, RefreshCw
 } from 'lucide-react'
 import { SimpleHeader } from '@/components/ui/SimpleHeader'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
-import { inr, pic } from '@/data/constants'
+import { inr } from '@/data/constants'
 import { cn } from '@/utils'
 import { apiClient } from '@/services/apiClient'
 import { useToast } from '@/components/ui/ToastNotification'
@@ -34,11 +34,6 @@ export function BookingDetailScreen() {
   const [cooldownSecs, setCooldownSecs] = useState<number>(0)
   const [generationCount, setGenerationCount] = useState<number>(0)
   const [generatingOtp, setGeneratingOtp] = useState(false)
-
-  // ─── Edit Brief Modal State ──────────────────────────────────────────────
-  const [showEditNotes, setShowEditNotes] = useState(false)
-  const [notesDraft, setNotesDraft] = useState<string>((b?.notes as string) || (b?.client_notes as string) || (b?.clientNotes as string) || '')
-  const [savingNotes, setSavingNotes] = useState(false)
 
   // ─── Cancel Booking Modal State ──────────────────────────────────────────
   const [showCancelModal, setShowCancelModal] = useState(false)
@@ -77,12 +72,12 @@ export function BookingDetailScreen() {
 
   const bookingId = String(b.id)
   const creatorName = (b.creatorName as string) || (b.creator_name as string) || (b.clientName as string) || 'Creator'
-  const creatorAvatar = (b.creatorAvatar as string) || (b.creator_avatar as string) || (b.clientAvatar as string) || pic(creatorName, 120, 120)
+  const creatorAvatar = (b.creatorAvatar as string) || (b.creator_avatar as string) || (b.clientAvatar as string) || ''
   const base = typeof b.total === 'number' ? b.total : (typeof b.price === 'number' ? b.price : (typeof b.total_price === 'number' ? b.total_price : 0))
   const platform = Math.max(99, Math.round(base * 0.05))
   const total = base + platform
   const dep = depositInfo(total)
-  const status = (b.status as string) || 'pending_approval'
+  const status = (b.status as string) || 'pending'
   const curStage = status === 'completed' ? 3 : status === 'in_progress' ? 2 : status === 'confirmed' ? 1 : 0
   const locLabel = b.locType === 'studio' || b.location_type === 'studio' ? 'Creator studio' : b.locType === 'local' || b.location_type === 'local' ? 'Client venue (Local)' : 'Outstation destination'
   const currentNotes = (b.notes as string) || (b.client_notes as string) || (b.clientNotes as string) || ''
@@ -101,24 +96,6 @@ export function BookingDetailScreen() {
       showError(err?.message || 'Failed to generate completion code')
     } finally {
       setGeneratingOtp(false)
-    }
-  }
-
-  const handleSaveNotes = async () => {
-    setSavingNotes(true)
-    try {
-      await apiClient.updateBookingNotes(bookingId, notesDraft)
-      showSuccess('Shoot brief updated successfully!')
-      setShowEditNotes(false)
-      // Update local view
-      dispatch({
-        type: 'OPEN_BOOKING',
-        booking: { ...b, notes: notesDraft, client_notes: notesDraft } as any
-      })
-    } catch (err: any) {
-      showError(err?.message || 'Failed to update shoot brief')
-    } finally {
-      setSavingNotes(false)
     }
   }
 
@@ -162,7 +139,13 @@ export function BookingDetailScreen() {
           {/* Left Column: Hero, Timeline & Details */}
           <div className="md:min-w-0">
             <div className="mb-4 p-5 rounded-2xl bg-obsidian text-paper flex items-center gap-4 shadow-md">
-              <img src={creatorAvatar} className="w-14 h-14 rounded-full object-cover border-2 border-paper/20 shrink-0" alt="" />
+              {creatorAvatar ? (
+                <img src={creatorAvatar} className="w-14 h-14 rounded-full object-cover border-2 border-paper/20 shrink-0" alt="" />
+              ) : (
+                <div className="w-14 h-14 rounded-full bg-paper/20 font-semibold text-paper grid place-items-center shrink-0 border-2 border-paper/20 text-lg">
+                  {creatorName.charAt(0)}
+                </div>
+              )}
               <div className="flex-1 min-w-0">
                 <div className="font-display text-xl leading-tight truncate">{creatorName}</div>
                 <div className="text-[12px] text-paper/60 font-mono mt-0.5">#{bookingId} · {(b.pkg as string) || (b.pkg_name as string) || 'Session'}</div>
@@ -171,7 +154,7 @@ export function BookingDetailScreen() {
                 status === 'completed' && 'bg-paper/15 text-paper',
                 status === 'confirmed' && 'bg-acid text-obsidian',
                 status === 'cancelled' && 'bg-rose-500 text-paper',
-                status === 'pending_approval' && 'bg-acid text-obsidian'
+                (status === 'pending' || status === 'pending_approval') && 'bg-acid text-obsidian'
               )}>
                 {status === 'completed' ? 'Completed' : status === 'confirmed' ? 'Confirmed' : status === 'cancelled' ? 'Cancelled' : 'Awaiting creator'}
               </span>
@@ -249,29 +232,13 @@ export function BookingDetailScreen() {
               </Card>
             )}
 
-            {/* Session Details & Shoot Notes */}
+            {/* Session Details */}
             <Card title="Session Details">
               <KV k="Package" v={(b.pkg as string) || (b.pkg_name as string) || 'Standard Session'} />
               <KV k="Date & time" v={(b.when as string) || (b.date as string) || (b.date_time as string) || 'Scheduled'} />
               <KV k="Location" v={locLabel} />
               <KV k="Booking ID" v={`#${bookingId}`} />
-              
-              <div className="pt-3 mt-3 border-t border-line">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[12px] font-semibold text-obsidian/70">Shoot Brief & Notes</span>
-                  {status !== 'completed' && status !== 'cancelled' && (
-                    <button
-                      onClick={() => setShowEditNotes(true)}
-                      className="tap text-[11px] font-semibold text-iris flex items-center gap-1 hover:underline"
-                    >
-                      <Edit3 size={11} /> Edit Brief
-                    </button>
-                  )}
-                </div>
-                <div className="p-3 rounded-xl bg-bone border border-line text-[12px] text-obsidian/80 whitespace-pre-wrap leading-relaxed">
-                  {currentNotes || 'No specific notes provided.'}
-                </div>
-              </div>
+              {currentNotes && <KV k="Location / notes" v={currentNotes} />}
             </Card>
           </div>
 
@@ -315,65 +282,23 @@ export function BookingDetailScreen() {
                   className="tap w-full py-3 rounded-2xl border border-line bg-paper text-rose-600 text-[12.5px] font-semibold flex items-center justify-center gap-1.5 hover:bg-rose-50 transition"
                 >
                   <XCircle size={14} />
-                  {status === 'pending_approval' ? 'Cancel Request' : 'Cancel Booking'}
+                  {status === 'pending' || status === 'pending_approval' ? 'Cancel Request' : 'Cancel Booking'}
                 </button>
               )}
-
-              {status === 'completed'
-                ? <button onClick={() => dispatch({ type: 'GO', screen: 'reviews' })} className="tap w-full py-3.5 rounded-2xl bg-iris text-paper text-[13px] font-semibold flex items-center justify-center gap-1.5">
-                    <Star size={15} /> Leave a review
-                  </button>
-                : <button onClick={() => dispatch({ type: 'GO', screen: 'safety' })} className="tap w-full py-3.5 rounded-2xl bg-paper border border-line text-[13px] font-semibold text-obsidian/70 flex items-center justify-center gap-1.5 hover:bg-bone">
-                    <HelpCircle size={15} /> Get support
-                  </button>
-              }
             </div>
           </div>
-
         </div>
       </div>
 
-      {/* ─── MODAL 1: Edit Brief & Shoot Notes ────────────────────────────── */}
-      {showEditNotes && (
-        <div className="fixed inset-0 z-50 bg-obsidian/40 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-paper rounded-2xl border border-line p-5 w-full max-w-md shadow-2xl">
-            <h3 className="font-display text-lg mb-1">Update Shoot Brief</h3>
-            <p className="text-[12.5px] text-obsidian/60 mb-3">Add shot references, instructions, or landmark details for the creator.</p>
-            <textarea
-              value={notesDraft}
-              onChange={e => setNotesDraft(e.target.value)}
-              placeholder="e.g. Reference moodboard link, studio buzzer code, must-have shots…"
-              className="w-full min-h-[120px] p-3 rounded-xl bg-bone border border-line outline-none text-[13px] leading-relaxed resize-none focus:border-iris mb-4"
-            />
-            <div className="flex gap-2">
-              <button
-                disabled={savingNotes}
-                onClick={() => setShowEditNotes(false)}
-                className="tap flex-1 py-2.5 rounded-xl border border-line text-[13px] font-semibold hover:bg-bone transition"
-              >
-                Cancel
-              </button>
-              <button
-                disabled={savingNotes}
-                onClick={handleSaveNotes}
-                className="tap flex-1 py-2.5 rounded-xl bg-obsidian text-paper text-[13px] font-semibold hover:bg-obsidian/90 transition disabled:opacity-50"
-              >
-                {savingNotes ? 'Saving…' : 'Save Changes'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ─── MODAL 2: Cancel Booking Confirmation ─────────────────────────── */}
+      {/* Cancel Booking Confirmation Modal */}
       {showCancelModal && (
         <div className="fixed inset-0 z-50 bg-obsidian/40 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-paper rounded-2xl border border-line p-5 w-full max-w-md shadow-2xl">
             <h3 className="font-display text-lg mb-1 text-rose-600">
-              {status === 'pending_approval' ? 'Cancel Booking Request?' : 'Cancel Confirmed Booking?'}
+              {status === 'pending' || status === 'pending_approval' ? 'Cancel Booking Request?' : 'Cancel Confirmed Booking?'}
             </h3>
             <p className="text-[12.5px] text-obsidian/60 mb-3">
-              {status === 'pending_approval'
+              {status === 'pending' || status === 'pending_approval'
                 ? 'Your request has not been accepted yet. You can cancel immediately with 100% deposit unfreeze.'
                 : 'Please provide a reason for cancellation. Advance refund will be handled per platform policy.'}
             </p>
