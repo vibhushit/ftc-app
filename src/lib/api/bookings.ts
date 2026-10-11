@@ -104,7 +104,7 @@ export async function updateBookingStatus(id: string, status: BookingRow['status
 
 // ─── Subscribe to booking changes (realtime) ─────────────────────────────────
 export function subscribeToBooking(bookingId: string, onUpdate: (row: BookingRow) => void) {
-  return supabase
+  const channel = supabase
     .channel(`booking-${bookingId}`)
     .on('postgres_changes', {
       event:  'UPDATE',
@@ -113,4 +113,10 @@ export function subscribeToBooking(bookingId: string, onUpdate: (row: BookingRow
       filter: `id=eq.${bookingId}`,
     }, payload => onUpdate(payload.new as BookingRow))
     .subscribe()
+
+  return {
+    unsubscribe: () => {
+      supabase.removeChannel(channel)
+    }
+  }
 }

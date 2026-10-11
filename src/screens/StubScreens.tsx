@@ -2,7 +2,7 @@ import { useState } from 'react'
 import {
   CalendarCheck, Bookmark, Bell, MessageCircle, Star, Shield, FileText,
   Settings, Calendar, Wallet, Link2, MapPin, Edit3, Sparkles, Copy,
-  Check, LogOut, ChevronRight, ExternalLink, ArrowLeft, X
+  Check, LogOut, ChevronRight, ExternalLink, ArrowLeft, X, Zap
 } from 'lucide-react'
 import { useAppStore } from '@/store/appStore'
 import { cn, shareOrCopy } from '@/utils'
@@ -141,7 +141,6 @@ export function MeScreen() {
   ]
 
   const creatorMenu = [
-    { icon: CalendarCheck, label: 'My Bookings',    sub: bookingCount > 0 ? `${bookingCount} jobs in pipeline` : 'No active jobs', s: 'bookings' },
     { icon: Calendar,      label: 'Calendar & Slots', sub: 'Manage availability & open dates',       s: 'calendar' },
     { icon: Wallet,        label: 'Payouts & Revenue', sub: 'Direct bank & UPI settlements',         s: 'payouts' },
     { icon: MessageCircle, label: 'Messages & Quotes', sub: 'Client inquiries & proposals',          s: 'inbox' },
@@ -387,21 +386,27 @@ export function MeScreen() {
 
             <div className="my-6 space-y-3.5 bg-bone/40 p-4 rounded-2xl border border-line">
               <div className="flex items-start gap-3 text-[13px]">
-                <span className="text-lg leading-none shrink-0">⚡</span>
+                <div className="w-6 h-6 rounded-lg bg-paper border border-line grid place-items-center shrink-0 mt-0.5">
+                  <Zap size={13} className="text-iris" />
+                </div>
                 <div>
                   <span className="font-semibold text-obsidian">0% Commission:</span>
                   <span className="text-obsidian/70"> Keep 100% of your earnings on direct bookings.</span>
                 </div>
               </div>
               <div className="flex items-start gap-3 text-[13px]">
-                <span className="text-lg leading-none shrink-0">🛡️</span>
+                <div className="w-6 h-6 rounded-lg bg-paper border border-line grid place-items-center shrink-0 mt-0.5">
+                  <Shield size={13} className="text-iris" />
+                </div>
                 <div>
                   <span className="font-semibold text-obsidian">Escrow Security:</span>
                   <span className="text-obsidian/70"> Client funds are locked in escrow before you begin work.</span>
                 </div>
               </div>
               <div className="flex items-start gap-3 text-[13px]">
-                <span className="text-lg leading-none shrink-0">🔗</span>
+                <div className="w-6 h-6 rounded-lg bg-paper border border-line grid place-items-center shrink-0 mt-0.5">
+                  <Link2 size={13} className="text-iris" />
+                </div>
                 <div>
                   <span className="font-semibold text-obsidian">Personal Booking Link:</span>
                   <span className="text-obsidian/70"> Share your link-in-bio on Instagram for 1-click booking.</span>

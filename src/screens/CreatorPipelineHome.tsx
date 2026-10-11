@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import {
   Clock, Plus, Bell, Check, X,
-  AlertCircle, KeyRound, ShieldAlert, LifeBuoy, Loader2
+  AlertCircle, KeyRound, ShieldAlert, LifeBuoy, Loader2,
+  CheckCircle2, Calendar
 } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAppStore } from '@/store/appStore'
@@ -11,6 +12,21 @@ import { cn } from '@/utils'
 import { apiClient } from '@/services/apiClient'
 import { useToast } from '@/components/ui/ToastNotification'
 import { useMyJobs } from '@/hooks/useBookings'
+
+function formatCardDate(isoString?: string | null): string | null {
+  if (!isoString) return null
+  try {
+    const d = new Date(isoString)
+    if (isNaN(d.getTime())) return null
+    return d.toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    })
+  } catch {
+    return null
+  }
+}
 
 function getTimeRemaining(expiresAt?: string): string {
   if (!expiresAt) return '24h SLA active'
@@ -214,12 +230,19 @@ export function CreatorPipelineHome() {
             {jobs.map(b => {
               const isPending = b.status === 'pending_approval' || b.status === 'pending'
               const isConfirmedOrActive = b.status === 'confirmed' || b.status === 'upcoming' || b.status === 'in_progress'
+              const isCompleted = b.status === 'completed'
+              const isCancelled = b.status === 'cancelled' || b.status === 'declined'
 
               const clientName = b.consumer?.name || b.clientName || 'Client'
               const clientAvatar = b.consumer?.avatar_url || b.clientAvatar || ''
               const price = typeof b.total_price === 'number' ? b.total_price : (typeof b.price === 'number' ? b.price : 0)
-              const pkgName = b.service?.name || b.packageName || b.projectType || 'Standard Session'
-              const dateSlot = b.session_date ? `${b.session_date}${b.session_time ? ` · ${b.session_time}` : ''}` : (b.date || b.when || 'Scheduled')
+              const pkgName = b.service?.name || b.pkg_name || b.packageName || b.projectType || b.occasion || 'Session Booking'
+
+              const completedAtStr = b.completed_at || b.completedAt || b.updated_at
+              const completedDateFormatted = formatCardDate(completedAtStr)
+
+              const rawDateSlot = b.session_date ? `${b.session_date}${b.session_time ? ` · ${b.session_time}` : ''}` : (b.date || b.when)
+              const dateSlot = rawDateSlot || 'Date to be confirmed'
               const clientNotes = b.notes || b.clientNotes || ''
               const requestExpiresAt = b.request_expires_at || b.requestExpiresAt
               const advance = typeof b.advance_amount === 'number' ? b.advance_amount : (typeof b.advancePaid === 'number' ? b.advancePaid : Math.round(price * 0.3))
@@ -251,10 +274,28 @@ export function CreatorPipelineHome() {
                       <div className="text-[12px] text-obsidian/70 mt-0.5 font-medium truncate">
                         {pkgName}
                       </div>
-                      <div className="text-[11px] font-mono text-obsidian/50 mt-0.5 flex items-center gap-1.5">
-                        <Clock size={11} className="text-iris" />
-                        <span>{dateSlot}</span>
-                      </div>
+
+                      {isCompleted ? (
+                        <div className="text-[11px] font-mono text-emerald-700 mt-1 flex items-center gap-1.5 font-medium">
+                          <CheckCircle2 size={12} className="text-emerald-600 shrink-0" />
+                          <span>Completed{completedDateFormatted ? ` · ${completedDateFormatted}` : ''}</span>
+                        </div>
+                      ) : isCancelled ? (
+                        <div className="text-[11px] font-mono text-rose-600 mt-1 flex items-center gap-1.5 font-medium">
+                          <X size={12} className="text-rose-500 shrink-0" />
+                          <span>Cancelled</span>
+                        </div>
+                      ) : isPending ? (
+                        <div className="text-[11px] font-mono text-amber-700 mt-0.5 flex items-center gap-1.5 font-medium">
+                          <Clock size={11} className="text-amber-600 shrink-0" />
+                          <span>{dateSlot}</span>
+                        </div>
+                      ) : (
+                        <div className="text-[11px] font-mono text-obsidian/60 mt-0.5 flex items-center gap-1.5">
+                          <Calendar size={11} className="text-iris shrink-0" />
+                          <span>{dateSlot}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -315,6 +356,14 @@ export function CreatorPipelineHome() {
                         <KeyRound size={14} />
                         <span>Complete Session & Verify OTP</span>
                       </button>
+                    </div>
+                  )}
+
+                  {/* Completed Job: Escrow Settlement Footer */}
+                  {isCompleted && (
+                    <div className="mt-3 pt-2.5 border-t border-line/60 flex items-center justify-between text-[11px] font-mono">
+                      <span className="text-obsidian/45">Escrow settlement</span>
+                      <span className="text-emerald-700 font-semibold">{inr(price)} released to payouts</span>
                     </div>
                   )}
                 </div>

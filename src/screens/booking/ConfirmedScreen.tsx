@@ -18,7 +18,9 @@ export function ConfirmedScreen() {
   if (!lb.id) {
     return (
       <div className="flex-1 flex flex-col bg-obsidian text-paper items-center justify-center p-8 text-center">
-        <div className="text-4xl mb-3">📋</div>
+        <div className="w-16 h-16 rounded-full bg-paper/10 border border-paper/15 grid place-items-center mb-3 text-paper/40">
+          <Calendar size={28} />
+        </div>
         <h2 className="font-display text-xl mb-1">No Booking Found</h2>
         <p className="text-[13px] text-paper/60 max-w-xs mb-6">
           Unable to display confirmation because no active booking request was recorded.

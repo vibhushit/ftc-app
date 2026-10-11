@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowLeft, ArrowRight, Home, MapPin, Globe, Shield } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Home, MapPin, Globe, Shield, Lock, AlertCircle } from 'lucide-react'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { useCreator } from '@/hooks/useCreators'
@@ -25,7 +25,9 @@ export function BookingScreen() {
   if (!state.selectedCreatorId && !draft.creatorId) {
     return (
       <div className="flex-1 flex flex-col bg-bone items-center justify-center p-8 text-center">
-        <div className="text-4xl mb-3">⚠️</div>
+        <div className="w-16 h-16 rounded-full bg-paper border border-line grid place-items-center mb-3 text-obsidian/30">
+          <AlertCircle size={28} />
+        </div>
         <h2 className="font-display text-xl mb-1">Creator Unavailable</h2>
         <p className="text-[13px] text-obsidian/60 max-w-xs mb-6">
           Unable to start booking because no creator was selected or the profile is unavailable.
@@ -309,19 +311,46 @@ export function BookingScreen() {
                 </div>
               </div>
 
-              <button
-                disabled={submitting}
-                onClick={() => step === 0 ? setStep(1) : confirm()}
-                className="tap w-full mt-5 py-3.5 rounded-2xl bg-obsidian text-paper font-semibold text-[14px] flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-obsidian/90 transition shadow-xs"
-              >
-                {step === 0 ? (
-                  <>Continue <ArrowRight size={16} /></>
-                ) : submitting ? (
-                  <span>Submitting request…</span>
-                ) : (
-                  <span>Confirm & Request Booking</span>
-                )}
-              </button>
+              {step === 0 ? (
+                <button
+                  onClick={() => setStep(1)}
+                  className="tap w-full mt-5 py-3.5 rounded-2xl bg-obsidian text-paper font-semibold text-[14px] flex items-center justify-center gap-2 hover:bg-obsidian/90 transition shadow-xs"
+                >
+                  <span>Continue</span>
+                  <ArrowRight size={16} />
+                </button>
+              ) : (
+                <div className="mt-5 space-y-2.5">
+                  {/* Disabled Future Payment Gateway Button */}
+                  <button
+                    disabled
+                    className="tap w-full py-3.5 rounded-2xl bg-paper border border-line text-obsidian/40 font-semibold text-[14px] flex items-center justify-center gap-2 cursor-not-allowed opacity-70"
+                    title="Online payment gateway coming soon"
+                  >
+                    <Lock size={15} className="text-obsidian/35" />
+                    <span>Pay</span>
+                    <span className="text-[10px] font-mono uppercase tracking-wider bg-bone px-2 py-0.5 rounded-md text-obsidian/50 font-bold ml-1 border border-line">
+                      Coming soon
+                    </span>
+                  </button>
+
+                  {/* Active Temporary Complete Button */}
+                  <button
+                    disabled={submitting}
+                    onClick={confirm}
+                    className="tap w-full py-3.5 rounded-2xl bg-obsidian text-paper font-semibold text-[14px] flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-obsidian/90 transition shadow-xs"
+                  >
+                    {submitting ? (
+                      <span>Submitting request…</span>
+                    ) : (
+                      <>
+                        <span>Complete</span>
+                        <ArrowRight size={16} />
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -329,19 +358,45 @@ export function BookingScreen() {
 
       {/* Mobile Sticky Footer */}
       <div className="md:hidden absolute bottom-0 inset-x-0 px-5 pt-3 pb-[max(16px,env(safe-area-inset-bottom))] bg-paper/95 backdrop-blur-xl border-t border-line z-20">
-        <button
-          disabled={submitting}
-          onClick={() => step === 0 ? setStep(1) : confirm()}
-          className="tap w-full py-3.5 rounded-2xl bg-obsidian text-paper font-semibold text-[14px] flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-obsidian/90 transition shadow-xs"
-        >
-          {step === 0 ? (
-            <>Continue <ArrowRight size={16} /></>
-          ) : submitting ? (
-            <span>Submitting request…</span>
-          ) : (
-            <span>Confirm & Request Booking</span>
-          )}
-        </button>
+        {step === 0 ? (
+          <button
+            onClick={() => setStep(1)}
+            className="tap w-full py-3.5 rounded-2xl bg-obsidian text-paper font-semibold text-[14px] flex items-center justify-center gap-2 hover:bg-obsidian/90 transition shadow-xs"
+          >
+            <span>Continue</span>
+            <ArrowRight size={16} />
+          </button>
+        ) : (
+          <div className="space-y-2">
+            {/* Disabled Future Payment Gateway Button */}
+            <button
+              disabled
+              className="tap w-full py-3 rounded-2xl bg-paper border border-line text-obsidian/40 font-semibold text-[13.5px] flex items-center justify-center gap-2 cursor-not-allowed opacity-70"
+            >
+              <Lock size={14} className="text-obsidian/35" />
+              <span>Pay</span>
+              <span className="text-[10px] font-mono uppercase tracking-wider bg-bone px-2 py-0.5 rounded-md text-obsidian/50 font-bold ml-1 border border-line">
+                Coming soon
+              </span>
+            </button>
+
+            {/* Active Temporary Complete Button */}
+            <button
+              disabled={submitting}
+              onClick={confirm}
+              className="tap w-full py-3.5 rounded-2xl bg-obsidian text-paper font-semibold text-[14px] flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-obsidian/90 transition shadow-xs"
+            >
+              {submitting ? (
+                <span>Submitting request…</span>
+              ) : (
+                <>
+                  <span>Complete</span>
+                  <ArrowRight size={16} />
+                </>
+              )}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

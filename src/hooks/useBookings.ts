@@ -15,7 +15,8 @@ export function useMyBookings(status?: BookingRow['status'][]) {
   return useQuery({
     queryKey:  [...BOOKING_KEYS.mine, status],
     queryFn:   () => bookingsApi.getMyBookings(status),
-    staleTime: 60_000,
+    staleTime: 10_000,
+    refetchInterval: 15_000,
   })
 }
 
@@ -24,21 +25,23 @@ export function useMyJobs(status?: BookingRow['status'][]) {
   return useQuery({
     queryKey:  [...BOOKING_KEYS.jobs, status],
     queryFn:   () => bookingsApi.getMyJobs(status),
-    staleTime: 60_000,
+    staleTime: 10_000,
+    refetchInterval: 15_000,
   })
 }
 
 // ─── Single booking ───────────────────────────────────────────────────────────
-export function useBooking(id: string | null) {
+export function useBooking(id: string | null, options?: { refetchInterval?: number | false | ((query: any) => number | false) }) {
   return useQuery({
     queryKey:  id ? BOOKING_KEYS.detail(id) : [],
     queryFn:   () => bookingsApi.getBookingById(id!),
     enabled:   !!id,
-    staleTime: 30_000,
+    staleTime: 10_000,
+    refetchInterval: options?.refetchInterval,
   })
 }
 
-// ─── Create booking + payment flow ────────────────────────────────────────────
+// ─── Create booking + payment flow ────────────────────────────────────
 export function useCreateBooking() {
   const qc = useQueryClient()
 
@@ -77,6 +80,8 @@ export function useRealtimeBooking(bookingId: string | null, onUpdate?: (row: Bo
       qc.setQueryData(BOOKING_KEYS.detail(bookingId), (old: BookingWithParties | undefined) =>
         old ? { ...old, ...row } : old
       )
+      qc.invalidateQueries({ queryKey: BOOKING_KEYS.mine })
+      qc.invalidateQueries({ queryKey: BOOKING_KEYS.jobs })
       onUpdate?.(row)
     })
     return () => { sub.unsubscribe() }

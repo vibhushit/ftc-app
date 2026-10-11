@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react'
 import {
   Check, Lock, MessageCircle,
-  KeyRound, Clock, XCircle, AlertCircle, RefreshCw
+  KeyRound, Clock, XCircle, AlertCircle, RefreshCw,
+  ShieldAlert, Loader2, Calendar
 } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import { SimpleHeader } from '@/components/ui/SimpleHeader'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
@@ -10,6 +12,7 @@ import { inr } from '@/data/constants'
 import { cn } from '@/utils'
 import { apiClient } from '@/services/apiClient'
 import { useToast } from '@/components/ui/ToastNotification'
+import { useBooking, useRealtimeBooking } from '@/hooks/useBookings'
 
 function depositInfo(price: number) {
   return price <= 10000
@@ -66,7 +69,31 @@ const BOOKING_STAGES = [
 export function BookingDetailScreen() {
   const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
   const { showSuccess, showError } = useToast()
-  const b = ((state.viewBooking ?? state.lastBooking) as unknown as Record<string, unknown> | null)
+  const qc = useQueryClient()
+  const initialBooking = ((state.viewBooking ?? state.lastBooking) as unknown as Record<string, unknown> | null)
+  const bookingId = initialBooking?.id ? String(initialBooking.id) : ''
+
+  // Live single-booking query with active polling when confirmed / in-progress
+  const { data: liveBooking } = useBooking(bookingId || null, {
+    refetchInterval: (query) => {
+      const s = (query.state.data as any)?.status
+      return (s === 'confirmed' || s === 'in_progress') ? 5000 : false
+    }
+  })
+
+  // Merge live database row with initial state snapshot
+  const b = (liveBooking ? { ...initialBooking, ...liveBooking } : initialBooking) as Record<string, unknown> | null
+
+  // Realtime Supabase logical replication channel
+  useRealtimeBooking(bookingId || null, (updatedRow) => {
+    if (updatedRow.status === 'completed' && b?.status !== 'completed') {
+      showSuccess('Session marked complete by creator! Escrow payment released.')
+    }
+    dispatch({
+      type: 'OPEN_BOOKING',
+      booking: { ...initialBooking, ...updatedRow } as any,
+    })
+  })
 
   // ─── OTP Generator State (Client-Side) ───────────────────────────────────
   const [activeOtp, setActiveOtp] = useState<string | null>(null)
@@ -74,6 +101,12 @@ export function BookingDetailScreen() {
   const [cooldownSecs, setCooldownSecs] = useState<number>(0)
   const [generationCount, setGenerationCount] = useState<number>(0)
   const [generatingOtp, setGeneratingOtp] = useState(false)
+
+  // ─── OTP Verification State (Creator-Side) ───────────────────────────────
+  const [otpInput, setOtpInput] = useState<string>('')
+  const [verifyingOtp, setVerifyingOtp] = useState<boolean>(false)
+  const [verifyError, setVerifyError] = useState<string | null>(null)
+  const [isLockedOut, setIsLockedOut] = useState<boolean>(false)
 
   // ─── Cancel Booking Modal State ──────────────────────────────────────────
   const [showCancelModal, setShowCancelModal] = useState(false)
@@ -117,7 +150,9 @@ export function BookingDetailScreen() {
       <div className="flex-1 flex flex-col bg-bone overflow-hidden min-h-0 h-full">
         <SimpleHeader title="Booking details" onBack={() => dispatch({ type: 'BACK' })} />
         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-paper">
-          <div className="text-4xl mb-3">📋</div>
+          <div className="w-16 h-16 rounded-full bg-bone grid place-items-center mb-3 text-obsidian/30 border border-line">
+            <Calendar size={28} />
+          </div>
           <h2 className="font-display text-xl mb-1">No booking selected</h2>
           <p className="text-[13px] text-obsidian/60 max-w-xs mb-6">
             Select an active or past booking to view its details.
@@ -133,7 +168,6 @@ export function BookingDetailScreen() {
     )
   }
 
-  const bookingId = String(b.id)
   const isCreatorViewing = Boolean(state.isCreator || (state.supabaseUserId && state.supabaseUserId === b.creator_id))
 
   const creatorName = (b.creator as any)?.name || (b.creatorName as string) || (b.creator_name as string) || 'Creator'
@@ -174,6 +208,42 @@ export function BookingDetailScreen() {
       showError(err?.message || 'Failed to generate completion code')
     } finally {
       setGeneratingOtp(false)
+    }
+  }
+
+  const handleVerifyOtpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (otpInput.trim().length !== 4) return
+
+    setVerifyingOtp(true)
+    setVerifyError(null)
+
+    try {
+      await apiClient.verifyCompletionOtp(bookingId, otpInput.trim())
+      qc.invalidateQueries({ queryKey: ['bookings'] })
+      showSuccess('Completion code verified! Session marked completed and funds released.')
+      dispatch({
+        type: 'OPEN_BOOKING',
+        booking: {
+          ...b,
+          status: 'completed',
+          completed_at: new Date().toISOString(),
+        } as any,
+      })
+      dispatch({
+        type: 'UPDATE_CREATOR_BOOKING',
+        id: bookingId,
+        patch: { status: 'completed' },
+      })
+      setOtpInput('')
+    } catch (err: any) {
+      const msg = err?.message || 'Incorrect completion code'
+      setVerifyError(msg)
+      if (msg.toLowerCase().includes('locked')) {
+        setIsLockedOut(true)
+      }
+    } finally {
+      setVerifyingOtp(false)
     }
   }
 
@@ -302,16 +372,91 @@ export function BookingDetailScreen() {
               </div>
             </Card>
 
+            {/* Completed Session Confirmation Banner */}
+            {status === 'completed' && (
+              <Card title="Session completion">
+                <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200/80 flex items-start gap-3.5">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 grid place-items-center shrink-0">
+                    <Check size={20} strokeWidth={2.5} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-[14px] text-emerald-950">
+                      Session Completed & Verified
+                    </div>
+                    <p className="text-[12px] text-emerald-900/80 mt-0.5 leading-relaxed">
+                      {isCreatorViewing
+                        ? 'The 4-digit wrap-up code was successfully verified. Session payout has been unlocked and credited to your payouts.'
+                        : `Your 4-digit completion code was verified by ${creatorName}. Full session funds held in escrow have been released to the creator.`}
+                    </p>
+                  </div>
+                </div>
+              </Card>
+            )}
+
             {/* On-Demand Session Completion OTP Card (Active when Confirmed / In-Progress) */}
             {(status === 'confirmed' || status === 'in_progress') && (
               <Card title="Session completion code">
                 {isCreatorViewing ? (
-                  <div className="p-3.5 rounded-xl bg-bone border border-line text-center space-y-1.5">
-                    <KeyRound size={22} className="mx-auto text-iris" />
-                    <div className="text-[13px] font-semibold text-obsidian">Client Wrap-Up Code</div>
-                    <p className="text-[12px] text-obsidian/60 max-w-xs mx-auto">
-                      {clientName} generates this 4-digit completion code after session wrap-up. Verify it in your pipeline to mark the job complete and release payment.
-                    </p>
+                  <div className="space-y-3.5 pt-1">
+                    <div className="p-3.5 rounded-xl bg-bone border border-line text-center space-y-1">
+                      <div className="text-[13px] font-semibold text-obsidian">Client Wrap-Up Code</div>
+                      <p className="text-[12px] text-obsidian/60 max-w-xs mx-auto">
+                        Ask {clientName} for their 4-digit completion code to complete this session and release payment.
+                      </p>
+                    </div>
+
+                    {verifyError && (
+                      <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-[12px] flex items-start gap-2">
+                        <ShieldAlert size={15} className="shrink-0 mt-0.5" />
+                        <span className="leading-snug">{verifyError}</span>
+                      </div>
+                    )}
+
+                    {isLockedOut ? (
+                      <div className="text-center py-3 bg-rose-50 border border-rose-200 rounded-xl p-3">
+                        <ShieldAlert size={20} className="text-rose-600 mx-auto mb-1" />
+                        <div className="text-[12.5px] font-semibold text-rose-800">Verification Locked</div>
+                        <p className="text-[11.5px] text-rose-700/80 mt-0.5">
+                          Too many incorrect attempts entered. Locked for security.
+                        </p>
+                      </div>
+                    ) : (
+                      <form onSubmit={handleVerifyOtpSubmit} className="space-y-3">
+                        <div>
+                          <label className="block text-[11px] font-mono uppercase tracking-[0.1em] text-obsidian/50 mb-1.5 text-center">
+                            Enter 4-digit code
+                          </label>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            maxLength={4}
+                            value={otpInput}
+                            onChange={e => setOtpInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                            placeholder="····"
+                            className="w-full text-center tracking-[0.4em] font-mono text-2xl font-bold py-2.5 px-4 rounded-xl border border-line bg-paper text-obsidian focus:outline-none focus:border-iris transition placeholder:tracking-[0.2em] placeholder:text-obsidian/25"
+                          />
+                        </div>
+
+                        <button
+                          type="submit"
+                          disabled={verifyingOtp || otpInput.trim().length !== 4}
+                          className="tap w-full py-3 px-4 rounded-xl bg-obsidian text-paper text-[13px] font-semibold flex items-center justify-center gap-2 hover:bg-obsidian/90 transition disabled:opacity-40 shadow-xs"
+                        >
+                          {verifyingOtp ? (
+                            <>
+                              <Loader2 size={15} className="animate-spin text-iris" />
+                              <span>Verifying code…</span>
+                            </>
+                          ) : (
+                            <>
+                              <Check size={15} className="text-acid" />
+                              <span>Verify & Complete Session</span>
+                            </>
+                          )}
+                        </button>
+                      </form>
+                    )}
                   </div>
                 ) : !activeOtp ? (
                   <div className="space-y-3">
