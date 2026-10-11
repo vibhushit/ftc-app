@@ -31,7 +31,7 @@ import { useToast } from '@/components/ui/ToastNotification'
 import type { ApiErrorEvent } from '@/services/apiClient'
 
 const TAB_SCREENS: Screen[] = ['home', 'discover', 'inbox', 'me']
-const WIDE_SCREENS: Screen[] = ['home', 'discover', 'inbox', 'me', 'saved', 'campaigns', 'creator', 'booking', 'bookingDetail', 'campaignDetail', 'bookings', 'compare', 'chat', 'calendar']
+const WIDE_SCREENS: Screen[] = ['home', 'discover', 'inbox', 'me', 'saved', 'campaigns', 'creator', 'booking', 'confirmed', 'bookingDetail', 'campaignDetail', 'bookings', 'compare', 'chat', 'calendar']
 
 // Public screens accessible without authentication
 const PUBLIC_SCREENS: Screen[] = [

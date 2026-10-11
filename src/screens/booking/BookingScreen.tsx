@@ -60,12 +60,11 @@ export function BookingScreen() {
   const time = (draft.time as string) || ''
 
   const allLocOpts = [
-    { key: 'studio', label: `${creatorArea} · their studio`, sub: 'You visit the creator\'s space', fee: 0 },
-    { key: 'local', label: `My location (${creatorCity || 'Local'})`, sub: 'Creator travels to your venue', fee: 0 },
-    { key: 'outstation', label: 'Outstation shoot / Another city', sub: 'Travel arranged or reimbursed by client', fee: 0 },
+    { key: 'studio', label: "Creator's Studio", fee: 0 },
+    { key: 'local', label: 'At your location', fee: 0 },
   ]
   const locOptions = allLocOpts.filter(o =>
-    travelMode === 'both' || (travelMode === 'studio' && o.key === 'studio') || (travelMode === 'travel' && o.key !== 'studio')
+    travelMode === 'both' || (travelMode === 'studio' && o.key === 'studio') || (travelMode === 'travel' && o.key === 'local')
   )
 
   const [locType, setLocType] = useState(locOptions[0]?.key ?? 'studio')
@@ -114,6 +113,7 @@ export function BookingScreen() {
           request_expires_at: createdBooking.request_expires_at || expiresAt,
           pkg: pkgName,
           locType: sel?.key ?? 'studio',
+          venue: venue || null,
           advance: dep.advance,
           balance: dep.balance,
           pct: dep.pct,
@@ -162,19 +162,9 @@ export function BookingScreen() {
         <span className="w-10" />
       </div>
 
-      {/* Booking Context Pill */}
-      <div className="px-5 py-3 flex items-center gap-3 border-b border-line bg-bone/40 shrink-0">
-        {renderAvatar('w-10 h-10 text-sm')}
-        <div className="flex-1 min-w-0">
-          <div className="font-display text-base leading-tight truncate">{creatorName}</div>
-          <div className="text-[11px] text-obsidian/60 truncate">{pkgName} · {dateLabel} · {time}</div>
-        </div>
-        <div className="font-display text-lg tnum">{inr(base)}</div>
-      </div>
-
       {/* Main Body */}
       <div className="app-scroll pb-28 md:pb-8">
-        <div className="max-w-4xl mx-auto w-full md:grid md:grid-cols-[1fr_340px] md:gap-6 md:items-start md:px-6 md:pt-6">
+        <div className="max-w-4xl mx-auto w-full md:grid md:grid-cols-[1fr_360px] md:gap-8 md:items-start md:px-6 md:pt-6">
           <div className="md:min-w-0">
             {submitError && (
               <div className="mx-5 mt-4 p-3.5 rounded-2xl bg-danger/10 border border-danger/20 text-danger text-[12px] flex items-center justify-between">
@@ -186,18 +176,17 @@ export function BookingScreen() {
             {/* STEP 0: LOCATION */}
             {step === 0 && (
               <div className="px-5 py-5">
-                <div className="font-display text-2xl tracking-tight leading-tight mb-1">Where's the session?</div>
-                <p className="text-[13px] text-obsidian/60 mb-5">Choose whether the shoot happens at the creator's studio or your location.</p>
+                <div className="font-display text-2xl tracking-tight leading-tight mb-5">Where's the session?</div>
                 
                 <div className="space-y-2.5">
                   {locOptions.map(o => {
-                    const Ic = o.key === 'studio' ? Home : o.key === 'local' ? MapPin : Globe
+                    const Ic = o.key === 'studio' ? Home : MapPin
                     return (
                       <button
                         key={o.key}
                         onClick={() => setLocType(o.key)}
                         className={cn(
-                          'tap w-full p-4 rounded-2xl border-2 text-left transition flex items-start gap-3',
+                          'tap w-full p-4 rounded-2xl border-2 text-left transition flex items-center gap-3',
                           locType === o.key ? 'border-iris bg-iris-tint' : 'border-line bg-paper'
                         )}
                       >
@@ -205,26 +194,24 @@ export function BookingScreen() {
                           <Ic size={16} />
                         </div>
                         <div className="flex-1">
-                          <div className="text-[13.5px] font-semibold">{o.label}</div>
-                          <div className="text-[11.5px] text-obsidian/55 mt-0.5">{o.sub}</div>
+                          <div className="text-[14px] font-semibold">{o.label}</div>
                         </div>
                       </button>
                     )
                   })}
                 </div>
 
-                {locType !== 'studio' && (
-                  <div className="mt-3">
+                {locType === 'local' && (
+                  <div className="mt-4">
+                    <label className="block text-[11px] font-mono uppercase tracking-[0.1em] text-obsidian/50 mb-1.5">
+                      Venue / Address
+                    </label>
                     <input
                       value={venue}
                       onChange={e => setVenue(e.target.value)}
-                      placeholder="Venue address or landmark (e.g. Bandra West, Studio 4)"
-                      className="w-full py-3 px-4 bg-bone rounded-xl text-[13.5px] outline-none focus:ring-2 focus:ring-iris/30 border border-line"
+                      placeholder="Enter venue address or landmark"
+                      className="w-full py-3.5 px-4 bg-bone rounded-xl text-[13.5px] outline-none focus:ring-2 focus:ring-iris/30 border border-line"
                     />
-                    <div className="mt-2 text-[11px] text-obsidian/50 flex items-start gap-1.5">
-                      <Shield size={12} className="text-iris shrink-0 mt-0.5" />
-                      Travel specifics are coordinated directly with creator upon confirmation.
-                    </div>
                   </div>
                 )}
               </div>
@@ -237,14 +224,14 @@ export function BookingScreen() {
                 <p className="text-[13px] text-obsidian/60 mb-5">Review your booking summary before submitting your request.</p>
 
                 {/* Session Summary Card */}
-                <div className="p-4 rounded-2xl bg-bone border border-line mb-4 space-y-2">
+                <div className="p-4 rounded-2xl bg-bone border border-line mb-4 space-y-2.5">
                   <div className="flex items-center justify-between text-[13px]">
                     <span className="text-obsidian/60">Creator</span>
                     <span className="font-semibold text-obsidian">{creatorName}</span>
                   </div>
                   <div className="flex items-center justify-between text-[13px]">
                     <span className="text-obsidian/60">Package</span>
-                    <span className="font-semibold text-obsidian">{pkgName} ({pkgDur})</span>
+                    <span className="font-semibold text-obsidian">{pkgName}</span>
                   </div>
                   <div className="flex items-center justify-between text-[13px]">
                     <span className="text-obsidian/60">Date & Slot</span>
@@ -255,43 +242,45 @@ export function BookingScreen() {
                     <span className="font-semibold text-obsidian">{sel.label}</span>
                   </div>
                   {venue && (
-                    <div className="flex items-center justify-between text-[13px]">
-                      <span className="text-obsidian/60">Address</span>
-                      <span className="font-medium text-obsidian truncate max-w-[200px]">{venue}</span>
+                    <div className="flex items-start justify-between gap-4 text-[13px]">
+                      <span className="text-obsidian/60 shrink-0">Address</span>
+                      <span className="font-medium text-obsidian text-right break-words max-w-[220px]">{venue}</span>
                     </div>
                   )}
                 </div>
 
-                {/* Clean Price Breakdown */}
-                <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-obsidian/50 mb-2">Price Breakdown</div>
-                <div className="p-4 rounded-2xl bg-bone border border-line space-y-2.5">
-                  <div className="flex items-center justify-between text-[12.5px] text-obsidian/60">
-                    <span>Session Fee</span><span className="tnum font-medium text-obsidian">{inr(base)}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-[12.5px] text-obsidian/60">
-                    <span>Platform Fee</span><span className="tnum font-medium text-obsidian">+{inr(platformFee)}</span>
-                  </div>
-                  <div className="pt-2 border-t border-line" />
-                  <div className="flex items-center justify-between text-[13px] font-semibold">
-                    <span>Total Amount</span><span className="tnum text-obsidian">{inr(total)}</span>
-                  </div>
-                  <div className="pt-2 border-t border-line" />
-                  <div className="flex items-center justify-between text-[13px] font-semibold text-iris">
-                    <span>Advance Due Now</span>
-                    <span className="tnum">{inr(dep.advance)}</span>
-                  </div>
-                  {!dep.full && (
-                    <div className="flex items-center justify-between text-[12px] text-obsidian/50">
-                      <span>Balance on Completion</span>
-                      <span className="tnum">{inr(dep.balance)}</span>
+                {/* Mobile-Only Price Breakdown (Consolidated into sidebar on desktop) */}
+                <div className="md:hidden">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-obsidian/50 mb-2">Price Breakdown</div>
+                  <div className="p-4 rounded-2xl bg-bone border border-line space-y-2.5">
+                    <div className="flex items-center justify-between text-[12.5px] text-obsidian/60">
+                      <span>Session Fee</span><span className="tnum font-medium text-obsidian">{inr(base)}</span>
                     </div>
-                  )}
+                    <div className="flex items-center justify-between text-[12.5px] text-obsidian/60">
+                      <span>Platform Fee</span><span className="tnum font-medium text-obsidian">+{inr(platformFee)}</span>
+                    </div>
+                    <div className="pt-2 border-t border-line" />
+                    <div className="flex items-center justify-between text-[13px] font-semibold">
+                      <span>Total Amount</span><span className="tnum text-obsidian">{inr(total)}</span>
+                    </div>
+                    <div className="pt-2 border-t border-line" />
+                    <div className="flex items-center justify-between text-[13px] font-semibold text-iris">
+                      <span>Advance Due Now</span>
+                      <span className="tnum">{inr(dep.advance)}</span>
+                    </div>
+                    {!dep.full && (
+                      <div className="flex items-center justify-between text-[12px] text-obsidian/50">
+                        <span>Balance on Completion</span>
+                        <span className="tnum">{inr(dep.balance)}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Desktop Sticky Panel */}
+          {/* Desktop Sticky Panel (Option A: Unified Order & Payment Card) */}
           <div className="hidden md:block md:sticky md:top-6">
             <div className="rounded-2xl border border-line bg-bone p-5">
               <div className="flex items-center gap-3 pb-4 border-b border-line">
@@ -302,53 +291,77 @@ export function BookingScreen() {
                 </div>
               </div>
 
-              <div className="pt-4 space-y-2">
-                <div className="flex items-center justify-between text-[12.5px] text-obsidian/60">
-                  <span>Total</span><span className="tnum font-semibold text-obsidian">{inr(total)}</span>
-                </div>
-                <div className="flex items-center justify-between text-[13px] font-semibold text-iris">
-                  <span>Due now</span><span className="tnum">{inr(dep.advance)}</span>
-                </div>
-              </div>
-
               {step === 0 ? (
-                <button
-                  onClick={() => setStep(1)}
-                  className="tap w-full mt-5 py-3.5 rounded-2xl bg-obsidian text-paper font-semibold text-[14px] flex items-center justify-center gap-2 hover:bg-obsidian/90 transition shadow-xs"
-                >
-                  <span>Continue</span>
-                  <ArrowRight size={16} />
-                </button>
+                <div className="pt-4">
+                  <div className="flex items-center justify-between text-[13px]">
+                    <span className="text-obsidian/60">Estimated Total</span>
+                    <span className="font-mono font-bold text-obsidian">{inr(total)}</span>
+                  </div>
+                  <button
+                    onClick={() => setStep(1)}
+                    className="tap w-full mt-5 py-3.5 rounded-2xl bg-obsidian text-paper font-semibold text-[14px] flex items-center justify-center gap-2 hover:bg-obsidian/90 transition shadow-xs"
+                  >
+                    <span>Continue</span>
+                    <ArrowRight size={16} />
+                  </button>
+                </div>
               ) : (
-                <div className="mt-5 space-y-2.5">
-                  {/* Disabled Future Payment Gateway Button */}
-                  <button
-                    disabled
-                    className="tap w-full py-3.5 rounded-2xl bg-paper border border-line text-obsidian/40 font-semibold text-[14px] flex items-center justify-center gap-2 cursor-not-allowed opacity-70"
-                    title="Online payment gateway coming soon"
-                  >
-                    <Lock size={15} className="text-obsidian/35" />
-                    <span>Pay</span>
-                    <span className="text-[10px] font-mono uppercase tracking-wider bg-bone px-2 py-0.5 rounded-md text-obsidian/50 font-bold ml-1 border border-line">
-                      Coming soon
-                    </span>
-                  </button>
-
-                  {/* Active Temporary Complete Button */}
-                  <button
-                    disabled={submitting}
-                    onClick={confirm}
-                    className="tap w-full py-3.5 rounded-2xl bg-obsidian text-paper font-semibold text-[14px] flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-obsidian/90 transition shadow-xs"
-                  >
-                    {submitting ? (
-                      <span>Submitting request…</span>
-                    ) : (
-                      <>
-                        <span>Complete</span>
-                        <ArrowRight size={16} />
-                      </>
+                <div className="pt-4">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-obsidian/50 mb-3">Price Breakdown</div>
+                  <div className="space-y-2.5 text-[12.5px]">
+                    <div className="flex items-center justify-between text-obsidian/60">
+                      <span>Session Fee</span><span className="tnum font-medium text-obsidian">{inr(base)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-obsidian/60">
+                      <span>Platform Fee</span><span className="tnum font-medium text-obsidian">+{inr(platformFee)}</span>
+                    </div>
+                    <div className="pt-2 border-t border-line" />
+                    <div className="flex items-center justify-between text-[13px] font-semibold">
+                      <span>Total Amount</span><span className="tnum text-obsidian">{inr(total)}</span>
+                    </div>
+                    <div className="pt-2 border-t border-line" />
+                    <div className="flex items-center justify-between text-[13px] font-semibold text-iris">
+                      <span>Advance Due Now</span>
+                      <span className="tnum">{inr(dep.advance)}</span>
+                    </div>
+                    {!dep.full && (
+                      <div className="flex items-center justify-between text-[11.5px] text-obsidian/50">
+                        <span>Balance on Completion</span>
+                        <span className="tnum">{inr(dep.balance)}</span>
+                      </div>
                     )}
-                  </button>
+                  </div>
+
+                  <div className="mt-5 space-y-2.5">
+                    {/* Disabled Future Payment Gateway Button */}
+                    <button
+                      disabled
+                      className="tap w-full py-3.5 rounded-2xl bg-paper border border-line text-obsidian/40 font-semibold text-[14px] flex items-center justify-center gap-2 cursor-not-allowed opacity-70"
+                      title="Online payment gateway coming soon"
+                    >
+                      <Lock size={15} className="text-obsidian/35" />
+                      <span>Pay</span>
+                      <span className="text-[10px] font-mono uppercase tracking-wider bg-bone px-2 py-0.5 rounded-md text-obsidian/50 font-bold ml-1 border border-line">
+                        Coming soon
+                      </span>
+                    </button>
+
+                    {/* Active Temporary Complete Button */}
+                    <button
+                      disabled={submitting}
+                      onClick={confirm}
+                      className="tap w-full py-3.5 rounded-2xl bg-obsidian text-paper font-semibold text-[14px] flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-obsidian/90 transition shadow-xs"
+                    >
+                      {submitting ? (
+                        <span>Submitting request…</span>
+                      ) : (
+                        <>
+                          <span>Complete</span>
+                          <ArrowRight size={16} />
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

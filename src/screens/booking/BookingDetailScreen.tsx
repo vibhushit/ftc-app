@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import {
-  Check, Lock, MessageCircle,
+  Check, Lock, MessageCircle, X,
   KeyRound, Clock, XCircle, AlertCircle, RefreshCw,
   ShieldAlert, Loader2, Calendar
 } from 'lucide-react'
@@ -181,14 +181,33 @@ export function BookingDetailScreen() {
   const partyName = isCreatorViewing ? clientName : creatorName
   const partyAvatar = isCreatorViewing ? clientAvatar : creatorAvatar
 
-  const base = typeof b.total === 'number' ? b.total : (typeof b.price === 'number' ? b.price : (typeof b.total_price === 'number' ? b.total_price : 0))
-  const platform = Math.max(99, Math.round(base * 0.05))
-  const total = base + platform
-  const dep = depositInfo(total)
+  // Real database columns vs fallback calculations
+  const total = typeof b.total_price === 'number'
+    ? b.total_price
+    : (typeof b.total === 'number' ? b.total : (typeof b.price === 'number' ? b.price : 0))
+
+  const platform = typeof b.platform_fee === 'number'
+    ? b.platform_fee
+    : (typeof b.base_price === 'number' ? total - b.base_price : Math.max(99, Math.round(total * 0.05 / 1.05)))
+
+  const base = typeof b.base_price === 'number'
+    ? b.base_price
+    : (total - platform)
+
+  const advance = typeof b.advance_amount === 'number'
+    ? b.advance_amount
+    : (typeof b.advance === 'number' ? b.advance : Math.round(total * 0.3))
+
+  const balance = typeof b.balance_amount === 'number'
+    ? b.balance_amount
+    : (typeof b.balance === 'number' ? b.balance : (total - advance))
+
+  const advancePct = total > 0 ? Math.round((advance / total) * 100) : 30
   const status = (b.status as string) || 'pending'
   const curStage = status === 'completed' ? 3 : status === 'in_progress' ? 2 : status === 'confirmed' ? 1 : 0
-  const locLabel = b.locType === 'studio' || b.location_type === 'studio' ? 'Creator studio' : b.locType === 'local' || b.location_type === 'local' ? 'Client venue (Local)' : 'Outstation destination'
+  const locLabel = b.locType === 'studio' || b.location_type === 'studio' ? "Creator's Studio" : 'At client location'
   const currentNotes = (b.notes as string) || (b.client_notes as string) || (b.clientNotes as string) || ''
+  const venueAddress = (b.venue as string) || (b.location_address as string) || (currentNotes?.startsWith('Venue:') ? currentNotes.replace('Venue:', '').trim() : null)
   const createdRaw = (b.created_at as string) || (b.createdAt as string) || ''
   const confirmedRaw = (b.confirmed_at as string) || (b.confirmedAt as string) || ''
   const createdFormatted = formatDateTime(createdRaw)
@@ -264,6 +283,42 @@ export function BookingDetailScreen() {
     }
   }
 
+  const [processingAction, setProcessingAction] = useState(false)
+
+  const handleAcceptRequest = async () => {
+    setProcessingAction(true)
+    try {
+      await apiClient.acceptBooking(bookingId)
+      qc.invalidateQueries({ queryKey: ['bookings'] })
+      showSuccess('Booking request accepted! Calendar slot locked and advance held in escrow.')
+      dispatch({
+        type: 'OPEN_BOOKING',
+        booking: { ...b, status: 'confirmed' } as any,
+      })
+    } catch (err: any) {
+      showError(err?.message || 'Failed to accept booking request.')
+    } finally {
+      setProcessingAction(false)
+    }
+  }
+
+  const handleDeclineRequest = async () => {
+    setProcessingAction(true)
+    try {
+      await apiClient.declineBooking(bookingId, 'Creator unavailable')
+      qc.invalidateQueries({ queryKey: ['bookings'] })
+      showSuccess('Booking declined. Advance deposit released back to client.')
+      dispatch({
+        type: 'OPEN_BOOKING',
+        booking: { ...b, status: 'declined' } as any,
+      })
+    } catch (err: any) {
+      showError(err?.message || 'Failed to decline booking.')
+    } finally {
+      setProcessingAction(false)
+    }
+  }
+
   const Card = ({ title, children }: { title: string; children: React.ReactNode }) => (
     <div className="mb-4 rounded-2xl bg-paper border border-line overflow-hidden shadow-xs">
       <div className="px-5 pt-4 pb-2 font-mono text-[10px] uppercase tracking-[0.14em] text-obsidian/45">{title}</div>
@@ -272,9 +327,9 @@ export function BookingDetailScreen() {
   )
 
   const KV = ({ k, v }: { k: string; v?: string | null }) => v ? (
-    <div className="flex items-center justify-between py-1.5 text-[13px]">
-      <span className="text-obsidian/55">{k}</span>
-      <span className="font-semibold text-obsidian">{v}</span>
+    <div className="flex items-start justify-between gap-4 py-1.5 text-[13px]">
+      <span className="text-obsidian/55 shrink-0">{k}</span>
+      <span className="font-semibold text-obsidian text-right break-words max-w-[260px]">{v}</span>
     </div>
   ) : null
 
@@ -304,9 +359,17 @@ export function BookingDetailScreen() {
                 status === 'completed' && 'bg-paper/15 text-paper',
                 status === 'confirmed' && 'bg-acid text-obsidian',
                 status === 'cancelled' && 'bg-rose-500 text-paper',
-                (status === 'pending' || status === 'pending_approval') && 'bg-acid text-obsidian'
+                (status === 'pending' || status === 'pending_approval') && (isCreatorViewing ? 'bg-amber-400 text-obsidian' : 'bg-acid text-obsidian')
               )}>
-                {status === 'completed' ? 'Completed' : status === 'confirmed' ? 'Confirmed' : status === 'cancelled' ? 'Cancelled' : 'Awaiting creator'}
+                {status === 'completed'
+                  ? 'Completed'
+                  : status === 'confirmed'
+                    ? 'Confirmed'
+                    : status === 'cancelled'
+                      ? 'Cancelled'
+                      : isCreatorViewing
+                        ? 'Pending Request'
+                        : 'Awaiting Confirmation'}
               </span>
             </div>
 
@@ -512,30 +575,85 @@ export function BookingDetailScreen() {
               <KV k="Package" v={(b.pkg as string) || (b.pkg_name as string) || (b.service as any)?.name || 'Standard Session'} />
               <KV k="Shoot slot" v={(b.when as string) || (b.date as string) || (b.date_time as string) || 'Scheduled'} />
               <KV k="Location" v={locLabel} />
+              {venueAddress && <KV k="Venue / Address" v={venueAddress} />}
               <KV k="Booking ID" v={b.booking_ref ? `#${b.booking_ref}` : `#${bookingId.slice(0, 8)}`} />
               {createdFormatted && <KV k="Requested on" v={createdFormatted} />}
               {confirmedFormatted && <KV k="Confirmed on" v={confirmedFormatted} />}
-              {currentNotes && <KV k="Location / notes" v={currentNotes} />}
+              {currentNotes && !currentNotes.startsWith('Venue:') && <KV k="Notes" v={currentNotes} />}
             </Card>
           </div>
 
           {/* Right Column: Sticky Payment & Actions Panel */}
           <div className="md:sticky md:top-6">
             <Card title="Payment summary">
-              <KV k="Package" v={inr(base)} />
-              <KV k="Platform fee" v={inr(platform)} />
-              <div className="border-t border-line my-2" />
-              <KV k="Total amount" v={inr(total)} />
-              <KV k={dep.full ? 'Paid (escrow)' : `Advance paid (${dep.pct}%)`} v={inr(dep.advance)} />
-              {!dep.full && <KV k="Final on delivery" v={inr(dep.balance)} />}
-              <div className="mt-3 p-3 rounded-xl bg-iris-tint flex items-center gap-2 text-[11.5px] text-obsidian/70">
-                <Lock size={13} className="text-iris shrink-0" />
-                <span>{status === 'completed' ? 'Final payment released to creator' : 'Held safely in FTC escrow'}</span>
-              </div>
+              {isCreatorViewing ? (
+                <>
+                  <KV k="Package earnings" v={inr(base)} />
+                  <div className="border-t border-line my-2" />
+                  <KV k="Total payout" v={inr(base)} />
+                  <KV k={`Advance in escrow (${advancePct}%)`} v={inr(advance)} />
+                  <KV k="Balance on completion" v={inr(balance)} />
+                  <div className="mt-3 p-3 rounded-xl bg-iris-tint flex items-center gap-2 text-[11.5px] text-obsidian/70">
+                    <Lock size={13} className="text-iris shrink-0" />
+                    <span>
+                      {status === 'completed'
+                        ? `${inr(base)} released to your payouts`
+                        : `${inr(advance)} protected in escrow until session completion`}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <KV k="Package" v={inr(base)} />
+                  <KV k="Platform fee" v={inr(platform)} />
+                  <div className="border-t border-line my-2" />
+                  <KV k="Total amount" v={inr(total)} />
+                  <KV
+                    k={status === 'completed' ? 'Paid in full' : `Advance in escrow (${advancePct}%)`}
+                    v={status === 'completed' ? inr(total) : inr(advance)}
+                  />
+                  {status !== 'completed' && <KV k="Final on delivery" v={inr(balance)} />}
+                  <div className="mt-3 p-3 rounded-xl bg-iris-tint flex items-center gap-2 text-[11.5px] text-obsidian/70">
+                    <Lock size={13} className="text-iris shrink-0" />
+                    <span>
+                      {status === 'completed'
+                        ? 'Final payment released to creator'
+                        : 'Funds held safely in FTC escrow'}
+                    </span>
+                  </div>
+                </>
+              )}
             </Card>
 
             {/* Primary Action Buttons */}
             <div className="space-y-2.5 mb-6">
+              {/* Creator Accept / Decline Actions for Pending Requests */}
+              {isCreatorViewing && (status === 'pending' || status === 'pending_approval') && (
+                <div className="space-y-2 mb-1">
+                  <button
+                    disabled={processingAction}
+                    onClick={handleAcceptRequest}
+                    className="tap w-full py-3.5 rounded-2xl bg-obsidian text-paper font-semibold text-[13.5px] flex items-center justify-center gap-2 hover:bg-obsidian/90 transition shadow-xs disabled:opacity-50"
+                  >
+                    {processingAction ? (
+                      <Loader2 size={16} className="animate-spin text-iris" />
+                    ) : (
+                      <Check size={16} className="text-acid" />
+                    )}
+                    <span>{processingAction ? 'Processing…' : 'Accept Booking Request'}</span>
+                  </button>
+
+                  <button
+                    disabled={processingAction}
+                    onClick={handleDeclineRequest}
+                    className="tap w-full py-2.5 rounded-2xl border border-line bg-paper text-obsidian/75 hover:bg-bone font-medium text-[13px] flex items-center justify-center gap-1.5 transition disabled:opacity-50"
+                  >
+                    <X size={15} className="text-obsidian/60" />
+                    <span>Decline Request</span>
+                  </button>
+                </div>
+              )}
+
               <button
                 disabled
                 className="tap w-full py-3.5 rounded-2xl bg-paper border border-line text-obsidian/40 font-semibold text-[13.5px] flex items-center justify-center gap-2 cursor-not-allowed opacity-60"

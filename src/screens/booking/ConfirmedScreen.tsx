@@ -117,8 +117,8 @@ export function ConfirmedScreen() {
 
         <p className="mt-3 text-[13.5px] text-paper/70 max-w-xs leading-relaxed">
           {isPending
-            ? `Your request has been sent to ${creatorName}. They have 24 hours to confirm your slot.`
-            : `Your session booking with ${creatorName} has been confirmed.`}
+            ? `Your request has been sent to ${creatorName.trim()}. They have 24 hours to confirm your slot.`
+            : `Your session booking with ${creatorName.trim()} has been confirmed.`}
         </p>
 
         {/* Creator & Booking Card */}
@@ -142,29 +142,31 @@ export function ConfirmedScreen() {
           </div>
         </div>
 
-        {/* Add to Calendar Section */}
-        <div className="mt-5 w-full max-w-sm space-y-2 text-left">
-          <div className="text-[10px] font-mono uppercase tracking-[0.14em] text-paper/50 px-1">Save to Calendar</div>
-          <div className="grid grid-cols-2 gap-2">
-            <a
-              href={googleCalUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="tap p-3 rounded-xl bg-paper/10 hover:bg-paper/15 text-paper text-[12px] font-medium flex items-center justify-center gap-1.5 transition border border-paper/10"
-            >
-              <Calendar size={14} className="text-acid" />
-              <span>Google Cal</span>
-              <ExternalLink size={11} className="opacity-50" />
-            </a>
-            <button
-              onClick={downloadIcs}
-              className="tap p-3 rounded-xl bg-paper/10 hover:bg-paper/15 text-paper text-[12px] font-medium flex items-center justify-center gap-1.5 transition border border-paper/10"
-            >
-              <Download size={14} className="text-acid" />
-              <span>Apple / .ics</span>
-            </button>
+        {/* Add to Calendar Section (Only for confirmed sessions) */}
+        {!isPending && (
+          <div className="mt-5 w-full max-w-sm space-y-2 text-left">
+            <div className="text-[10px] font-mono uppercase tracking-[0.14em] text-paper/50 px-1">Save to Calendar</div>
+            <div className="grid grid-cols-2 gap-2">
+              <a
+                href={googleCalUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="tap p-3 rounded-xl bg-paper/10 hover:bg-paper/15 text-paper text-[12px] font-medium flex items-center justify-center gap-1.5 transition border border-paper/10"
+              >
+                <Calendar size={14} className="text-acid" />
+                <span>Google Cal</span>
+                <ExternalLink size={11} className="opacity-50" />
+              </a>
+              <button
+                onClick={downloadIcs}
+                className="tap p-3 rounded-xl bg-paper/10 hover:bg-paper/15 text-paper text-[12px] font-medium flex items-center justify-center gap-1.5 transition border border-paper/10"
+              >
+                <Download size={14} className="text-acid" />
+                <span>Apple / .ics</span>
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Clean Bottom Navigation Buttons */}

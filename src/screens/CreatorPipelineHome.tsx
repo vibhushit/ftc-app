@@ -243,6 +243,9 @@ export function CreatorPipelineHome() {
 
               const rawDateSlot = b.session_date ? `${b.session_date}${b.session_time ? ` · ${b.session_time}` : ''}` : (b.date || b.when)
               const dateSlot = rawDateSlot || 'Date to be confirmed'
+              const displayDate = isCompleted
+                ? (completedDateFormatted || formatCardDate(b.session_date || b.created_at))
+                : dateSlot
               const clientNotes = b.notes || b.clientNotes || ''
               const requestExpiresAt = b.request_expires_at || b.requestExpiresAt
               const advance = typeof b.advance_amount === 'number' ? b.advance_amount : (typeof b.advancePaid === 'number' ? b.advancePaid : Math.round(price * 0.3))
@@ -271,29 +274,9 @@ export function CreatorPipelineHome() {
                         <div className="font-semibold text-[14px] truncate">{clientName}</div>
                         <div className="font-mono text-[13px] font-bold text-obsidian">{inr(price)}</div>
                       </div>
-                      <div className="text-[12px] text-obsidian/70 mt-0.5 font-medium truncate">
-                        {pkgName}
-                      </div>
-
-                      {isCompleted ? (
-                        <div className="text-[11px] font-mono text-emerald-700 mt-1 flex items-center gap-1.5 font-medium">
-                          <CheckCircle2 size={12} className="text-emerald-600 shrink-0" />
-                          <span>Completed{completedDateFormatted ? ` · ${completedDateFormatted}` : ''}</span>
-                        </div>
-                      ) : isCancelled ? (
-                        <div className="text-[11px] font-mono text-rose-600 mt-1 flex items-center gap-1.5 font-medium">
-                          <X size={12} className="text-rose-500 shrink-0" />
-                          <span>Cancelled</span>
-                        </div>
-                      ) : isPending ? (
-                        <div className="text-[11px] font-mono text-amber-700 mt-0.5 flex items-center gap-1.5 font-medium">
-                          <Clock size={11} className="text-amber-600 shrink-0" />
-                          <span>{dateSlot}</span>
-                        </div>
-                      ) : (
-                        <div className="text-[11px] font-mono text-obsidian/60 mt-0.5 flex items-center gap-1.5">
-                          <Calendar size={11} className="text-iris shrink-0" />
-                          <span>{dateSlot}</span>
+                      {displayDate && (
+                        <div className="text-[12px] text-obsidian/55 mt-1 font-mono truncate">
+                          {displayDate}
                         </div>
                       )}
                     </div>
@@ -303,7 +286,7 @@ export function CreatorPipelineHome() {
                   {isPending && (
                     <div className="mt-3 pt-3 border-t border-line space-y-2.5">
                       {clientNotes && (
-                        <div className="p-2.5 rounded-xl bg-bone border border-line text-[11.5px] text-obsidian/75 italic">
+                        <div className="p-2.5 rounded-xl bg-bone border border-line text-[11.5px] text-obsidian/75 italic line-clamp-2 break-words">
                           "{clientNotes}"
                         </div>
                       )}
@@ -356,14 +339,6 @@ export function CreatorPipelineHome() {
                         <KeyRound size={14} />
                         <span>Complete Session & Verify OTP</span>
                       </button>
-                    </div>
-                  )}
-
-                  {/* Completed Job: Escrow Settlement Footer */}
-                  {isCompleted && (
-                    <div className="mt-3 pt-2.5 border-t border-line/60 flex items-center justify-between text-[11px] font-mono">
-                      <span className="text-obsidian/45">Escrow settlement</span>
-                      <span className="text-emerald-700 font-semibold">{inr(price)} released to payouts</span>
                     </div>
                   )}
                 </div>
