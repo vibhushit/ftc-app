@@ -134,9 +134,19 @@ export function BookingDetailScreen() {
   }
 
   const bookingId = String(b.id)
-  const creatorName = (b.creatorName as string) || (b.creator_name as string) || (b.clientName as string) || 'Creator'
-  const rawAvatar = (b.creatorAvatar as string) || (b.creator_avatar as string) || (b.clientAvatar as string) || (b.creator as any)?.avatar_url || ''
-  const creatorAvatar = (rawAvatar.includes('picsum.photos') || rawAvatar.includes('photo-1534528741775')) ? '' : rawAvatar
+  const isCreatorViewing = Boolean(state.isCreator || (state.supabaseUserId && state.supabaseUserId === b.creator_id))
+
+  const creatorName = (b.creator as any)?.name || (b.creatorName as string) || (b.creator_name as string) || 'Creator'
+  const rawCreatorAvatar = (b.creator as any)?.avatar_url || (b.creatorAvatar as string) || (b.creator_avatar as string) || ''
+  const creatorAvatar = (rawCreatorAvatar.includes('picsum.photos') || rawCreatorAvatar.includes('photo-1534528741775')) ? '' : rawCreatorAvatar
+
+  const clientName = (b.consumer as any)?.name || (b.clientName as string) || (b.client_name as string) || 'Client'
+  const rawClientAvatar = (b.consumer as any)?.avatar_url || (b.clientAvatar as string) || (b.client_avatar as string) || ''
+  const clientAvatar = (rawClientAvatar.includes('picsum.photos') || rawClientAvatar.includes('photo-1534528741775')) ? '' : rawClientAvatar
+
+  const partyName = isCreatorViewing ? clientName : creatorName
+  const partyAvatar = isCreatorViewing ? clientAvatar : creatorAvatar
+
   const base = typeof b.total === 'number' ? b.total : (typeof b.price === 'number' ? b.price : (typeof b.total_price === 'number' ? b.total_price : 0))
   const platform = Math.max(99, Math.round(base * 0.05))
   const total = base + platform
@@ -207,16 +217,18 @@ export function BookingDetailScreen() {
           {/* Left Column: Hero, Timeline & Details */}
           <div className="md:min-w-0">
             <div className="mb-4 p-5 rounded-2xl bg-obsidian text-paper flex items-center gap-4 shadow-md">
-              {creatorAvatar ? (
-                <img src={creatorAvatar} className="w-14 h-14 rounded-full object-cover border-2 border-paper/20 shrink-0" alt="" />
+              {partyAvatar ? (
+                <img src={partyAvatar} className="w-14 h-14 rounded-full object-cover border-2 border-paper/20 shrink-0" alt="" />
               ) : (
                 <div className="w-14 h-14 rounded-full bg-paper/20 font-semibold text-paper grid place-items-center shrink-0 border-2 border-paper/20 text-lg">
-                  {creatorName.charAt(0)}
+                  {partyName.charAt(0)}
                 </div>
               )}
               <div className="flex-1 min-w-0">
-                <div className="font-display text-xl leading-tight truncate">{creatorName}</div>
-                <div className="text-[12px] text-paper/60 font-mono mt-0.5">#{bookingId} · {(b.pkg as string) || (b.pkg_name as string) || 'Session'}</div>
+                <div className="font-display text-xl leading-tight truncate">{partyName}</div>
+                <div className="text-[12px] text-paper/60 font-mono mt-0.5">
+                  {b.booking_ref ? `#${b.booking_ref}` : `#${bookingId.slice(0, 8)}`} · {(b.pkg as string) || (b.pkg_name as string) || (b.service as any)?.name || 'Session'}
+                </div>
               </div>
               <span className={cn('px-3 py-1 rounded-full text-[10px] font-mono uppercase tracking-wider font-semibold shrink-0',
                 status === 'completed' && 'bg-paper/15 text-paper',
@@ -245,7 +257,7 @@ export function BookingDetailScreen() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <span className="font-semibold text-[13.5px] tracking-tight">
-                      {remaining.expired ? 'Confirmation window expired' : 'Awaiting Creator Confirmation'}
+                      {remaining.expired ? 'Confirmation window expired' : isCreatorViewing ? 'Action Required: Confirm Request' : 'Awaiting Creator Confirmation'}
                     </span>
                     <span className={cn(
                       "font-mono text-[11.5px] font-bold px-2.5 py-0.5 rounded-full",
@@ -258,8 +270,12 @@ export function BookingDetailScreen() {
                   </div>
                   <p className="mt-1 text-[12px] text-amber-900/80 leading-relaxed">
                     {remaining.expired
-                      ? `The 24-hour response window for ${creatorName} has ended. You can cancel this request below to instantly release your escrow advance.`
-                      : `${creatorName} has 24 hours to confirm your booking. If unconfirmed within this window, your advance is automatically refunded.`}
+                      ? isCreatorViewing
+                        ? 'The 24-hour response window has ended. Please respond or reach out to support.'
+                        : `The 24-hour response window for ${creatorName} has ended. You can cancel this request below to release your escrow advance.`
+                      : isCreatorViewing
+                        ? 'You have 24 hours from booking to accept or decline this request in your pipeline.'
+                        : `${creatorName} has 24 hours to confirm your booking. If unconfirmed within this window, your advance is automatically refunded.`}
                   </p>
                 </div>
               </div>
@@ -289,7 +305,15 @@ export function BookingDetailScreen() {
             {/* On-Demand Session Completion OTP Card (Active when Confirmed / In-Progress) */}
             {(status === 'confirmed' || status === 'in_progress') && (
               <Card title="Session completion code">
-                {!activeOtp ? (
+                {isCreatorViewing ? (
+                  <div className="p-3.5 rounded-xl bg-bone border border-line text-center space-y-1.5">
+                    <KeyRound size={22} className="mx-auto text-iris" />
+                    <div className="text-[13px] font-semibold text-obsidian">Client Wrap-Up Code</div>
+                    <p className="text-[12px] text-obsidian/60 max-w-xs mx-auto">
+                      {clientName} generates this 4-digit completion code after session wrap-up. Verify it in your pipeline to mark the job complete and release payment.
+                    </p>
+                  </div>
+                ) : !activeOtp ? (
                   <div className="space-y-3">
                     <p className="text-[12px] text-obsidian/60">
                       Generate your 4-digit code once your session wraps up to release completion.
@@ -339,10 +363,11 @@ export function BookingDetailScreen() {
 
             {/* Session Details */}
             <Card title="Session Details">
-              <KV k="Package" v={(b.pkg as string) || (b.pkg_name as string) || 'Standard Session'} />
+              <KV k={isCreatorViewing ? "Client" : "Creator"} v={partyName} />
+              <KV k="Package" v={(b.pkg as string) || (b.pkg_name as string) || (b.service as any)?.name || 'Standard Session'} />
               <KV k="Shoot slot" v={(b.when as string) || (b.date as string) || (b.date_time as string) || 'Scheduled'} />
               <KV k="Location" v={locLabel} />
-              <KV k="Booking ID" v={`#${bookingId}`} />
+              <KV k="Booking ID" v={b.booking_ref ? `#${b.booking_ref}` : `#${bookingId.slice(0, 8)}`} />
               {createdFormatted && <KV k="Requested on" v={createdFormatted} />}
               {confirmedFormatted && <KV k="Confirmed on" v={confirmedFormatted} />}
               {currentNotes && <KV k="Location / notes" v={currentNotes} />}
@@ -367,14 +392,16 @@ export function BookingDetailScreen() {
             {/* Primary Action Buttons */}
             <div className="space-y-2.5 mb-6">
               <button
-                onClick={() => dispatch({ type: 'OPEN_CLIENT_CHAT', client: { name: creatorName, avatar: creatorAvatar } })}
-                className="tap w-full py-4 rounded-2xl bg-obsidian text-paper font-semibold text-[14px] flex items-center justify-center gap-2 shadow-md hover:bg-obsidian/90 transition"
+                disabled
+                className="tap w-full py-3.5 rounded-2xl bg-paper border border-line text-obsidian/40 font-semibold text-[13.5px] flex items-center justify-center gap-2 cursor-not-allowed opacity-60"
+                title="Messaging is coming soon"
               >
-                <MessageCircle size={16} /> Message {creatorName.split(' ')[0]}
+                <MessageCircle size={16} />
+                <span>Message (Coming soon)</span>
               </button>
 
               {/* Cancel Booking Action (Client) */}
-              {status !== 'completed' && status !== 'cancelled' && (
+              {!isCreatorViewing && status !== 'completed' && status !== 'cancelled' && (
                 <button
                   onClick={() => setShowCancelModal(true)}
                   className="tap w-full py-3 rounded-2xl border border-line bg-paper text-rose-600 text-[12.5px] font-semibold flex items-center justify-center gap-1.5 hover:bg-rose-50 transition"
