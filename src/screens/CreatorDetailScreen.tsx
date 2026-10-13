@@ -126,26 +126,35 @@ export function CreatorDetailScreen() {
   const [validatingSlot, setValidatingSlot] = useState(false)
   const [slotConflictError, setSlotConflictError] = useState<string | null>(null)
 
-  type Pkg = { name: string; price: number; duration: string; revisions: number; delivery: string; inclusions: string[] }
-  const startingPrice = c?.startingAt ?? 8000
-  const packages: Pkg[] = (dbServices && dbServices.length > 0)
-    ? dbServices.map((s: any) => ({ name: s.name, price: s.price, duration: s.duration, revisions: s.revisions ?? 1, delivery: `${s.delivery_days} days`, inclusions: s.inclusions ?? [] }))
-    : (state.onboard.builtPackages && state.onboard.builtPackages.length > 0)
-      ? state.onboard.builtPackages.map(p => ({
-          name: p.name,
-          price: Number(p.price) || startingPrice,
-          duration: p.duration || '2 hours',
-          revisions: p.revisions || 2,
-          delivery: `${p.delivery || '7'} days`,
-          inclusions: p.inclusions || [],
-        }))
-      : [
-          { name: 'Starter',  price: startingPrice,                     duration: '2 hours', revisions: 1, delivery: '7 days',  inclusions: ['Up to 30 edited photos', 'Digital delivery', '1 location'] },
-          { name: 'Standard', price: Math.round(startingPrice * 2.5),   duration: '4 hours', revisions: 2, delivery: '10 days', inclusions: ['Up to 80 edited photos', 'Digital + print', '2 locations'] },
-          { name: 'Premium',  price: Math.round(startingPrice * 6),     duration: '8 hours', revisions: 4, delivery: '14 days', inclusions: ['Unlimited photos', 'Album + print', 'Multiple locations'] },
-        ]
+  type Pkg = { id?: string; name: string; price: number; duration: string; revisions: number; delivery: string; inclusions: string[] }
 
-  const activePackage = packages[selectedPkg] ?? packages[0] ?? { name: 'Starter', price: startingPrice, duration: '2 hours', revisions: 1, delivery: '7 days', inclusions: [] }
+  const rawServices = ((dbCreator as any)?.services && (dbCreator as any).services.length > 0)
+    ? (dbCreator as any).services
+    : (dbServices && dbServices.length > 0)
+      ? dbServices
+      : (state.onboard.builtPackages && state.onboard.builtPackages.length > 0)
+        ? state.onboard.builtPackages.map(p => ({
+            name: p.name,
+            price: Number(p.price) || 8000,
+            duration: p.duration || '2 hours',
+            revisions: p.revisions || 2,
+            delivery_days: parseInt(p.delivery || '7', 10),
+            inclusions: p.inclusions || [],
+          }))
+        : []
+
+  const packages: Pkg[] = rawServices.map((s: any) => ({
+    id: s.id,
+    name: s.name,
+    price: s.price,
+    duration: s.duration || '2 hours',
+    revisions: s.revisions ?? 1,
+    delivery: `${s.delivery_days ?? 7} days`,
+    inclusions: s.inclusions ?? [],
+  }))
+
+  const hasPackages = packages.length > 0
+  const activePackage: Pkg | null = hasPackages ? (packages[selectedPkg] ?? packages[0]) : null
 
   function formatSlotRange(startTime: string, durationMinutes: number): string {
     if (!startTime) return ''
@@ -220,11 +229,16 @@ export function CreatorDetailScreen() {
   )
 
   const isSaved = state.saved.includes(c.id)
-  const bookReady = !!selectedDateKey && !!selectedTime
-  const dep = depositInfo(activePackage.price)
+  const isOwnProfile = !!(
+    (state.supabaseUserId && c.id === state.supabaseUserId) ||
+    (state.isCreator && state.user?.handle && c.handle === state.user.handle) ||
+    (state.user?.id && c.id === state.user.id)
+  )
+  const bookReady = !isOwnProfile && !!selectedDateKey && !!selectedTime
+  const dep = depositInfo(activePackage ? activePackage.price : (c?.startingAt ?? 8000))
 
   const handleStartBooking = async () => {
-    if (!bookReady || !selectedDateKey || !selectedTime) return
+    if (isOwnProfile || !hasPackages || !activePackage || !bookReady || !selectedDateKey || !selectedTime) return
     setValidatingSlot(true)
     setSlotConflictError(null)
 
@@ -245,6 +259,8 @@ export function CreatorDetailScreen() {
           creatorId: c.id,
           creatorName: c.name,
           creatorAvatar: c.avatar,
+          serviceId: activePackage.id,
+          service_id: activePackage.id,
           packageName: activePackage.name,
           packagePrice: activePackage.price,
           date: bookDateLabel,
@@ -264,6 +280,8 @@ export function CreatorDetailScreen() {
           creatorId: c.id,
           creatorName: c.name,
           creatorAvatar: c.avatar,
+          serviceId: activePackage.id,
+          service_id: activePackage.id,
           packageName: activePackage.name,
           packagePrice: activePackage.price,
           date: bookDateLabel,
@@ -286,40 +304,51 @@ export function CreatorDetailScreen() {
   const packagesBlock = (
     <div className="px-5 py-5 border-b border-line">
       <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-obsidian/50 mb-1.5">Packages</div>
-      <div className="flex items-start gap-1.5 mb-3 text-[11px] text-obsidian/55 leading-snug">
-        <HelpCircle size={13} className="text-iris shrink-0 mt-0.5" />
-        <span>FTC Secure escrow — quick gigs paid in full; bigger projects take a deposit with balance due on delivery.</span>
-      </div>
-      <div className="space-y-2">
-        {packages.map((p, i) => (
-          <button key={i} onClick={() => setSelectedPkg(i)} className={cn('tap w-full text-left p-4 rounded-2xl border-2 transition-colors', selectedPkg === i ? 'border-obsidian bg-obsidian text-paper' : 'border-line bg-paper')}>
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-display text-lg">{p.name}</span>
-                  {i === 1 && <span className="px-1.5 py-0.5 rounded bg-acid text-obsidian text-[9px] font-mono uppercase">Popular</span>}
+      {!hasPackages ? (
+        <div className="p-4 rounded-2xl bg-bone/70 border border-line text-center space-y-1 mt-2">
+          <div className="font-display text-[14px] text-obsidian/80">No standard packages listed yet</div>
+          <p className="text-[12px] text-obsidian/50 max-w-sm mx-auto">
+            This creator has not published standard booking packages. Direct quote inquiries will be available soon.
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-start gap-1.5 mb-3 text-[11px] text-obsidian/55 leading-snug">
+            <HelpCircle size={13} className="text-iris shrink-0 mt-0.5" />
+            <span>FTC Secure escrow — quick gigs paid in full; bigger projects take a deposit with balance due on delivery.</span>
+          </div>
+          <div className="space-y-2">
+            {packages.map((p, i) => (
+              <button key={p.id ?? i} onClick={() => setSelectedPkg(i)} className={cn('tap w-full text-left p-4 rounded-2xl border-2 transition-colors', selectedPkg === i ? 'border-obsidian bg-obsidian text-paper' : 'border-line bg-paper')}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-display text-lg">{p.name}</span>
+                      {i === 1 && <span className="px-1.5 py-0.5 rounded bg-acid text-obsidian text-[9px] font-mono uppercase">Popular</span>}
+                    </div>
+                    <div className={cn('text-[11px] mt-0.5', selectedPkg === i ? 'text-paper/60' : 'text-obsidian/60')}>
+                      {p.duration} · {p.revisions} revision{p.revisions > 1 ? 's' : ''} · {p.delivery}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-display text-xl tracking-tight tnum">{inr(p.price)}</div>
+                    <div className={cn('text-[10px] font-medium', selectedPkg === i ? 'text-acid' : 'text-iris')}>
+                      {depositInfo(p.price).full ? 'Pay in full · escrow' : depositInfo(p.price).pct + '% to reserve'}
+                    </div>
+                  </div>
                 </div>
-                <div className={cn('text-[11px] mt-0.5', selectedPkg === i ? 'text-paper/60' : 'text-obsidian/60')}>
-                  {p.duration} · {p.revisions} revision{p.revisions > 1 ? 's' : ''} · {p.delivery}
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="font-display text-xl tracking-tight tnum">{inr(p.price)}</div>
-                <div className={cn('text-[10px] font-medium', selectedPkg === i ? 'text-acid' : 'text-iris')}>
-                  {depositInfo(p.price).full ? 'Pay in full · escrow' : depositInfo(p.price).pct + '% to reserve'}
-                </div>
-              </div>
-            </div>
-            {selectedPkg === i && (
-              <ul className="mt-3 pt-3 border-t border-paper/20 space-y-1">
-                {p.inclusions.map(inc => (
-                  <li key={inc} className="text-[11px] flex items-center gap-2"><Check size={12} className="text-acid" />{inc}</li>
-                ))}
-              </ul>
-            )}
-          </button>
-        ))}
-      </div>
+                {selectedPkg === i && p.inclusions.length > 0 && (
+                  <ul className="mt-3 pt-3 border-t border-paper/20 space-y-1">
+                    {p.inclusions.map(inc => (
+                      <li key={inc} className="text-[11px] flex items-center gap-2"><Check size={12} className="text-acid" />{inc}</li>
+                    ))}
+                  </ul>
+                )}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   )
 
@@ -522,7 +551,7 @@ export function CreatorDetailScreen() {
       {!selectedDateKey && (
         <div className="mt-3 text-[11px] text-obsidian/45 flex items-center gap-1.5">
           <Clock size={12} />
-          Pick an available date to view open {activePackage.duration} windows
+          Pick an available date to view open {activePackage ? activePackage.duration : 'session'} windows
         </div>
       )}
     </div>
@@ -542,25 +571,41 @@ export function CreatorDetailScreen() {
           {bookDateLabel} · {selectedTime ? formatSlotRange(selectedTime, durMins) : ''} · {packageSummary}
         </div>
       )}
-      <button
-        disabled={!bookReady || validatingSlot}
-        onClick={handleStartBooking}
-        className={cn('tap w-full py-3.5 rounded-2xl font-semibold text-[14px] flex items-center justify-center gap-2 transition-all', bookReady && !validatingSlot ? 'bg-obsidian text-paper' : 'bg-bone text-obsidian/40')}
-      >
-        {validatingSlot ? (
-          <>
-            <Loader2 size={16} className="animate-spin" />
-            <span>Verifying slot…</span>
-          </>
-        ) : !bookReady ? (
-          'Select date & time'
-        ) : (
-          <>
-            <span>Request to Book · {inr(dep.advance)}</span>
-            <ArrowRight size={16} />
-          </>
-        )}
-      </button>
+      {isOwnProfile ? (
+        <button
+          disabled
+          className="w-full py-3.5 rounded-2xl font-semibold text-[13px] bg-obsidian/10 text-obsidian/50 cursor-not-allowed flex items-center justify-center gap-2"
+        >
+          <span>Your Profile (Preview Mode)</span>
+        </button>
+      ) : !hasPackages ? (
+        <button
+          disabled
+          className="w-full py-3.5 rounded-2xl font-semibold text-[13px] bg-obsidian/10 text-obsidian/40 cursor-not-allowed flex items-center justify-center gap-2"
+        >
+          <span>Get a Quote (Coming Soon)</span>
+        </button>
+      ) : (
+        <button
+          disabled={!bookReady || validatingSlot}
+          onClick={handleStartBooking}
+          className={cn('tap w-full py-3.5 rounded-2xl font-semibold text-[14px] flex items-center justify-center gap-2 transition-all', bookReady && !validatingSlot ? 'bg-obsidian text-paper' : 'bg-bone text-obsidian/40')}
+        >
+          {validatingSlot ? (
+            <>
+              <Loader2 size={16} className="animate-spin" />
+              <span>Verifying slot…</span>
+            </>
+          ) : !bookReady ? (
+            'Select date & time'
+          ) : (
+            <>
+              <span>Request to Book</span>
+              <ArrowRight size={16} />
+            </>
+          )}
+        </button>
+      )}
     </div>
   )
 
@@ -827,25 +872,41 @@ export function CreatorDetailScreen() {
           <button onClick={() => dispatch({ type: 'OPEN_CLIENT_CHAT', client: { name: c.name, avatar: c.avatar } })} className="tap w-14 rounded-2xl bg-obsidian/5 grid place-items-center">
             <MessageCircle size={19} className="text-obsidian/70" />
           </button>
-          <button
-            disabled={!bookReady || validatingSlot}
-            onClick={handleStartBooking}
-            className={cn('tap flex-1 py-3.5 rounded-2xl font-semibold text-[14px] flex items-center justify-center gap-2 transition-all', bookReady && !validatingSlot ? 'bg-obsidian text-paper' : 'bg-bone text-obsidian/40')}
-          >
-            {validatingSlot ? (
-              <>
-                <Loader2 size={16} className="animate-spin" />
-                <span>Verifying slot…</span>
-              </>
-            ) : !bookReady ? (
-              'Select date & time'
-            ) : (
-              <>
-                <span>Request to Book · {inr(dep.advance)}</span>
-                <ArrowRight size={16} />
-              </>
-            )}
-          </button>
+          {isOwnProfile ? (
+            <button
+              disabled
+              className="tap flex-1 py-3.5 rounded-2xl font-semibold text-[13px] bg-obsidian/10 text-obsidian/50 cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              <span>Your Profile (Preview Mode)</span>
+            </button>
+          ) : !hasPackages ? (
+            <button
+              disabled
+              className="tap flex-1 py-3.5 rounded-2xl font-semibold text-[13px] bg-obsidian/10 text-obsidian/40 cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              <span>Get a Quote (Coming Soon)</span>
+            </button>
+          ) : (
+            <button
+              disabled={!bookReady || validatingSlot}
+              onClick={handleStartBooking}
+              className={cn('tap flex-1 py-3.5 rounded-2xl font-semibold text-[14px] flex items-center justify-center gap-2 transition-all', bookReady && !validatingSlot ? 'bg-obsidian text-paper' : 'bg-bone text-obsidian/40')}
+            >
+              {validatingSlot ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  <span>Verifying slot…</span>
+                </>
+              ) : !bookReady ? (
+                'Select date & time'
+              ) : (
+                <>
+                  <span>Request to Book</span>
+                  <ArrowRight size={16} />
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
     </div>

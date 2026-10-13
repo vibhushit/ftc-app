@@ -1,5 +1,6 @@
 import type {
   Creator,
+  ServiceItem,
   Booking,
   CustomQuote,
   ChatMessage,
@@ -246,6 +247,24 @@ export const apiClient = {
         timestamp: new Date().toLocaleTimeString(),
       })
       throw err
+    }
+  },
+
+  async getCreatorServices(id: string): Promise<ServiceItem[]> {
+    const endpoint = `${getBaseUrl()}/creators/${id}/services`
+    try {
+      const res = await fetch(endpoint)
+      if (res.status === 404) return []
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      return await res.json()
+    } catch (err: any) {
+      notifyApiError({
+        endpoint: `/creators/${id}/services`,
+        method: 'GET',
+        message: err?.message || `Failed to fetch services for creator '${id}'`,
+        timestamp: new Date().toLocaleTimeString(),
+      })
+      return []
     }
   },
 

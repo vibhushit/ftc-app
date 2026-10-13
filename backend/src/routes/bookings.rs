@@ -195,6 +195,10 @@ async fn request_booking(
     let consumer_uuid = uuid::Uuid::parse_str(&consumer_id)
         .map_err(|_| AppError::BadRequest("Invalid consumer UUID".into()))?;
 
+    if consumer_uuid == creator_uuid {
+        return Err(AppError::BadRequest("You cannot book your own profile. Please use a client account to make a booking.".into()));
+    }
+
     // 1. Fetch real creator info
     let creator_info = sqlx::query_as::<_, (String, Option<String>, i32)>(
         r#"
@@ -210,22 +214,49 @@ async fn request_booking(
     .map_err(|e| AppError::InternalServerError(format!("Failed to query creator: {}", e)))?
     .ok_or_else(|| AppError::NotFound("Creator not found in database".into()))?;
 
-    let (creator_name, creator_avatar, starting_at) = creator_info;
+    let (creator_name, creator_avatar, _starting_at) = creator_info;
 
-    // 2. Fetch service package or fallback to starting_at
-    let service_row = sqlx::query_as::<_, (uuid::Uuid, i32)>(
-        "SELECT id, price FROM services WHERE creator_id = $1::uuid AND LOWER(name) = LOWER($2) LIMIT 1"
-    )
-    .bind(creator_uuid)
-    .bind(&payload.pkg_name)
-    .fetch_optional(pool)
-    .await
-    .ok()
-    .flatten();
+    // 2. Fetch validated service package from PostgreSQL
+    let service_row = if let Some(ref sid_str) = payload.service_id {
+        if let Ok(sid) = uuid::Uuid::parse_str(sid_str) {
+            sqlx::query_as::<_, (uuid::Uuid, String, i32)>(
+                "SELECT id, name, price FROM services WHERE id = $1 AND creator_id = $2::uuid AND is_active = true LIMIT 1"
+            )
+            .bind(sid)
+            .bind(creator_uuid)
+            .fetch_optional(pool)
+            .await
+            .ok()
+            .flatten()
+        } else {
+            None
+        }
+    } else {
+        None
+    };
 
-    let (service_id, base_price) = match service_row {
-        Some((s_id, s_price)) => (Some(s_id), s_price),
-        None => (None, starting_at),
+    // If service_id not supplied or didn't match, attempt case-insensitive match on name
+    let service_row = match service_row {
+        Some(s) => Some(s),
+        None => sqlx::query_as::<_, (uuid::Uuid, String, i32)>(
+            "SELECT id, name, price FROM services WHERE creator_id = $1::uuid AND LOWER(name) = LOWER($2) AND is_active = true LIMIT 1"
+        )
+        .bind(creator_uuid)
+        .bind(&payload.pkg_name)
+        .fetch_optional(pool)
+        .await
+        .ok()
+        .flatten(),
+    };
+
+    // STRICT VALIDATION: If package is not active or not in database, reject with 400 Bad Request
+    let (service_id, matched_pkg_name, base_price) = match service_row {
+        Some((s_id, s_name, s_price)) => (s_id, s_name, s_price),
+        None => {
+            return Err(AppError::BadRequest(
+                format!("Selected service package '{}' is not available for this creator. Please choose an active package.", payload.pkg_name)
+            ));
+        }
     };
 
     let platform_fee = (base_price as f64 * 0.05).round() as i32;
@@ -272,7 +303,7 @@ async fn request_booking(
         creator_name,
         creator_avatar: creator_avatar.unwrap_or_default(),
         client_name: "You".into(),
-        pkg_name: payload.pkg_name,
+        pkg_name: matched_pkg_name,
         date_time: payload.date_time,
         status: "pending".into(),
         price: total_price.max(0) as u32,
@@ -449,7 +480,7 @@ async fn decline_booking(
 // ─── 7. CANCEL BOOKING (REAL UPDATE) ─────────────────────────────────────────
 async fn cancel_booking(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    _headers: HeaderMap,
     Path(id): Path<String>,
     Json(payload): Json<Value>,
 ) -> Result<Json<Value>, AppError> {
@@ -469,19 +500,15 @@ async fn cancel_booking(
     let booking_uuid = uuid::Uuid::parse_str(&id)
         .map_err(|_| AppError::BadRequest("Invalid booking UUID".into()))?;
 
-    let user_id = resolve_user_id(&headers);
-    let user_uuid = user_id.and_then(|u| uuid::Uuid::parse_str(&u).ok());
-
     let rows_affected = sqlx::query(
         r#"
         UPDATE bookings
-        SET status = 'cancelled', cancelled_at = now(), cancellation_reason = $2, cancelled_by = $3, updated_at = now()
-        WHERE id = $1::uuid AND status IN ('pending', 'confirmed')
+        SET status = 'cancelled', cancelled_at = now(), cancellation_reason = $2, updated_at = now()
+        WHERE id = $1::uuid AND status::text NOT IN ('completed', 'cancelled')
         "#
     )
     .bind(booking_uuid)
     .bind(reason)
-    .bind(user_uuid)
     .execute(pool)
     .await
     .map_err(|e| AppError::InternalServerError(format!("Database update error: {}", e)))?

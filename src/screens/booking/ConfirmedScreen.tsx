@@ -2,13 +2,7 @@ import { Check, Calendar, Download, Clock, ExternalLink, X } from 'lucide-react'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { useCreator } from '@/hooks/useCreators'
-import { inr } from '@/data/constants'
-
-function depositInfo(price: number) {
-  return price <= 10000
-    ? { full: true, pct: 100, advance: price, balance: 0 }
-    : { full: false, pct: 30, advance: Math.round(price * 0.3), balance: Math.round(price * 0.7) }
-}
+import { cn } from '@/utils'
 
 export function ConfirmedScreen() {
   const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
@@ -40,9 +34,6 @@ export function ConfirmedScreen() {
   const rawAvatar = (lb.creatorAvatar as string) || dbCreator?.users?.avatar_url || ''
   const creatorAvatar = (rawAvatar.includes('picsum.photos') || rawAvatar.includes('photo-1534528741775')) ? '' : rawAvatar
   const creatorArea = dbCreator?.area || 'Studio'
-  const totalAmt = typeof lb.total === 'number' ? lb.total : (typeof lb.price === 'number' ? lb.price : 0)
-  const dep = depositInfo(totalAmt)
-  const advAmt = typeof lb.advance === 'number' ? lb.advance : (typeof lb.deposit_amount === 'number' ? lb.deposit_amount : dep.advance)
   const dateLine = `${(lb.when as string) || (lb.date_time as string) || 'Scheduled'} · ${(lb.pkg as string) || (lb.pkg_name as string) || 'Session'}`
   const isPending = (lb.status as string) === 'pending' || (lb.status as string) === 'pending_approval'
 
@@ -135,9 +126,13 @@ export function ConfirmedScreen() {
               <div className="font-display text-lg leading-tight truncate">{creatorName}</div>
               <div className="text-[11px] text-paper/60 truncate mt-0.5">{dateLine}</div>
             </div>
-            <div className="text-right">
-              <div className="font-mono text-[13px] font-bold text-acid">{inr(advAmt)}</div>
-              <div className="text-[10px] text-paper/50 font-mono">Advance</div>
+            <div className="text-right shrink-0">
+              <span className={cn(
+                "px-2.5 py-1 rounded-full text-[10.5px] font-mono uppercase tracking-wider font-semibold",
+                isPending ? "bg-amber-400/20 text-amber-300 border border-amber-400/30" : "bg-acid/20 text-acid border border-acid/30"
+              )}>
+                {isPending ? 'Pending' : 'Confirmed'}
+              </span>
             </div>
           </div>
         </div>

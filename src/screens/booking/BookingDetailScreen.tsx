@@ -63,8 +63,27 @@ function formatDateTime(isoString?: string | null) {
 }
 
 const BOOKING_STAGES = [
-  'Requested', 'Confirmed', 'In Progress', 'Completed'
+  'Requested', 'Confirmed', 'Completed'
 ]
+
+function Card({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="mb-4 rounded-2xl bg-paper border border-line overflow-hidden shadow-xs">
+      <div className="px-5 pt-4 pb-2 font-mono text-[10px] uppercase tracking-[0.14em] text-obsidian/45">{title}</div>
+      <div className="px-5 pb-4">{children}</div>
+    </div>
+  )
+}
+
+function KV({ k, v }: { k: string; v?: string | null }) {
+  if (!v) return null
+  return (
+    <div className="flex items-start justify-between gap-4 py-1.5 text-[13px]">
+      <span className="text-obsidian/55 shrink-0">{k}</span>
+      <span className="font-semibold text-obsidian text-right break-words max-w-[260px]">{v}</span>
+    </div>
+  )
+}
 
 export function BookingDetailScreen() {
   const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
@@ -73,16 +92,32 @@ export function BookingDetailScreen() {
   const initialBooking = ((state.viewBooking ?? state.lastBooking) as unknown as Record<string, unknown> | null)
   const bookingId = initialBooking?.id ? String(initialBooking.id) : ''
 
-  // Live single-booking query with active polling when confirmed / in-progress
+  // Live single-booking query with active polling for pending and confirmed (stops on completed/cancelled)
   const { data: liveBooking } = useBooking(bookingId || null, {
     refetchInterval: (query) => {
-      const s = (query.state.data as any)?.status
-      return (s === 'confirmed' || s === 'in_progress') ? 5000 : false
+      const s = (query.state.data as any)?.status || (initialBooking?.status as string)
+      if (s === 'pending' || s === 'pending_approval' || s === 'confirmed' || s === 'in_progress') return 5000
+      return false
     }
   })
 
   // Merge live database row with initial state snapshot
   const b = (liveBooking ? { ...initialBooking, ...liveBooking } : initialBooking) as Record<string, unknown> | null
+
+  // Realtime update handler when liveBooking status updates
+  useEffect(() => {
+    if (liveBooking && liveBooking.status) {
+      if (liveBooking.status === 'confirmed' && initialBooking?.status === 'pending') {
+        showSuccess('Your booking request was accepted by the creator!')
+      }
+      if (liveBooking.status !== initialBooking?.status) {
+        dispatch({
+          type: 'OPEN_BOOKING',
+          booking: { ...initialBooking, ...liveBooking } as any,
+        })
+      }
+    }
+  }, [liveBooking?.status])
 
   // Realtime Supabase logical replication channel
   useRealtimeBooking(bookingId || null, (updatedRow) => {
@@ -204,14 +239,18 @@ export function BookingDetailScreen() {
 
   const advancePct = total > 0 ? Math.round((advance / total) * 100) : 30
   const status = (b.status as string) || 'pending'
-  const curStage = status === 'completed' ? 3 : status === 'in_progress' ? 2 : status === 'confirmed' ? 1 : 0
-  const locLabel = b.locType === 'studio' || b.location_type === 'studio' ? "Creator's Studio" : 'At client location'
-  const currentNotes = (b.notes as string) || (b.client_notes as string) || (b.clientNotes as string) || ''
-  const venueAddress = (b.venue as string) || (b.location_address as string) || (currentNotes?.startsWith('Venue:') ? currentNotes.replace('Venue:', '').trim() : null)
+  const isCancelled = status === 'cancelled' || status === 'declined'
+  const isCompleted = status === 'completed'
+  const isConfirmed = status === 'confirmed' || status === 'upcoming' || status === 'in_progress'
+  const curStage = isCompleted ? 2 : isConfirmed ? 1 : 0
   const createdRaw = (b.created_at as string) || (b.createdAt as string) || ''
   const confirmedRaw = (b.confirmed_at as string) || (b.confirmedAt as string) || ''
   const createdFormatted = formatDateTime(createdRaw)
   const confirmedFormatted = formatDateTime(confirmedRaw)
+  const wasConfirmed = Boolean(confirmedRaw)
+  const locLabel = b.locType === 'studio' || b.location_type === 'studio' ? "Creator's Studio" : 'At client location'
+  const currentNotes = (b.notes as string) || (b.client_notes as string) || (b.clientNotes as string) || ''
+  const venueAddress = (b.venue as string) || (b.location_address as string) || (currentNotes?.startsWith('Venue:') ? currentNotes.replace('Venue:', '').trim() : null)
 
   // ─── Actions ─────────────────────────────────────────────────────────────
   const handleGenerateOtp = async () => {
@@ -268,13 +307,16 @@ export function BookingDetailScreen() {
 
   const handleCancelBooking = async () => {
     setCancelling(true)
+    const reasonText = cancelReason.trim() || 'Cancelled by client'
     try {
-      await apiClient.cancelBooking(bookingId, cancelReason || 'Cancelled by client')
+      await apiClient.cancelBooking(bookingId, reasonText)
+      qc.invalidateQueries({ queryKey: ['bookings'] })
+      qc.invalidateQueries({ queryKey: ['booking', bookingId] })
       showSuccess('Booking request cancelled. Advance held in escrow released.')
       setShowCancelModal(false)
       dispatch({
         type: 'OPEN_BOOKING',
-        booking: { ...b, status: 'cancelled', cancellation_reason: cancelReason } as any
+        booking: { ...b, status: 'cancelled', cancellation_reason: reasonText } as any
       })
     } catch (err: any) {
       showError(err?.message || 'Failed to cancel booking')
@@ -318,20 +360,6 @@ export function BookingDetailScreen() {
       setProcessingAction(false)
     }
   }
-
-  const Card = ({ title, children }: { title: string; children: React.ReactNode }) => (
-    <div className="mb-4 rounded-2xl bg-paper border border-line overflow-hidden shadow-xs">
-      <div className="px-5 pt-4 pb-2 font-mono text-[10px] uppercase tracking-[0.14em] text-obsidian/45">{title}</div>
-      <div className="px-5 pb-4">{children}</div>
-    </div>
-  )
-
-  const KV = ({ k, v }: { k: string; v?: string | null }) => v ? (
-    <div className="flex items-start justify-between gap-4 py-1.5 text-[13px]">
-      <span className="text-obsidian/55 shrink-0">{k}</span>
-      <span className="font-semibold text-obsidian text-right break-words max-w-[260px]">{v}</span>
-    </div>
-  ) : null
 
   return (
     <div className="flex-1 flex flex-col bg-bone overflow-hidden min-h-0 h-full">
@@ -417,23 +445,111 @@ export function BookingDetailScreen() {
             {/* Status Timeline */}
             <Card title="Status timeline">
               <div className="pt-2">
-                {BOOKING_STAGES.map((stg, i) => {
-                  const done = i < curStage
-                  const cur = i === curStage
-                  return (
-                    <div key={stg} className="flex items-center gap-3">
-                      <div className="flex flex-col items-center">
-                        <div className={cn('w-5 h-5 rounded-full grid place-items-center shrink-0 transition-all', done ? 'bg-success' : cur ? 'bg-iris' : 'bg-bone border border-line')}>
-                          {(done || cur) && <Check size={11} className="text-paper" strokeWidth={3} />}
+                {isCancelled ? (
+                  // Cancelled / Declined Flow
+                  (() => {
+                    const cancelLabel = status === 'declined' || (b.cancellation_reason || b.cancellationReason || '').toLowerCase().includes('creator')
+                      ? 'Declined by creator'
+                      : (b.cancellation_reason || b.cancellationReason || '').toLowerCase().includes('sla')
+                        ? 'Expired (24h SLA)'
+                        : 'Cancelled by client'
+                    const reason = b.cancellation_reason || b.cancellationReason
+
+                    const steps = wasConfirmed
+                      ? [
+                          { label: 'Requested', done: true, isTerminal: false },
+                          { label: 'Confirmed', done: true, isTerminal: false },
+                          { label: cancelLabel, done: true, isTerminal: true, reason },
+                        ]
+                      : [
+                          { label: 'Requested', done: true, isTerminal: false },
+                          { label: cancelLabel, done: true, isTerminal: true, reason },
+                        ]
+
+                    return steps.map((stg, i) => {
+                      const isLast = i === steps.length - 1
+                      return (
+                        <div key={stg.label} className="flex items-start gap-3">
+                          <div className="flex flex-col items-center">
+                            <div className={cn(
+                              'w-5 h-5 rounded-full grid place-items-center shrink-0 transition-all',
+                              stg.isTerminal
+                                ? 'bg-rose-500'
+                                : 'bg-success'
+                            )}>
+                              {stg.isTerminal ? (
+                                <X size={11} className="text-paper" strokeWidth={3} />
+                              ) : (
+                                <Check size={11} className="text-paper" strokeWidth={3} />
+                              )}
+                            </div>
+                            {!isLast && (
+                              <div className={cn(
+                                'w-0.5 h-6',
+                                steps[i + 1]?.isTerminal ? 'bg-rose-300' : 'bg-success'
+                              )} />
+                            )}
+                          </div>
+                          <div className="-mt-0.5 pb-2">
+                            <div className={cn(
+                              'text-[13px]',
+                              stg.isTerminal ? 'font-semibold text-rose-700' : 'text-obsidian/70'
+                            )}>
+                              {stg.label}
+                            </div>
+                            {stg.reason && (
+                              <div className="text-[11px] text-obsidian/50 font-mono mt-0.5 italic">
+                                Reason: {stg.reason}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        {i < BOOKING_STAGES.length - 1 && <div className={cn('w-0.5 h-5', done ? 'bg-success' : 'bg-line')} />}
+                      )
+                    })
+                  })()
+                ) : (
+                  // Standard Flow: Requested -> Confirmed -> Completed
+                  BOOKING_STAGES.map((stg, i) => {
+                    const done = i < curStage
+                    const cur = i === curStage
+                    return (
+                      <div key={stg} className="flex items-center gap-3">
+                        <div className="flex flex-col items-center">
+                          <div className={cn('w-5 h-5 rounded-full grid place-items-center shrink-0 transition-all', done ? 'bg-success' : cur ? 'bg-iris' : 'bg-bone border border-line')}>
+                            {(done || cur) && <Check size={11} className="text-paper" strokeWidth={3} />}
+                          </div>
+                          {i < BOOKING_STAGES.length - 1 && <div className={cn('w-0.5 h-5', done ? 'bg-success' : 'bg-line')} />}
+                        </div>
+                        <div className={cn('text-[13px] -mt-3', done ? 'text-obsidian/70' : cur ? 'font-semibold text-obsidian' : 'text-obsidian/35')}>{stg}</div>
                       </div>
-                      <div className={cn('text-[13px] -mt-3', done ? 'text-obsidian/70' : cur ? 'font-semibold text-obsidian' : 'text-obsidian/35')}>{stg}</div>
-                    </div>
-                  )
-                })}
+                    )
+                  })
+                )}
               </div>
             </Card>
+
+            {/* Cancelled / Declined Booking Banner */}
+            {isCancelled && (
+              <Card title="Cancellation details">
+                <div className="p-4 rounded-2xl bg-rose-50/70 border border-rose-200/80 flex items-start gap-3.5">
+                  <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 grid place-items-center shrink-0">
+                    <XCircle size={20} strokeWidth={2.5} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-[14px] text-rose-950">
+                      {status === 'declined' || (b.cancellation_reason || b.cancellationReason || '').toLowerCase().includes('creator')
+                        ? 'Booking Declined by Creator'
+                        : (b.cancellation_reason || b.cancellationReason || '').toLowerCase().includes('sla')
+                          ? 'Booking Expired (24h SLA)'
+                          : 'Booking Cancelled by Client'}
+                    </div>
+                    <p className="text-[12px] text-rose-900/80 mt-0.5 leading-relaxed">
+                      {(b.cancellation_reason || b.cancellationReason) ? `Reason: ${b.cancellation_reason || b.cancellationReason}` : 'This booking was cancelled and any held advance has been refunded.'}
+                    </p>
+                  </div>
+                </div>
+              </Card>
+            )}
 
             {/* Completed Session Confirmation Banner */}
             {status === 'completed' && (
@@ -664,7 +780,7 @@ export function BookingDetailScreen() {
               </button>
 
               {/* Cancel Booking Action (Client) */}
-              {!isCreatorViewing && status !== 'completed' && status !== 'cancelled' && (
+              {!isCreatorViewing && !isCompleted && !isCancelled && (
                 <button
                   onClick={() => setShowCancelModal(true)}
                   className="tap w-full py-3 rounded-2xl border border-line bg-paper text-rose-600 text-[12.5px] font-semibold flex items-center justify-center gap-1.5 hover:bg-rose-50 transition"

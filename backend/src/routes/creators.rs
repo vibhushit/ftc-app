@@ -26,6 +26,7 @@ pub fn router() -> Router<AppState> {
         .route("/check-handle", get(check_handle_availability))
         .route("/handle/:handle", get(get_creator_by_handle))
         .route("/:id", get(get_creator_by_id))
+        .route("/:id/services", get(get_creator_services))
         .route("/onboard", post(onboard_creator))
         .route("/:id/availability", get(get_creator_availability))
         .route("/me/availability", post(update_creator_availability))
@@ -170,6 +171,7 @@ async fn get_creators(
                             turnaround_days: 3,
                         }
                     ],
+                    services: vec![],
                 }).collect();
 
                 tracing::info!("✅ Returned {} creators from PostgreSQL", creators.len());
@@ -223,6 +225,47 @@ async fn get_creator_by_id(
         .bind(&id)
         .fetch_one(pool)
         .await {
+            let creator_uuid = uuid::Uuid::parse_str(&row.0).unwrap_or_default();
+
+            // Query active services from database
+            let services = sqlx::query_as::<_, (
+                String, String, String, String, i32, String, Vec<String>, i16, i16, i16, bool
+            )>(r#"
+                SELECT
+                    id::text,
+                    creator_id::text,
+                    name,
+                    COALESCE(description, ''),
+                    price::int4,
+                    duration,
+                    COALESCE(inclusions, ARRAY[]::text[]),
+                    COALESCE(revisions, 1)::int2,
+                    COALESCE(delivery_days, 7)::int2,
+                    COALESCE(sort_order, 0)::int2,
+                    is_active
+                FROM services
+                WHERE creator_id = $1 AND is_active = true
+                ORDER BY sort_order ASC, created_at ASC
+            "#)
+            .bind(creator_uuid)
+            .fetch_all(pool)
+            .await
+            .unwrap_or_default();
+
+            let services_json: Vec<Value> = services.into_iter().map(|s| json!({
+                "id": s.0,
+                "creator_id": s.1,
+                "name": s.2,
+                "description": s.3,
+                "price": s.4,
+                "duration": s.5,
+                "inclusions": s.6,
+                "revisions": s.7,
+                "delivery_days": s.8,
+                "sort_order": s.9,
+                "is_active": s.10,
+            })).collect();
+
             return Ok(Json(json!({
                 "id": row.0,
                 "name": row.1,
@@ -238,6 +281,7 @@ async fn get_creator_by_id(
                 "bio": row.11,
                 "verified": row.12,
                 "portfolio_urls": row.13,
+                "services": services_json,
             })));
         }
     }
@@ -245,6 +289,80 @@ async fn get_creator_by_id(
     Err((
         axum::http::StatusCode::NOT_FOUND,
         Json(json!({ "error": "Creator not found", "id": id }))
+    ))
+}
+
+async fn get_creator_services(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<Value>, (axum::http::StatusCode, Json<Value>)> {
+    if let Some(ref pool) = state.pool {
+        let creator_uuid = match uuid::Uuid::parse_str(&id) {
+            Ok(u) => u,
+            Err(_) => {
+                let resolved = sqlx::query_scalar::<_, uuid::Uuid>(
+                    "SELECT id FROM creator_profiles WHERE handle = $1 OR id::text = $1 LIMIT 1"
+                )
+                .bind(&id)
+                .fetch_optional(pool)
+                .await
+                .ok()
+                .flatten();
+
+                match resolved {
+                    Some(u) => u,
+                    None => return Err((
+                        axum::http::StatusCode::NOT_FOUND,
+                        Json(json!({ "error": "Creator not found" }))
+                    )),
+                }
+            }
+        };
+
+        let services = sqlx::query_as::<_, (
+            String, String, String, String, i32, String, Vec<String>, i16, i16, i16, bool
+        )>(r#"
+            SELECT
+                id::text,
+                creator_id::text,
+                name,
+                COALESCE(description, ''),
+                price::int4,
+                duration,
+                COALESCE(inclusions, ARRAY[]::text[]),
+                COALESCE(revisions, 1)::int2,
+                COALESCE(delivery_days, 7)::int2,
+                COALESCE(sort_order, 0)::int2,
+                is_active
+            FROM services
+            WHERE creator_id = $1 AND is_active = true
+            ORDER BY sort_order ASC, created_at ASC
+        "#)
+        .bind(creator_uuid)
+        .fetch_all(pool)
+        .await
+        .unwrap_or_default();
+
+        let services_json: Vec<Value> = services.into_iter().map(|s| json!({
+            "id": s.0,
+            "creator_id": s.1,
+            "name": s.2,
+            "description": s.3,
+            "price": s.4,
+            "duration": s.5,
+            "inclusions": s.6,
+            "revisions": s.7,
+            "delivery_days": s.8,
+            "sort_order": s.9,
+            "is_active": s.10,
+        })).collect();
+
+        return Ok(Json(json!(services_json)));
+    }
+
+    Err((
+        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+        Json(json!({ "error": "Database not available" }))
     ))
 }
 

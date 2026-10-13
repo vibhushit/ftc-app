@@ -11,6 +11,22 @@ pub struct CreatorPackage {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/ServiceItem.ts")]
+pub struct ServiceItem {
+    pub id: String,
+    pub creator_id: String,
+    pub name: String,
+    pub description: String,
+    pub price: i32,
+    pub duration: String,
+    pub inclusions: Vec<String>,
+    pub revisions: i16,
+    pub delivery_days: i16,
+    pub sort_order: i16,
+    pub is_active: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../src/types/bindings/Creator.ts")]
 pub struct Creator {
     pub id: String,
@@ -27,7 +43,10 @@ pub struct Creator {
     pub bio: String,
     pub verified: bool,
     pub portfolio_urls: Vec<String>,
+    #[serde(default)]
     pub packages: Vec<CreatorPackage>,
+    #[serde(default)]
+    pub services: Vec<ServiceItem>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

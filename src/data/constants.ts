@@ -51,19 +51,17 @@ export const DEAL_STAGES = [
 ] as const
 
 export const CRM_TABS = [
-  { key: 'pending_approval', label: 'Requests' },
-  { key: 'inquiry', label: 'Inquiries' },
-  { key: 'upcoming', label: 'Advance Paid' },
-  { key: 'pending', label: 'Pending Delivery' },
+  { key: 'requested', label: 'Requests' },
+  { key: 'confirmed', label: 'Confirmed' },
   { key: 'completed', label: 'Completed' },
+  { key: 'cancelled', label: 'Cancelled' },
 ]
 
 export const CRM_EMPTY: Record<string, [string, string]> = {
-  pending_approval: ['No pending booking requests', 'New booking requests requiring your approval within 24 hours will appear here.'],
-  inquiry: ['New leads land here', "When a client messages or requests a quote, you'll see them in this column."],
-  upcoming: ['No upcoming sessions', 'Bookings with a deposit paid show here with their date & time.'],
-  pending: ['Nothing in delivery', 'Active jobs awaiting final delivery appear here.'],
-  completed: ['No completed jobs yet', 'Finished jobs with full payment released are archived here.'],
+  requested: ['No pending booking requests', 'New booking requests requiring your approval will appear here.'],
+  confirmed: ['No confirmed sessions', 'Bookings with date locked and advance in escrow appear here.'],
+  completed: ['No completed jobs yet', 'Finished jobs with verified wrap-up codes will be archived here.'],
+  cancelled: ['No cancelled bookings', 'Declined requests or cancelled bookings are archived here for your records.'],
 }
 
 export const pic = (seed: string, w = 800, h = 800) =>

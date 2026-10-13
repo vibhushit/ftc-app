@@ -38,6 +38,8 @@ pub struct CreateBookingPayload {
     pub date_time: String,
     pub location_type: String,
     #[serde(default)]
+    pub service_id: Option<String>,
+    #[serde(default)]
     pub start_time: Option<String>,
     #[serde(default)]
     pub end_time: Option<String>,

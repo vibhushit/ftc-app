@@ -86,9 +86,10 @@ export function BookingScreen() {
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
 
     try {
-      const bookingPayload = {
+      const bookingPayload: CreateBookingPayload = {
         creator_id: creatorId,
         pkg_name: pkgName,
+        service_id: (draft.serviceId as string) || (draft.service_id as string) || null,
         date_time: `${dateLabel} ${time}`.trim(),
         location_type: sel?.key ?? 'studio',
         start_time: (draft.time as string) || null,

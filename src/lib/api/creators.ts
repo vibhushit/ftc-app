@@ -176,12 +176,17 @@ export async function addPortfolioUrl(creatorId: string, url: string) {
 
 // ─── Services / packages ──────────────────────────────────────────────────────
 export async function getCreatorServices(creatorId: string) {
+  try {
+    const services = await apiClient.getCreatorServices(creatorId)
+    if (services && services.length > 0) return services
+  } catch {}
+
   const { data, error } = await (supabase.from('services') as any)
     .select('*')
     .eq('creator_id', creatorId)
     .eq('is_active', true)
     .order('sort_order')
-  if (error) throw error
+  if (error) return []
   return data ?? []
 }
 

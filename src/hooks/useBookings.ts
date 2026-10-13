@@ -15,8 +15,8 @@ export function useMyBookings(status?: BookingRow['status'][]) {
   return useQuery({
     queryKey:  [...BOOKING_KEYS.mine, status],
     queryFn:   () => bookingsApi.getMyBookings(status),
-    staleTime: 10_000,
-    refetchInterval: 15_000,
+    staleTime: 5_000,
+    refetchInterval: 5_000,
   })
 }
 
@@ -25,8 +25,8 @@ export function useMyJobs(status?: BookingRow['status'][]) {
   return useQuery({
     queryKey:  [...BOOKING_KEYS.jobs, status],
     queryFn:   () => bookingsApi.getMyJobs(status),
-    staleTime: 10_000,
-    refetchInterval: 15_000,
+    staleTime: 5_000,
+    refetchInterval: 5_000,
   })
 }
 

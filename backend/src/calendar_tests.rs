@@ -223,6 +223,7 @@ mod tests {
             pkg_name: "Standard Fashion Shoot".into(),
             date_time: "May 15 at 10:00 AM".into(),
             location_type: "Studio".into(),
+            service_id: None,
             start_time: Some("2026-05-15T10:00:00Z".into()),
             end_time: Some("2026-05-15T14:00:00Z".into()),
             client_notes: Some("Need 2 background colors".into()),

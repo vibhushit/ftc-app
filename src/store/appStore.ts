@@ -39,7 +39,7 @@ const DEFAULT_STATE: AppState = {
   selectedDealId: null,
   campaigns: [],
   deals: [],
-  crmTab: 'inquiry',
+  crmTab: 'requested',
   creatorBookings: [],
   quotes: [],
   reviews: [],
