@@ -117,6 +117,68 @@ mod tests {
     }
 
     #[test]
+    fn test_discrete_hourly_slots_and_multi_hour_collision() {
+        // Creator works Monday from 10:00 AM to 7:00 PM (10:00 to 19:00 = 600m to 1140m)
+        let mut active_days = HashMap::new();
+        active_days.insert(1, (10 * 60, 19 * 60));
+
+        let blocked = HashMap::new();
+        let mut booked = HashMap::new();
+        // Booking from 11:00 AM to 3:00 PM (11:00 to 15:00 = 660m to 900m)
+        booked.insert(
+            "2026-05-04".to_string(), // Monday
+            vec![(11 * 60, 15 * 60)],
+        );
+        let custom_hours = HashMap::new();
+
+        // 4-hour package (240 minutes), 60m slot step, 0m buffer
+        let slots_resp = compute_month_slots(
+            2026,
+            5,
+            240, // 4 hours
+            60,  // 1-hour interval
+            0,   // 0 buffer
+            false,
+            &active_days,
+            &blocked,
+            &booked,
+            &custom_hours,
+        );
+
+        let day = slots_resp.get("2026-05-04").unwrap();
+        // Only 15:00 can fit a 4-hour shoot (15:00 - 19:00)
+        assert_eq!(day.slots, vec!["15:00"]);
+        assert_eq!(day.status, "available");
+
+        // Verify discrete slots_detail
+        assert_eq!(day.slots_detail.len(), 9); // 10:00, 11:00, 12:00, 13:00, 14:00, 15:00, 16:00, 17:00, 18:00
+
+        // 10:00 collides because 10:00-14:00 overlaps 11:00-15:00
+        let slot_10 = day.slots_detail.iter().find(|s| s.time == "10:00").unwrap();
+        assert!(!slot_10.is_available);
+        assert_eq!(slot_10.status, "unavailable");
+
+        // 11:00 to 14:00 are booked/overlapping
+        for t in ["11:00", "12:00", "13:00", "14:00"] {
+            let s = day.slots_detail.iter().find(|slot| slot.time == t).unwrap();
+            assert!(!s.is_available);
+            assert_eq!(s.status, "unavailable");
+        }
+
+        // 15:00 is available
+        let slot_15 = day.slots_detail.iter().find(|s| s.time == "15:00").unwrap();
+        assert!(slot_15.is_available);
+        assert_eq!(slot_15.status, "available");
+
+        // 16:00, 17:00, 18:00 exceed working hours (16:00 + 4h = 20:00 > 19:00)
+        for t in ["16:00", "17:00", "18:00"] {
+            let s = day.slots_detail.iter().find(|slot| slot.time == t).unwrap();
+            assert!(!s.is_available);
+            assert_eq!(s.status, "unavailable");
+        }
+    }
+
+    #[test]
     fn test_zero_underflow_and_24h_overflow_safety() {
         let mut active_days = HashMap::new();
         active_days.insert(1, (0, 24 * 60)); // 24 hours open
@@ -224,8 +286,10 @@ mod tests {
             date_time: "May 15 at 10:00 AM".into(),
             location_type: "Studio".into(),
             service_id: None,
+            session_date: Some("2026-05-15".into()),
             start_time: Some("2026-05-15T10:00:00Z".into()),
             end_time: Some("2026-05-15T14:00:00Z".into()),
+            duration_hours: Some(4),
             client_notes: Some("Need 2 background colors".into()),
         };
 
@@ -248,6 +312,9 @@ mod tests {
         assert_eq!(val["status"], "pending");
         assert_eq!(val["creator_id"], "c1");
         assert!(val["id"].as_str().unwrap().starts_with("FTC-REQ-"));
+        assert_eq!(val["session_date"], "2026-05-15");
+        assert_eq!(val["start_time"], "2026-05-15T10:00:00Z");
+        assert_eq!(val["end_time"], "2026-05-15T14:00:00Z");
 
         // Verify request_expires_at is approximately 24 hours from now
         let expires_str = val["request_expires_at"].as_str().unwrap();

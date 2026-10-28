@@ -8,8 +8,8 @@ import { SimpleHeader } from '@/components/ui/SimpleHeader'
 import { CalendarMonthGrid } from './components/CalendarMonthGrid'
 import { DaySlotPreview } from './components/DaySlotPreview'
 import { WeeklyScheduleCard } from './components/WeeklyScheduleCard'
-import { BookingRulesCard } from './components/BookingRulesCard'
 import { DateOverridesCard } from './components/DateOverridesCard'
+import { formatTime12h } from '@/utils'
 import type { OverrideStateItem, WeekScheduleMap } from './types'
 
 const MONTH_NAMES = [
@@ -39,12 +39,6 @@ export function CalendarScreen() {
   const [currentMonth, setCurrentMonth] = useState(today.getMonth() + 1) // 1-12
   const [selectedDay, setSelectedDay] = useState(today.getDate())
 
-  // Scheduling settings state
-  const [slotStep, setSlotStep] = useState(60) // 30, 60, 90, 120, 240 mins
-  const [buffer, setBuffer] = useState(30) // 0, 15, 30, 60 mins
-  const [minNotice, setMinNotice] = useState(24) // 12, 24, 48 hours
-  const [loadingSettings, setLoadingSettings] = useState(true)
-
   // Weekly working hours schedule (1 = Mon, 2 = Tue, ... 6 = Sat, 0 = Sun)
   const [schedules, setSchedules] = useState<WeekScheduleMap>(DEFAULT_SCHEDULES)
 
@@ -68,9 +62,6 @@ export function CalendarScreen() {
         if (data.creator_id) {
           setCreatorId(data.creator_id)
         }
-        if (data.slot_step_minutes) setSlotStep(data.slot_step_minutes)
-        if (data.buffer_minutes !== undefined) setBuffer(data.buffer_minutes)
-        if (data.min_notice_hours) setMinNotice(data.min_notice_hours)
         if (data.schedules && data.schedules.length > 0) {
           const nextSched: WeekScheduleMap = {}
           for (const s of data.schedules) {
@@ -93,11 +84,9 @@ export function CalendarScreen() {
           }))
           setOverrides(parsed)
         }
-        setLoadingSettings(false)
       })
       .catch(err => {
         console.warn('Failed to load live calendar settings:', err)
-        if (mounted) setLoadingSettings(false)
       })
     return () => { mounted = false }
   }, [])
@@ -135,7 +124,7 @@ export function CalendarScreen() {
   const isSelectedDayOff = !isCustomHoursSelected && !schedules[selectedDow]?.active
   const isSelectedBlocked = isSelectedDayOff || (selectedOverride?.override_type === 'blocked')
 
-  // Calculate slots preview for selected day
+  // Calculate slots preview for selected day (1-hour discrete slots)
   const previewSlots: string[] = []
   if (!isSelectedBlocked && (schedules[selectedDow]?.active || isCustomHoursSelected)) {
     let startStr = schedules[selectedDow]?.start || '09:00'
@@ -149,13 +138,11 @@ export function CalendarScreen() {
     const [eh, em] = endStr.split(':').map(Number)
     let currentMins = sh * 60 + sm
     const endMins = eh * 60 + em
-    while (currentMins + slotStep <= endMins) {
+    while (currentMins + 60 <= endMins) {
       const h = Math.floor(currentMins / 60)
       const m = currentMins % 60
-      const ampm = h >= 12 ? 'PM' : 'AM'
-      const h12 = h % 12 === 0 ? 12 : h % 12
-      previewSlots.push(`${String(h12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ampm}`)
-      currentMins += slotStep + buffer
+      previewSlots.push(formatTime12h(h, m))
+      currentMins += 60
     }
   }
 
@@ -240,9 +227,9 @@ export function CalendarScreen() {
       }))
 
       await apiClient.updateCalendarSettings({
-        slot_step_minutes: slotStep,
-        buffer_minutes: buffer,
-        min_notice_hours: minNotice,
+        slot_step_minutes: 60,
+        buffer_minutes: 0,
+        min_notice_hours: 24,
         holiday_mode: false,
         schedules: scheduleItems,
       }, creatorId || undefined)
@@ -308,30 +295,18 @@ export function CalendarScreen() {
                   selectedOverride={selectedOverride}
                   isSelectedDayOff={isSelectedDayOff}
                   previewSlots={previewSlots}
-                  slotStep={slotStep}
-                  buffer={buffer}
                   onRemoveOverride={handleRemoveOverride}
                 />
               </div>
             </div>
 
-            {/* Right Column: Weekly Schedule, Booking Rules, & Overrides */}
+            {/* Right Column: Weekly Schedule & Overrides */}
             <div className="space-y-4">
               <WeeklyScheduleCard
                 schedules={schedules}
                 onToggleDayActive={handleToggleDayActive}
                 onScheduleTimeChange={handleScheduleTimeChange}
                 onResetGlobalHours={handleApplyGlobalHours}
-              />
-
-              <BookingRulesCard
-                slotStep={slotStep}
-                onSlotStepChange={setSlotStep}
-                buffer={buffer}
-                onBufferChange={setBuffer}
-                minNotice={minNotice}
-                onMinNoticeChange={setMinNotice}
-                loadingSettings={loadingSettings}
               />
 
               <DateOverridesCard

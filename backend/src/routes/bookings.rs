@@ -67,6 +67,8 @@ struct BookingListRow {
     pkg_name: Option<String>,
     session_date: Option<String>,
     session_time: Option<String>,
+    start_time: Option<String>,
+    end_time: Option<String>,
     status: String,
     total_price: Option<i32>,
     advance_amount: Option<i32>,
@@ -101,15 +103,17 @@ async fn list_bookings(
             s.name as pkg_name,
             b.session_date::text as session_date,
             b.session_time::text as session_time,
+            to_char(b.start_time AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as start_time,
+            to_char(b.end_time AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as end_time,
             b.status::text as status,
             b.total_price::int as total_price,
             b.advance_amount::int as advance_amount,
             b.balance_amount::int as balance_amount,
             COALESCE(b.location_type::text, 'studio') as location_type,
-            b.request_expires_at::text as request_expires_at,
+            to_char(b.request_expires_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as request_expires_at,
             b.notes as client_notes,
-            b.created_at::text as created_at,
-            b.confirmed_at::text as confirmed_at
+            to_char(b.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as created_at,
+            to_char(b.confirmed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as confirmed_at
         FROM bookings b
         LEFT JOIN users u_creator ON u_creator.id = b.creator_id
         LEFT JOIN users u_consumer ON u_consumer.id = b.consumer_id
@@ -125,8 +129,8 @@ async fn list_bookings(
     .map_err(|e| AppError::InternalServerError(format!("Database query failed: {}", e)))?;
 
     let bookings = rows.into_iter().map(|r| {
-        let date_str = r.session_date.unwrap_or_default();
-        let time_str = r.session_time.unwrap_or_default();
+        let date_str = r.session_date.clone().unwrap_or_default();
+        let time_str = r.session_time.clone().unwrap_or_default();
         let date_time = format!("{} {}", date_str, time_str).trim().to_string();
 
         Booking {
@@ -142,8 +146,10 @@ async fn list_bookings(
             deposit_amount: r.advance_amount.unwrap_or(0).max(0) as u32,
             balance_amount: r.balance_amount.unwrap_or(0).max(0) as u32,
             location_type: r.location_type,
-            start_time: None,
-            end_time: None,
+            session_date: r.session_date,
+            session_time: r.session_time,
+            start_time: r.start_time,
+            end_time: r.end_time,
             request_expires_at: r.request_expires_at,
             client_notes: r.client_notes,
             created_at: r.created_at,
@@ -152,6 +158,77 @@ async fn list_bookings(
     }).collect();
 
     Ok(Json(bookings))
+}
+
+// ─── HELPER: PARSE DURATION IN WHOLE HOURS ──────────────────────────────────
+fn parse_duration_hours(dur_str: &str) -> u32 {
+    let lower = dur_str.to_lowercase();
+    let parts: Vec<&str> = lower.split_whitespace().collect();
+    for (i, &p) in parts.iter().enumerate() {
+        if (p.contains("hour") || p.contains("hr") || p == "h") && i > 0 {
+            if let Ok(n) = parts[i - 1].parse::<u32>() {
+                return n.max(1);
+            }
+        }
+    }
+    let digits: String = lower.chars().filter(|c| c.is_ascii_digit()).collect();
+    if let Ok(n) = digits.parse::<u32>() {
+        return n.max(1);
+    }
+    2
+}
+
+// ─── HELPER: RESOLVE CLEAN BOOKING TIMESTAMPS ────────────────────────────────
+fn resolve_booking_times(
+    session_date_opt: Option<&str>,
+    start_time_opt: Option<&str>,
+    date_time_str: &str,
+    duration_hours: u32,
+) -> (chrono::NaiveDate, chrono::NaiveTime, chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>) {
+    use chrono::{NaiveDate, NaiveTime, NaiveDateTime, DateTime, Utc, Duration};
+
+    // 1. Try extracting date
+    let date = if let Some(d_str) = session_date_opt.and_then(|s| NaiveDate::parse_from_str(s.trim(), "%Y-%m-%d").ok()) {
+        d_str
+    } else {
+        let first_token = date_time_str.split_whitespace().next().unwrap_or_default();
+        NaiveDate::parse_from_str(first_token, "%Y-%m-%d")
+            .or_else(|_| NaiveDate::parse_from_str(date_time_str, "%Y-%m-%d"))
+            .unwrap_or_else(|_| Utc::now().date_naive())
+    };
+
+    // 2. Try extracting start time
+    let raw_time = start_time_opt.unwrap_or_else(|| {
+        let mut parts = date_time_str.split_whitespace();
+        let _ = parts.next();
+        parts.next().unwrap_or("10:00")
+    }).trim();
+
+    // Handle full RFC3339 timestamp if passed
+    if let Ok(dt) = DateTime::parse_from_rfc3339(raw_time) {
+        let utc_dt = dt.with_timezone(&Utc);
+        let end_dt = utc_dt + Duration::hours(duration_hours as i64);
+        return (utc_dt.date_naive(), utc_dt.time(), utc_dt, end_dt);
+    }
+
+    // Split range if formatted as "10:00 – 14:00" or "10:00 - 14:00"
+    let clean_time = if let Some((st, _)) = raw_time.split_once(['–', '-']) {
+        st.trim()
+    } else {
+        raw_time
+    };
+
+    let time = NaiveTime::parse_from_str(clean_time, "%H:%M")
+        .or_else(|_| NaiveTime::parse_from_str(clean_time, "%H:%M:%S"))
+        .or_else(|_| NaiveTime::parse_from_str(clean_time, "%I:%M %p"))
+        .or_else(|_| NaiveTime::parse_from_str(clean_time, "%l:%M %p"))
+        .unwrap_or_else(|_| NaiveTime::from_hms_opt(10, 0, 0).unwrap());
+
+    let naive_dt = NaiveDateTime::new(date, time);
+    let start_utc = DateTime::<Utc>::from_naive_utc_and_offset(naive_dt, Utc);
+    let end_utc = start_utc + Duration::hours(duration_hours as i64);
+
+    (date, time, start_utc, end_utc)
 }
 
 // ─── 2. REQUEST BOOKING (REAL CREATION & 24h SLA) ────────────────────────────
@@ -177,6 +254,8 @@ async fn request_booking(
                 deposit_amount: 6000,
                 balance_amount: 14000,
                 location_type: payload.location_type,
+                session_date: payload.session_date,
+                session_time: payload.start_time.clone(),
                 start_time: payload.start_time,
                 end_time: payload.end_time,
                 request_expires_at: Some(expires_at.to_rfc3339()),
@@ -219,8 +298,8 @@ async fn request_booking(
     // 2. Fetch validated service package from PostgreSQL
     let service_row = if let Some(ref sid_str) = payload.service_id {
         if let Ok(sid) = uuid::Uuid::parse_str(sid_str) {
-            sqlx::query_as::<_, (uuid::Uuid, String, i32)>(
-                "SELECT id, name, price FROM services WHERE id = $1 AND creator_id = $2::uuid AND is_active = true LIMIT 1"
+            sqlx::query_as::<_, (uuid::Uuid, String, i32, String)>(
+                "SELECT id, name, price, duration FROM services WHERE id = $1 AND creator_id = $2::uuid AND is_active = true LIMIT 1"
             )
             .bind(sid)
             .bind(creator_uuid)
@@ -238,8 +317,8 @@ async fn request_booking(
     // If service_id not supplied or didn't match, attempt case-insensitive match on name
     let service_row = match service_row {
         Some(s) => Some(s),
-        None => sqlx::query_as::<_, (uuid::Uuid, String, i32)>(
-            "SELECT id, name, price FROM services WHERE creator_id = $1::uuid AND LOWER(name) = LOWER($2) AND is_active = true LIMIT 1"
+        None => sqlx::query_as::<_, (uuid::Uuid, String, i32, String)>(
+            "SELECT id, name, price, duration FROM services WHERE creator_id = $1::uuid AND LOWER(name) = LOWER($2) AND is_active = true LIMIT 1"
         )
         .bind(creator_uuid)
         .bind(&payload.pkg_name)
@@ -250,14 +329,22 @@ async fn request_booking(
     };
 
     // STRICT VALIDATION: If package is not active or not in database, reject with 400 Bad Request
-    let (service_id, matched_pkg_name, base_price) = match service_row {
-        Some((s_id, s_name, s_price)) => (s_id, s_name, s_price),
+    let (service_id, matched_pkg_name, base_price, service_dur) = match service_row {
+        Some((s_id, s_name, s_price, s_dur)) => (s_id, s_name, s_price, s_dur),
         None => {
             return Err(AppError::BadRequest(
                 format!("Selected service package '{}' is not available for this creator. Please choose an active package.", payload.pkg_name)
             ));
         }
     };
+
+    let duration_hours = payload.duration_hours.unwrap_or_else(|| parse_duration_hours(&service_dur));
+    let (session_date, session_time, start_utc, end_utc) = resolve_booking_times(
+        payload.session_date.as_deref(),
+        payload.start_time.as_deref(),
+        &payload.date_time,
+        duration_hours,
+    );
 
     let platform_fee = (base_price as f64 * 0.05).round() as i32;
     let total_price = base_price + platform_fee;
@@ -267,17 +354,52 @@ async fn request_booking(
     let booking_id = uuid::Uuid::new_v4();
     let expires_at = chrono::Utc::now() + chrono::Duration::hours(crate::constants::BOOKING_REQUEST_SLA_HOURS);
 
-    // 3. Insert real booking record into PostgreSQL
+    let mut tx = pool.begin().await.map_err(|e| AppError::InternalServerError(format!("Failed to begin booking transaction: {}", e)))?;
+
+    // 3. Acquire creator-level transaction advisory lock to serialize concurrent bookings
+    let _ = sqlx::query("SELECT pg_advisory_xact_lock(hashtext($1::text))")
+        .bind(creator_uuid.to_string())
+        .execute(&mut *tx)
+        .await;
+
+    // 4. Overlap collision check with active (pending or confirmed) bookings
+    let conflict_count = sqlx::query_scalar::<_, i64>(
+        r#"
+        SELECT COUNT(*) FROM bookings
+        WHERE creator_id = $1::uuid
+          AND status IN ('confirmed', 'pending')
+          AND start_time IS NOT NULL
+          AND end_time IS NOT NULL
+          AND start_time < $3::timestamptz
+          AND end_time > $2::timestamptz
+        "#
+    )
+    .bind(creator_uuid)
+    .bind(start_utc)
+    .bind(end_utc)
+    .fetch_one(&mut *tx)
+    .await
+    .unwrap_or(0);
+
+    if conflict_count > 0 {
+        return Err(AppError::Conflict(
+            "This time slot was just requested or confirmed by another client. Please select another slot.".into()
+        ));
+    }
+
+    // 5. Insert real booking record with exact timestamps
     sqlx::query(
         r#"
         INSERT INTO bookings (
             id, consumer_id, creator_id, service_id, status,
             notes, base_price, platform_fee, total_price, advance_amount, balance_amount,
-            location_type, request_expires_at, created_at, updated_at
+            location_type, request_expires_at, session_date, session_time, start_time, end_time,
+            created_at, updated_at
         ) VALUES (
             $1, $2, $3, $4, 'pending',
             $5, $6, $7, $8, $9, $10,
-            $11::location_type, $12, now(), now()
+            $11::location_type, $12, $13, $14, $15, $16,
+            now(), now()
         )
         "#
     )
@@ -293,9 +415,18 @@ async fn request_booking(
     .bind(balance_amount)
     .bind(&payload.location_type)
     .bind(expires_at)
-    .execute(pool)
+    .bind(session_date)
+    .bind(session_time)
+    .bind(start_utc)
+    .bind(end_utc)
+    .execute(&mut *tx)
     .await
     .map_err(|e| AppError::InternalServerError(format!("Failed to insert booking: {}", e)))?;
+
+    tx.commit().await.map_err(|e| AppError::InternalServerError(format!("Failed to commit booking transaction: {}", e)))?;
+
+    let session_time_formatted = session_time.format("%H:%M").to_string();
+    let date_time_display = format!("{} {}", session_date.format("%Y-%m-%d"), session_time_formatted);
 
     Ok(Json(Booking {
         id: booking_id.to_string(),
@@ -304,14 +435,16 @@ async fn request_booking(
         creator_avatar: creator_avatar.unwrap_or_default(),
         client_name: "You".into(),
         pkg_name: matched_pkg_name,
-        date_time: payload.date_time,
+        date_time: date_time_display,
         status: "pending".into(),
         price: total_price.max(0) as u32,
         deposit_amount: advance_amount.max(0) as u32,
         balance_amount: balance_amount.max(0) as u32,
         location_type: payload.location_type,
-        start_time: payload.start_time,
-        end_time: payload.end_time,
+        session_date: Some(session_date.format("%Y-%m-%d").to_string()),
+        session_time: Some(session_time_formatted),
+        start_time: Some(start_utc.to_rfc3339()),
+        end_time: Some(end_utc.to_rfc3339()),
         request_expires_at: Some(expires_at.to_rfc3339()),
         client_notes: payload.client_notes,
         created_at: Some(chrono::Utc::now().to_rfc3339()),
@@ -341,7 +474,8 @@ async fn get_booking_detail(
 
     let row = sqlx::query_as::<_, (
         String, String, Option<String>, Option<String>,
-        Option<String>, Option<String>, i32, i32, i32, Option<String>
+        Option<String>, Option<String>, Option<String>, Option<String>,
+        i32, i32, i32, Option<String>, Option<String>, Option<String>, Option<String>
     )>(
         r#"
         SELECT
@@ -351,13 +485,19 @@ async fn get_booking_detail(
             u_consumer.name,
             b.session_date::text,
             b.session_time::text,
+            to_char(b.start_time AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+            to_char(b.end_time AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
             b.total_price::int,
             b.advance_amount::int,
             b.balance_amount::int,
-            b.notes
+            b.notes,
+            to_char(b.request_expires_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+            s.name as pkg_name,
+            b.location_type::text
         FROM bookings b
         LEFT JOIN users u_creator ON u_creator.id = b.creator_id
         LEFT JOIN users u_consumer ON u_consumer.id = b.consumer_id
+        LEFT JOIN services s ON s.id = b.service_id
         WHERE b.id = $1::uuid
         "#
     )
@@ -374,10 +514,15 @@ async fn get_booking_detail(
         "client_name": row.3.unwrap_or_else(|| "Client".into()),
         "session_date": row.4,
         "session_time": row.5,
-        "total_price": row.6,
-        "advance_amount": row.7,
-        "balance_amount": row.8,
-        "notes": row.9,
+        "start_time": row.6,
+        "end_time": row.7,
+        "total_price": row.8,
+        "advance_amount": row.9,
+        "balance_amount": row.10,
+        "notes": row.11,
+        "request_expires_at": row.12,
+        "pkg_name": row.13.unwrap_or_else(|| "Session".into()),
+        "location_type": row.14.unwrap_or_else(|| "studio".into())
     })))
 }
 

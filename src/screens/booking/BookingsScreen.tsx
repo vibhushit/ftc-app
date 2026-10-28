@@ -7,7 +7,7 @@ import { useAppStore } from '@/store/appStore'
 import { useShallow } from 'zustand/shallow'
 import { useMyBookings } from '@/hooks/useBookings'
 import { inr } from '@/data/constants'
-import { cn } from '@/utils'
+import { cn, formatIsoSlot12h, formatFallbackSession12h } from '@/utils'
 
 type BookingFilterTab = 'all' | 'active' | 'completed' | 'cancelled'
 
@@ -31,6 +31,10 @@ function formatBookingDate(isoString?: string | null): string | null {
   } catch {
     return null
   }
+}
+
+function formatBookingSlot(startIso?: string | null, endIso?: string | null): string | null {
+  return formatIsoSlot12h(startIso, endIso)
 }
 
 function getStatusBadge(status: string) {
@@ -214,9 +218,10 @@ export function BookingsScreen() {
 
                 const price = typeof b.total_price === 'number' ? b.total_price : (typeof b.price === 'number' ? b.price : (typeof b.total === 'number' ? b.total : 0))
                 const completedAtFormatted = formatBookingDate(b.completed_at || b.updated_at)
-                const rawWhen = b.session_date ? `${b.session_date}${b.session_time ? ` · ${b.session_time}` : ''}` : (b.when || b.date || b.date_time)
+                const slotFormatted = formatBookingSlot(b.start_time, b.end_time)
+                const rawWhen = slotFormatted || formatFallbackSession12h(b.session_date, b.session_time) || (b.when || b.date || b.date_time)
                 const displayDate = isCompleted
-                  ? (completedAtFormatted || formatBookingDate(b.session_date || b.created_at))
+                  ? (completedAtFormatted || slotFormatted || formatBookingDate(b.session_date || b.created_at))
                   : (rawWhen || 'Date to be confirmed')
 
                 return (

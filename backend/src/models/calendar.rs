@@ -76,11 +76,23 @@ pub struct CreateOverridePayload {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/SlotInfo.ts")]
+pub struct SlotInfo {
+    pub time: String,
+    pub end_time: String,
+    pub is_available: bool,
+    pub status: String,
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../src/types/bindings/DayAvailability.ts")]
 pub struct DayAvailability {
     pub date: String,
     pub status: String, // "available" | "booked" | "blocked"
     pub slots: Vec<String>,
+    #[serde(default)]
+    pub slots_detail: Vec<SlotInfo>,
     pub reason: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub is_custom_hours: Option<bool>,

@@ -17,6 +17,10 @@ pub struct Booking {
     pub balance_amount: u32,
     pub location_type: String,
     #[serde(default)]
+    pub session_date: Option<String>,
+    #[serde(default)]
+    pub session_time: Option<String>,
+    #[serde(default)]
     pub start_time: Option<String>,
     #[serde(default)]
     pub end_time: Option<String>,
@@ -40,9 +44,13 @@ pub struct CreateBookingPayload {
     #[serde(default)]
     pub service_id: Option<String>,
     #[serde(default)]
+    pub session_date: Option<String>,
+    #[serde(default)]
     pub start_time: Option<String>,
     #[serde(default)]
     pub end_time: Option<String>,
+    #[serde(default)]
+    pub duration_hours: Option<u32>,
     #[serde(default)]
     pub client_notes: Option<String>,
 }

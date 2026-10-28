@@ -2,7 +2,7 @@ import { Check, Calendar, Download, Clock, ExternalLink, X } from 'lucide-react'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { useCreator } from '@/hooks/useCreators'
-import { cn } from '@/utils'
+import { cn, formatIsoSlot12h, formatFallbackSession12h } from '@/utils'
 
 export function ConfirmedScreen() {
   const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
@@ -34,16 +34,47 @@ export function ConfirmedScreen() {
   const rawAvatar = (lb.creatorAvatar as string) || dbCreator?.users?.avatar_url || ''
   const creatorAvatar = (rawAvatar.includes('picsum.photos') || rawAvatar.includes('photo-1534528741775')) ? '' : rawAvatar
   const creatorArea = dbCreator?.area || 'Studio'
-  const dateLine = `${(lb.when as string) || (lb.date_time as string) || 'Scheduled'} · ${(lb.pkg as string) || (lb.pkg_name as string) || 'Session'}`
+
+  // Format clean shoot timing (respecting wall-clock booking slot)
+  const formatShootTime = () => {
+    const formatted = formatIsoSlot12h(lb.start_time as string, lb.end_time as string)
+    if (formatted) return formatted
+    return (
+      (lb.when as string) ||
+      (lb.date_time as string) ||
+      formatFallbackSession12h(lb.session_date as string, lb.session_time as string) ||
+      'Scheduled'
+    )
+  }
+
+  const shootTiming = formatShootTime()
+  const dateLine = `${shootTiming} · ${(lb.pkg as string) || (lb.pkg_name as string) || 'Session'}`
   const isPending = (lb.status as string) === 'pending' || (lb.status as string) === 'pending_approval'
 
+  // Calendar dates ISO formatting (wall-clock YYYYMMDDTHHmmss without trailing Z so it anchors to local venue time)
+  const toCalIso = (isoString?: string | null, fallbackOffsetHours = 0) => {
+    if (!isoString) {
+      const d = new Date(Date.now() + fallbackOffsetHours * 3600 * 1000)
+      return d.toISOString().replace(/[-:]/g, '').split('.')[0]
+    }
+    const d = new Date(isoString)
+    if (isNaN(d.getTime())) {
+      const fb = new Date(Date.now() + fallbackOffsetHours * 3600 * 1000)
+      return fb.toISOString().replace(/[-:]/g, '').split('.')[0]
+    }
+    return d.toISOString().replace(/[-:]/g, '').split('.')[0]
+  }
+
+  const calStart = toCalIso(lb.start_time as string, 0)
+  const calEnd = toCalIso(lb.end_time as string, 2)
+
   const titleText = encodeURIComponent(`FTC Shoot: ${creatorName} (${(lb.pkg as string) || (lb.pkg_name as string) || 'Session'})`)
-  const detailsText = encodeURIComponent(`Creator: ${creatorName}\nPackage: ${(lb.pkg as string) || (lb.pkg_name as string) || 'Session'}\nShoot Timing: ${(lb.when as string) || (lb.date_time as string) || ''}\nLocation: ${creatorArea}\nBooking Code: #${bookingId}`)
+  const detailsText = encodeURIComponent(`Creator: ${creatorName}\nPackage: ${(lb.pkg as string) || (lb.pkg_name as string) || 'Session'}\nShoot Timing: ${shootTiming}\nLocation: ${creatorArea}\nBooking Code: #${bookingId}`)
   const locationText = encodeURIComponent(creatorArea)
-  const googleCalUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${titleText}&details=${detailsText}&location=${locationText}`
+  const googleCalUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${titleText}&dates=${calStart}/${calEnd}&ctz=Asia/Kolkata&details=${detailsText}&location=${locationText}`
 
   const downloadIcs = () => {
-    const nowStr = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+    const nowStamp = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
     const icsData = [
       'BEGIN:VCALENDAR',
       'VERSION:2.0',
@@ -52,8 +83,9 @@ export function ConfirmedScreen() {
       'METHOD:PUBLISH',
       'BEGIN:VEVENT',
       `UID:${bookingId}@ftc.co`,
-      `DTSTAMP:${nowStr}`,
-      `DTSTART:${nowStr}`,
+      `DTSTAMP:${nowStamp}`,
+      `DTSTART;TZID=Asia/Kolkata:${calStart}`,
+      `DTEND;TZID=Asia/Kolkata:${calEnd}`,
       `SUMMARY:FTC Shoot: ${creatorName} (${(lb.pkg as string) || (lb.pkg_name as string) || 'Session'})`,
       `LOCATION:${creatorArea}`,
       `DESCRIPTION:Shoot booking on FTC with ${creatorName}. Booking ID: ${bookingId}`,

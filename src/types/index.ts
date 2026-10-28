@@ -140,6 +140,11 @@ export interface BookingDraft {
   dateKey?: string | null
   dateLabel?: string
   pkgIdx?: number
+  sessionDate?: string
+  startTime?: string | null
+  durationHours?: number
+  serviceId?: string
+  service_id?: string
 }
 
 export interface Booking {

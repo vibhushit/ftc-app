@@ -10,7 +10,7 @@ import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { apiClient } from '@/services/apiClient'
 import { pic, inr } from '@/data/constants'
-import { cn, shareOrCopy } from '@/utils'
+import { cn, shareOrCopy, formatSlotRange12h } from '@/utils'
 import { useCreator, useCreatorServices, useMonthAvailability } from '@/hooks/useCreators'
 import type { CreatorWithUser } from '@/lib/database.types'
 import type { Tier, Verification, Gender, TravelMode, TravelRadius, Creator } from '@/types'
@@ -157,20 +157,7 @@ export function CreatorDetailScreen() {
   const activePackage: Pkg | null = hasPackages ? (packages[selectedPkg] ?? packages[0]) : null
 
   function formatSlotRange(startTime: string, durationMinutes: number): string {
-    if (!startTime) return ''
-    const [hStr, mStr] = startTime.split(':')
-    const startH = parseInt(hStr || '0', 10)
-    const startM = parseInt(mStr || '0', 10)
-    const totalStart = startH * 60 + startM
-    const totalEnd = totalStart + durationMinutes
-
-    const pad = (n: number) => String(n).padStart(2, '0')
-    const formatH = (totalMins: number) => {
-      const h24 = Math.floor(totalMins / 60) % 24
-      const m = totalMins % 60
-      return `${pad(h24)}:${pad(m)}`
-    }
-    return `${formatH(totalStart)} – ${formatH(totalEnd)}`
+    return formatSlotRange12h(startTime, durationMinutes)
   }
 
   const durMins = useMemo(() => {
@@ -266,10 +253,13 @@ export function CreatorDetailScreen() {
           date: bookDateLabel,
           dateLabel: bookDateLabel,
           time: selectedTime ? formatSlotRange(selectedTime, durMins) : '',
+          startTime: selectedTime,
           location: c.area,
           notes: '',
           duration: activePackage.duration,
+          durationHours: Math.max(1, Math.round(durMins / 60)),
           dateKey: selectedDateKey,
+          sessionDate: selectedDateKey,
         }
       })
     } catch {
@@ -287,10 +277,13 @@ export function CreatorDetailScreen() {
           date: bookDateLabel,
           dateLabel: bookDateLabel,
           time: selectedTime ? formatSlotRange(selectedTime, durMins) : '',
+          startTime: selectedTime,
           location: c.area,
           notes: '',
           duration: activePackage.duration,
+          durationHours: Math.max(1, Math.round(durMins / 60)),
           dateKey: selectedDateKey,
+          sessionDate: selectedDateKey,
         }
       })
     } finally {
@@ -517,31 +510,61 @@ export function CreatorDetailScreen() {
                 {activeDayAvail?.reason || 'All shoot windows on this date have already been reserved.'}
               </div>
             </div>
-          ) : daySlots.length === 0 ? (
+          ) : (daySlots.length === 0 && (!activeDayAvail?.slots_detail || activeDayAvail.slots_detail.length === 0)) ? (
             <div className="rounded-xl bg-bone p-3.5 text-center text-[12px] text-obsidian/60 border border-line">
               {activeDayAvail?.reason || 'No open slots fit this package duration on this date. Try another day or package.'}
             </div>
           ) : (
             <div>
-              <div className="flex items-center gap-1.5 text-[11px] text-obsidian/50 font-medium mb-2">
-                <Clock size={12} className="text-iris" />
-                <span>Available Slots</span>
+              <div className="flex items-center justify-between text-[11px] text-obsidian/50 font-medium mb-2">
+                <div className="flex items-center gap-1.5">
+                  <Clock size={12} className="text-iris" />
+                  <span>Available & Booked Slots</span>
+                </div>
+                <span className="font-mono text-[10px] text-obsidian/40">1-Hour Intervals</span>
               </div>
-              <div className="grid grid-cols-1 min-[380px]:grid-cols-2 sm:grid-cols-3 gap-2">
-                {daySlots.map(t => (
-                  <button
-                    key={t}
-                    onClick={() => setSelectedTime(t)}
-                    className={cn(
-                      'tap py-2 px-2.5 rounded-xl text-[11px] sm:text-[11.5px] font-mono font-medium transition border text-center cursor-pointer whitespace-nowrap',
-                      selectedTime === t
-                        ? 'bg-obsidian text-paper border-obsidian font-semibold shadow-xs'
-                        : 'bg-bone border-line text-obsidian/80 hover:border-obsidian/30'
-                    )}
-                  >
-                    {formatSlotRange(t, durMins)}
-                  </button>
-                ))}
+              <div className="grid grid-cols-2 gap-2">
+                {activeDayAvail?.slots_detail && activeDayAvail.slots_detail.length > 0 ? (
+                  activeDayAvail.slots_detail.map(slot => {
+                    const isAvailable = slot.is_available
+                    const isSelected = selectedTime === slot.time
+                    return (
+                      <button
+                        key={slot.time}
+                        type="button"
+                        disabled={!isAvailable}
+                        onClick={() => setSelectedTime(slot.time)}
+                        className={cn(
+                          'py-2.5 px-3 rounded-xl text-[11.5px] sm:text-[12px] font-medium tnum tracking-tight transition border text-center flex items-center justify-center whitespace-nowrap',
+                          isAvailable
+                            ? (isSelected
+                                ? 'bg-obsidian text-paper border-obsidian font-semibold shadow-xs cursor-pointer tap'
+                                : 'bg-bone border-line text-obsidian/85 hover:border-obsidian/40 cursor-pointer tap')
+                            : 'bg-obsidian/[0.04] border-line/60 text-obsidian/30 line-through cursor-not-allowed select-none opacity-50'
+                        )}
+                        title={!isAvailable ? (slot.reason || 'Slot not available') : undefined}
+                      >
+                        {formatSlotRange(slot.time, durMins)}
+                      </button>
+                    )
+                  })
+                ) : (
+                  daySlots.map(t => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setSelectedTime(t)}
+                      className={cn(
+                        'tap py-2.5 px-3 rounded-xl text-[11.5px] sm:text-[12px] font-medium tnum tracking-tight transition border text-center cursor-pointer flex items-center justify-center whitespace-nowrap',
+                        selectedTime === t
+                          ? 'bg-obsidian text-paper border-obsidian font-semibold shadow-xs'
+                          : 'bg-bone border-line text-obsidian/80 hover:border-obsidian/30'
+                      )}
+                    >
+                      {formatSlotRange(t, durMins)}
+                    </button>
+                  ))
+                )}
               </div>
             </div>
           )}

@@ -86,19 +86,26 @@ export function BookingScreen() {
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
 
     try {
+      const sessionDate = (draft.sessionDate as string) || (draft.dateKey as string) || null
+      const startTime = (draft.startTime as string) || (draft.time as string) || null
+      const durationHours = typeof draft.durationHours === 'number' ? draft.durationHours : null
+
       const bookingPayload: CreateBookingPayload = {
         creator_id: creatorId,
         pkg_name: pkgName,
         service_id: (draft.serviceId as string) || (draft.service_id as string) || null,
         date_time: `${dateLabel} ${time}`.trim(),
         location_type: sel?.key ?? 'studio',
-        start_time: (draft.time as string) || null,
+        session_date: sessionDate,
+        start_time: startTime,
         end_time: null,
+        duration_hours: durationHours,
         client_notes: venue ? `Venue: ${venue}` : null,
       }
 
       const createdBooking = await apiClient.requestBooking(bookingPayload)
       qc.invalidateQueries({ queryKey: ['bookings'] })
+      qc.invalidateQueries({ queryKey: ['calendar'] })
 
       dispatch({
         type: 'CONFIRM_BOOKING',
@@ -122,13 +129,23 @@ export function BookingScreen() {
           total,
           dateLabel,
           time,
+          session_date: createdBooking.session_date || sessionDate,
+          session_time: createdBooking.session_time || startTime,
+          start_time: createdBooking.start_time || null,
+          end_time: createdBooking.end_time || null,
           deposit_amount: dep.advance,
           price: total,
         } as any
       })
       dispatch({ type: 'GO', screen: 'confirmed' })
     } catch (err: any) {
-      setSubmitError(err?.message || 'Failed to submit booking request')
+      const isConflict = err?.status === 409 || err?.message?.toLowerCase().includes('overlap') || err?.message?.toLowerCase().includes('available') || err?.message?.toLowerCase().includes('conflict')
+      if (isConflict) {
+        qc.invalidateQueries({ queryKey: ['calendar'] })
+        setSubmitError(err?.message || 'This time slot is no longer available as it was just booked. Please pick another slot.')
+      } else {
+        setSubmitError(err?.message || 'Failed to submit booking request')
+      }
     } finally {
       setSubmitting(false)
     }
@@ -168,9 +185,19 @@ export function BookingScreen() {
         <div className="max-w-4xl mx-auto w-full md:grid md:grid-cols-[1fr_360px] md:gap-8 md:items-start md:px-6 md:pt-6">
           <div className="md:min-w-0">
             {submitError && (
-              <div className="mx-5 mt-4 p-3.5 rounded-2xl bg-danger/10 border border-danger/20 text-danger text-[12px] flex items-center justify-between">
-                <span>{submitError}</span>
-                <button onClick={() => setSubmitError(null)} className="tap font-semibold underline text-[11px]">Dismiss</button>
+              <div className="mx-5 mt-4 p-3.5 rounded-2xl bg-danger/10 border border-danger/20 text-danger text-[12px] flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span>{submitError}</span>
+                  <button onClick={() => setSubmitError(null)} className="tap font-semibold underline text-[11px]">Dismiss</button>
+                </div>
+                {(submitError.toLowerCase().includes('slot') || submitError.toLowerCase().includes('available') || submitError.toLowerCase().includes('overlap') || submitError.toLowerCase().includes('booked')) && (
+                  <button
+                    onClick={() => dispatch({ type: 'BACK' })}
+                    className="tap self-start px-3 py-1.5 rounded-xl bg-danger/20 hover:bg-danger/30 text-danger font-semibold text-[11px] transition"
+                  >
+                    ← Pick Another Time Slot
+                  </button>
+                )}
               </div>
             )}
 

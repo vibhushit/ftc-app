@@ -8,7 +8,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useAppStore } from '@/store/appStore'
 import { inr } from '@/data/constants'
 import { CRM_TABS, CRM_EMPTY } from '@/data/constants'
-import { cn } from '@/utils'
+import { cn, formatIsoSlot12h, formatFallbackSession12h } from '@/utils'
 import { apiClient } from '@/services/apiClient'
 import { useToast } from '@/components/ui/ToastNotification'
 import { useMyJobs } from '@/hooks/useBookings'
@@ -220,10 +220,11 @@ export function CreatorPipelineHome() {
               const completedAtStr = b.completed_at || b.completedAt || b.updated_at
               const completedDateFormatted = formatCardDate(completedAtStr)
 
-              const rawDateSlot = b.session_date ? `${b.session_date}${b.session_time ? ` · ${b.session_time}` : ''}` : (b.date || b.when)
+              const slotFormatted = formatIsoSlot12h(b.start_time, b.end_time)
+              const rawDateSlot = slotFormatted || formatFallbackSession12h(b.session_date, b.session_time) || (b.date || b.when)
               const dateSlot = rawDateSlot || 'Date to be confirmed'
               const displayDate = isCompleted
-                ? (completedDateFormatted || formatCardDate(b.session_date || b.created_at))
+                ? (completedDateFormatted || slotFormatted || formatCardDate(b.session_date || b.created_at))
                 : dateSlot
               const clientNotes = b.notes || b.clientNotes || ''
               const requestExpiresAt = b.request_expires_at || b.requestExpiresAt
@@ -256,7 +257,7 @@ export function CreatorPipelineHome() {
                         <div className="font-mono text-[13px] font-bold text-obsidian">{inr(price)}</div>
                       </div>
                       {displayDate && (
-                        <div className="text-[12px] text-obsidian/55 mt-1 font-mono truncate">
+                        <div className="text-[12px] text-obsidian/60 mt-1 font-medium tnum truncate">
                           {displayDate}
                         </div>
                       )}

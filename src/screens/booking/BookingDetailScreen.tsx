@@ -9,7 +9,7 @@ import { SimpleHeader } from '@/components/ui/SimpleHeader'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { inr } from '@/data/constants'
-import { cn } from '@/utils'
+import { cn, formatIsoSlot12h, formatFallbackSession12h } from '@/utils'
 import { apiClient } from '@/services/apiClient'
 import { useToast } from '@/components/ui/ToastNotification'
 import { useBooking, useRealtimeBooking } from '@/hooks/useBookings'
@@ -60,6 +60,16 @@ function formatDateTime(isoString?: string | null) {
   } catch {
     return null
   }
+}
+
+function formatShootSlot(booking: any): string {
+  const formatted = formatIsoSlot12h(booking.start_time, booking.end_time, { includeDuration: true })
+  if (formatted) return formatted
+
+  const fallback = formatFallbackSession12h(booking.session_date, booking.session_time)
+  if (fallback) return fallback
+
+  return (booking.when as string) || (booking.date as string) || (booking.date_time as string) || 'Scheduled'
 }
 
 const BOOKING_STAGES = [
@@ -689,7 +699,7 @@ export function BookingDetailScreen() {
             <Card title="Session Details">
               <KV k={isCreatorViewing ? "Client" : "Creator"} v={partyName} />
               <KV k="Package" v={(b.pkg as string) || (b.pkg_name as string) || (b.service as any)?.name || 'Standard Session'} />
-              <KV k="Shoot slot" v={(b.when as string) || (b.date as string) || (b.date_time as string) || 'Scheduled'} />
+              <KV k="Date & Slot" v={formatShootSlot(b)} />
               <KV k="Location" v={locLabel} />
               {venueAddress && <KV k="Venue / Address" v={venueAddress} />}
               <KV k="Booking ID" v={b.booking_ref ? `#${b.booking_ref}` : `#${bookingId.slice(0, 8)}`} />

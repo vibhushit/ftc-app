@@ -7,8 +7,6 @@ interface DaySlotPreviewProps {
   selectedOverride?: OverrideStateItem
   isSelectedDayOff: boolean
   previewSlots: string[]
-  slotStep: number
-  buffer: number
   onRemoveOverride: (id: string) => void
 }
 
@@ -18,8 +16,6 @@ export function DaySlotPreview({
   selectedOverride,
   isSelectedDayOff,
   previewSlots,
-  slotStep,
-  buffer,
   onRemoveOverride,
 }: DaySlotPreviewProps) {
   const isBlocked = selectedOverride?.override_type === 'blocked'
@@ -71,7 +67,7 @@ export function DaySlotPreview({
 
           {previewSlots.length === 0 ? (
             <div className="rounded-xl bg-bone border border-line p-3 text-[11.5px] text-obsidian/60">
-              No slots fit into configured hours with {slotStep}m interval and {buffer}m buffer.
+              No open 1-hour slots fit within configured working hours.
             </div>
           ) : (
             <div className="space-y-1.5">

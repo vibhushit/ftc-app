@@ -13,7 +13,7 @@ use std::collections::HashMap;
 
 use crate::error::AppError;
 use crate::models::calendar::{
-    CreateOverridePayload, DayAvailability, MonthAvailabilityResponse,
+    CreateOverridePayload, DayAvailability, MonthAvailabilityResponse, SlotInfo,
     UpdateCalendarSettingsPayload,
 };
 use crate::state::AppState;
@@ -262,17 +262,9 @@ pub async fn fetch_month_availability_internal(
     let mut booked_intervals: HashMap<String, Vec<(u32, u32)>> = HashMap::new();
 
     if let Some(pool) = pool {
-        // 1. Fetch creator settings (buffer minutes, slot step)
-        if let Ok(Some((step, buf))) = sqlx::query_as::<_, (i32, i32)>(
-            "SELECT slot_step_minutes, buffer_minutes FROM creator_calendar_settings WHERE creator_id = $1::uuid",
-        )
-        .bind(resolved_cid)
-        .fetch_optional(pool)
-        .await
-        {
-            slot_step = step as u32;
-            buffer = buf as u32;
-        }
+        // 1. Simplified Phase 1: fixed 60m discrete interval, 0m buffer
+        slot_step = 60;
+        buffer = 0;
 
         // 2. Fetch custom weekly schedules
         if let Ok(schedules) = sqlx::query_as::<_, (i16, bool, chrono::NaiveTime, chrono::NaiveTime)>(
@@ -487,6 +479,7 @@ pub fn compute_month_slots_extended(
                     date: date_str,
                     status: "blocked".into(),
                     slots: vec![],
+                    slots_detail: vec![],
                     reason: Some("Creator is on Holiday Mode".into()),
                     is_custom_hours: None,
                     custom_start_time: None,
@@ -508,6 +501,7 @@ pub fn compute_month_slots_extended(
                     date: date_str,
                     status: "blocked".into(),
                     slots: vec![],
+                    slots_detail: vec![],
                     reason: Some(blocked_reason),
                     is_custom_hours: None,
                     custom_start_time: None,
@@ -531,6 +525,7 @@ pub fn compute_month_slots_extended(
                             date: date_str,
                             status: "blocked".into(),
                             slots: vec![],
+                            slots_detail: vec![],
                             reason: Some("Day off".into()),
                             is_custom_hours: None,
                             custom_start_time: None,
@@ -545,52 +540,75 @@ pub fn compute_month_slots_extended(
         let (work_start, work_end) = work_hours;
         let day_bookings = booked_intervals.get(&date_str);
 
-        // Compute free continuous intervals
-        let mut free_windows: Vec<(u32, u32)> = vec![(work_start, work_end)];
-
-        if let Some(bookings) = day_bookings {
-            for &(b_start, b_end) in bookings {
-                let busy_start = b_start.saturating_sub(buffer_minutes);
-                let busy_end = (b_end + buffer_minutes).min(24 * 60);
-
-                let mut next_free = Vec::new();
-                for (f_start, f_end) in free_windows {
-                    if busy_end <= f_start || busy_start >= f_end {
-                        next_free.push((f_start, f_end));
-                    } else {
-                        if busy_start > f_start {
-                            next_free.push((f_start, busy_start));
-                        }
-                        if busy_end < f_end {
-                            next_free.push((busy_end, f_end));
-                        }
-                    }
-                }
-                free_windows = next_free;
-            }
-        }
-
-        // Generate discrete slots inside remaining continuous free windows
         let mut valid_slots = Vec::new();
+        let mut slots_detail = Vec::new();
         let step = if slot_step_minutes == 0 { 60 } else { slot_step_minutes };
 
-        for (f_start, f_end) in free_windows {
-            if f_start + duration_minutes > f_end {
+        let mut t = work_start;
+        let rem = t % step;
+        if rem != 0 {
+            t += step - rem;
+        }
+
+        while t < work_end {
+            let slot_time_str = format!("{:02}:{:02}", t / 60, t % 60);
+            let session_end_min = t + duration_minutes;
+            let end_time_str = format!("{:02}:{:02}", session_end_min / 60, session_end_min % 60);
+
+            // Check 1: Exceeds working hours
+            if session_end_min > work_end {
+                slots_detail.push(SlotInfo {
+                    time: slot_time_str,
+                    end_time: end_time_str,
+                    is_available: false,
+                    status: "unavailable".to_string(),
+                    reason: Some("Session exceeds creator working hours".to_string()),
+                });
+                t += step;
                 continue;
             }
 
-            let mut t = f_start;
-            let rem = t % step;
-            if rem != 0 {
-                t += step - rem;
+            // Check 2: Collides with any existing booking (including buffer)
+            let mut has_conflict = false;
+            let mut conflict_reason = None;
+
+            if let Some(bookings) = day_bookings {
+                for &(b_start, b_end) in bookings {
+                    let busy_start = b_start.saturating_sub(buffer_minutes);
+                    let busy_end = (b_end + buffer_minutes).min(24 * 60);
+
+                    if t.max(busy_start) < session_end_min.min(busy_end) {
+                        has_conflict = true;
+                        if t >= b_start && t < b_end {
+                            conflict_reason = Some("Slot is already booked".to_string());
+                        } else {
+                            conflict_reason = Some("Session overlaps with an existing booking".to_string());
+                        }
+                        break;
+                    }
+                }
             }
 
-            while t + duration_minutes <= f_end {
-                let hour = t / 60;
-                let min = t % 60;
-                valid_slots.push(format!("{:02}:{:02}", hour, min));
-                t += step;
+            if has_conflict {
+                slots_detail.push(SlotInfo {
+                    time: slot_time_str,
+                    end_time: end_time_str,
+                    is_available: false,
+                    status: "unavailable".to_string(),
+                    reason: conflict_reason,
+                });
+            } else {
+                valid_slots.push(slot_time_str.clone());
+                slots_detail.push(SlotInfo {
+                    time: slot_time_str,
+                    end_time: end_time_str,
+                    is_available: true,
+                    status: "available".to_string(),
+                    reason: None,
+                });
             }
+
+            t += step;
         }
 
         let (status, reason) = if !valid_slots.is_empty() {
@@ -625,6 +643,7 @@ pub fn compute_month_slots_extended(
                 date: date_str,
                 status,
                 slots: valid_slots,
+                slots_detail,
                 reason,
                 is_custom_hours: if is_custom { Some(true) } else { None },
                 custom_start_time,
