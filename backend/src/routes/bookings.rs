@@ -346,6 +346,14 @@ async fn request_booking(
         duration_hours,
     );
 
+    // 2b. Minimum advance notice validation (24 hours notice SLA with 5m grace window)
+    let min_notice_time = chrono::Utc::now() + chrono::Duration::hours(23) + chrono::Duration::minutes(55);
+    if start_utc < min_notice_time {
+        return Err(AppError::BadRequest(
+            "Bookings require at least 24 hours advance notice to allow the creator time to confirm.".into(),
+        ));
+    }
+
     let platform_fee = (base_price as f64 * 0.05).round() as i32;
     let total_price = base_price + platform_fee;
     let advance_amount = if total_price <= 10000 { total_price } else { (total_price as f64 * 0.3).round() as i32 };

@@ -376,6 +376,12 @@ pub async fn fetch_month_availability_internal(
     }
 
     // 5. Compute days availability in memory
+    // Enforce 24-hour minimum notice for live bookings; mock/fixture unit tests (pool=None) bypass clock drift.
+    let min_notice_cutoff = if pool.is_some() {
+        Some(chrono::Utc::now().naive_utc() + chrono::Duration::hours(24))
+    } else {
+        None
+    };
     let days = compute_month_slots_extended(
         year,
         month_num,
@@ -389,6 +395,7 @@ pub async fn fetch_month_availability_internal(
         &custom_day_hours,
         &override_reasons,
         &custom_time_labels,
+        min_notice_cutoff,
     );
 
     Ok(MonthAvailabilityResponse {
@@ -437,6 +444,7 @@ pub fn compute_month_slots(
         custom_day_hours,
         &HashMap::new(),
         &HashMap::new(),
+        None,
     )
 }
 
@@ -454,6 +462,7 @@ pub fn compute_month_slots_extended(
     custom_day_hours: &HashMap<String, (u32, u32)>,
     override_reasons: &HashMap<String, String>,
     custom_time_labels: &HashMap<String, (String, String)>,
+    min_notice_cutoff: Option<chrono::NaiveDateTime>,
 ) -> HashMap<String, DayAvailability> {
     let mut result = HashMap::new();
 
@@ -568,7 +577,26 @@ pub fn compute_month_slots_extended(
                 continue;
             }
 
-            // Check 2: Collides with any existing booking (including buffer)
+            // Check 2: Minimum advance notice (e.g. 24h confirmation SLA)
+            if let Some(cutoff) = min_notice_cutoff {
+                let slot_start_dt = chrono::NaiveDateTime::new(
+                    naive_date,
+                    chrono::NaiveTime::from_hms_opt(t / 60, t % 60, 0).unwrap_or_default(),
+                );
+                if slot_start_dt < cutoff {
+                    slots_detail.push(SlotInfo {
+                        time: slot_time_str,
+                        end_time: end_time_str,
+                        is_available: false,
+                        status: "unavailable".to_string(),
+                        reason: Some("Requires 24h advance notice".to_string()),
+                    });
+                    t += step;
+                    continue;
+                }
+            }
+
+            // Check 3: Collides with any existing booking (including buffer)
             let mut has_conflict = false;
             let mut conflict_reason = None;
 
@@ -620,6 +648,17 @@ pub fn compute_month_slots_extended(
             ("available".to_string(), r)
         } else if day_bookings.is_some() && !day_bookings.unwrap().is_empty() {
             ("booked".to_string(), Some("Fully booked for this duration".into()))
+        } else if let Some(cutoff) = min_notice_cutoff {
+            let day_end_dt = chrono::NaiveDateTime::new(
+                naive_date,
+                chrono::NaiveTime::from_hms_opt(work_end / 60, work_end % 60, 0)
+                    .unwrap_or_else(|| chrono::NaiveTime::from_hms_opt(23, 59, 59).unwrap()),
+            );
+            if day_end_dt <= cutoff {
+                ("unavailable".to_string(), Some("Same-day booking unavailable (24h advance notice required)".into()))
+            } else {
+                ("blocked".to_string(), Some("Not enough continuous hours".into()))
+            }
         } else {
             ("blocked".to_string(), Some("Not enough continuous hours".into()))
         };

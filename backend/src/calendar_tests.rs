@@ -276,6 +276,67 @@ mod tests {
         assert!(!sunday.slots.contains(&"09:00".to_string()));
     }
 
+    #[test]
+    fn test_min_notice_cutoff_blocks_slots_under_24_hours() {
+        use crate::routes::calendar::compute_month_slots_extended;
+        use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
+
+        let active_days = mock_active_weekdays(9, 18);
+        let blocked = HashMap::new();
+        let booked = HashMap::new();
+        let custom_hours = HashMap::new();
+
+        // Suppose current time is Friday May 15, 2026 at 11:30 AM.
+        // 24h notice cutoff = Saturday May 16, 2026 at 11:30 AM.
+        let cutoff = NaiveDateTime::new(
+            NaiveDate::from_ymd_opt(2026, 5, 16).unwrap(),
+            NaiveTime::from_hms_opt(11, 30, 0).unwrap(),
+        );
+
+        let slots = compute_month_slots_extended(
+            2026,
+            5,
+            60,
+            60,
+            0,
+            false,
+            &active_days,
+            &blocked,
+            &booked,
+            &custom_hours,
+            &HashMap::new(),
+            &HashMap::new(),
+            Some(cutoff),
+        );
+
+        // May 15, 2026 is completely before cutoff (same day) -> should be marked unavailable
+        let friday = slots.get("2026-05-15").unwrap();
+        assert_eq!(friday.status, "unavailable");
+        assert_eq!(friday.slots.len(), 0);
+        assert_eq!(
+            friday.reason,
+            Some("Same-day booking unavailable (24h advance notice required)".to_string())
+        );
+
+        // Saturday May 16, 2026 (open from 9:00 to 18:00):
+        // Slots at 09:00, 10:00, 11:00 are before 11:30 cutoff -> unavailable ("Requires 24h advance notice")
+        // Slots at 12:00, 13:00, 14:00, 15:00, 16:00, 17:00 are after 11:30 -> available
+        let saturday = slots.get("2026-05-16").unwrap();
+        assert_eq!(saturday.status, "available");
+        assert!(!saturday.slots.contains(&"09:00".to_string()));
+        assert!(!saturday.slots.contains(&"10:00".to_string()));
+        assert!(!saturday.slots.contains(&"11:00".to_string()));
+        assert!(saturday.slots.contains(&"12:00".to_string()));
+        assert!(saturday.slots.contains(&"13:00".to_string()));
+
+        let slot_9am = saturday.slots_detail.iter().find(|s| s.time == "09:00").unwrap();
+        assert_eq!(slot_9am.is_available, false);
+        assert_eq!(slot_9am.reason, Some("Requires 24h advance notice".to_string()));
+
+        let slot_12pm = saturday.slots_detail.iter().find(|s| s.time == "12:00").unwrap();
+        assert_eq!(slot_12pm.is_available, true);
+    }
+
     // ─── 2. REQUEST-TO-BOOK & 24H SLA UNIT TESTS ──────────────────────────────
 
     #[tokio::test]

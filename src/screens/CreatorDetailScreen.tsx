@@ -115,11 +115,14 @@ export function CreatorDetailScreen() {
   const now = new Date()
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 
+  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000)
+  const tomorrowStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`
+
   const [portfolioIdx, setPortfolioIdx] = useState(0)
   const [selectedPkg, setSelectedPkg] = useState(0)
-  const [currentYear, setCurrentYear] = useState(now.getFullYear())
-  const [currentMonthNum, setCurrentMonthNum] = useState(now.getMonth() + 1)
-  const [selectedDateKey, setSelectedDateKey] = useState<string | null>(todayStr)
+  const [currentYear, setCurrentYear] = useState(tomorrow.getFullYear())
+  const [currentMonthNum, setCurrentMonthNum] = useState(tomorrow.getMonth() + 1)
+  const [selectedDateKey, setSelectedDateKey] = useState<string | null>(tomorrowStr)
   const [selectedTime, setSelectedTime] = useState<string | null>(null)
   const [shareToast, setShareToast] = useState(false)
   const qc = useQueryClient()
@@ -427,30 +430,31 @@ export function CreatorDetailScreen() {
           const dayInfo = availData?.days?.[dateKey]
           const isPast = dateKey < todayStr
           const isToday = dateKey === todayStr
-          const isDayOff = !isPast && (dayInfo ? (dayInfo.status === 'blocked' && (dayInfo.reason === 'Day off' || dayInfo.reason === null)) : false)
-          const isBlockedOverride = !isPast && (dayInfo ? (dayInfo.status === 'blocked' && dayInfo.reason !== 'Day off' && dayInfo.reason !== null) : false)
-          const isAvailable = !isPast && !isDayOff && !isBlockedOverride && (dayInfo ? dayInfo.status === 'available' : true)
-          const isBooked = !isPast && (dayInfo ? dayInfo.status === 'booked' : false)
+          const isDayOff = !isPast && !isToday && (dayInfo ? (dayInfo.status === 'blocked' && (dayInfo.reason === 'Day off' || dayInfo.reason === null)) : false)
+          const isBlockedOverride = !isPast && !isToday && (dayInfo ? (dayInfo.status === 'blocked' && dayInfo.reason !== 'Day off' && dayInfo.reason !== null) : false)
+          const isAvailable = !isPast && !isToday && !isDayOff && !isBlockedOverride && (dayInfo ? dayInfo.status === 'available' : true)
+          const isBooked = !isPast && !isToday && (dayInfo ? dayInfo.status === 'booked' : false)
           const isSelected = selectedDateKey === dateKey
-          const hasCustomHours = !isPast && !!dayInfo?.is_custom_hours
+          const hasCustomHours = !isPast && !isToday && !!dayInfo?.is_custom_hours
 
           return (
             <button
               key={d}
-              disabled={isPast || isDayOff || isBlockedOverride}
+              disabled={isPast || isToday || isDayOff || isBlockedOverride}
               onClick={() => {
                 setSelectedDateKey(dateKey)
                 setSelectedTime(null)
               }}
+              title={isToday ? 'Same-day booking unavailable (24h advance notice required)' : undefined}
               className={cn(
                 'w-8 h-8 rounded-xl text-[12px] font-medium tnum flex items-center justify-center transition-all relative cursor-pointer',
                 isSelected && 'bg-obsidian text-paper font-semibold shadow-md ring-2 ring-iris/40',
                 !isSelected && isPast && 'bg-obsidian/[0.02] text-obsidian/20 cursor-not-allowed',
-                !isSelected && !isPast && isDayOff && 'bg-obsidian/10 text-obsidian/35 cursor-not-allowed',
-                !isSelected && !isPast && isBlockedOverride && 'bg-rose-100 text-rose-800 font-semibold line-through cursor-not-allowed',
-                !isSelected && !isPast && isAvailable && 'bg-emerald-100/70 hover:bg-emerald-200/80 text-emerald-950 font-semibold',
-                !isSelected && !isPast && isBooked && 'bg-obsidian/10 text-obsidian/40 hover:bg-obsidian/20',
-                isToday && !isSelected && 'ring-1 ring-iris/50 font-bold'
+                !isSelected && isToday && 'ring-1 ring-obsidian/25 text-obsidian/40 bg-obsidian/[0.02] cursor-not-allowed',
+                !isSelected && !isPast && !isToday && isDayOff && 'bg-obsidian/10 text-obsidian/35 cursor-not-allowed',
+                !isSelected && !isPast && !isToday && isBlockedOverride && 'bg-rose-100 text-rose-800 font-semibold line-through cursor-not-allowed',
+                !isSelected && !isPast && !isToday && isAvailable && 'bg-emerald-100/70 hover:bg-emerald-200/80 text-emerald-950 font-semibold',
+                !isSelected && !isPast && !isToday && isBooked && 'bg-obsidian/10 text-obsidian/40 hover:bg-obsidian/20'
               )}
             >
               {d}
@@ -500,6 +504,16 @@ export function CreatorDetailScreen() {
                 {activeDayAvail?.reason || 'The creator is not accepting bookings on this date.'}
               </div>
             </div>
+          ) : activeDayAvail?.status === 'unavailable' ? (
+            <div className="rounded-xl bg-bone border border-line p-3.5 text-center space-y-1 text-obsidian/70 animate-fade-in">
+              <div className="text-[12px] font-semibold flex items-center justify-center gap-1.5">
+                <Clock size={13} className="text-obsidian/40" />
+                <span>24h Advance Notice Required</span>
+              </div>
+              <div className="text-[11.5px] text-obsidian/60">
+                {activeDayAvail?.reason || 'Same-day bookings are unavailable. All bookings require at least 24 hours advance notice.'}
+              </div>
+            </div>
           ) : activeDayAvail?.status === 'booked' ? (
             <div className="rounded-xl bg-bone border border-line p-3.5 text-center space-y-1 text-obsidian/70 animate-fade-in">
               <div className="text-[12px] font-semibold flex items-center justify-center gap-1.5">
@@ -521,7 +535,7 @@ export function CreatorDetailScreen() {
                   <Clock size={12} className="text-iris" />
                   <span>Available & Booked Slots</span>
                 </div>
-                <span className="font-mono text-[10px] text-obsidian/40">1-Hour Intervals</span>
+                <span className="font-mono text-[10px] text-obsidian/40">24h Notice Applied</span>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 {activeDayAvail?.slots_detail && activeDayAvail.slots_detail.length > 0 ? (
