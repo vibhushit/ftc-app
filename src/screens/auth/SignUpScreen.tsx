@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight, CalendarCheck, RotateCcw } from 'lucide-react'
 import { BrandIcon } from '@/components/ui/BrandIcon'
 import { useAppStore } from '@/store/appStore'
 import { useOtpSecurity } from '@/hooks/useOtpSecurity'
+import { cn } from '@/utils'
 import { supabaseAvailable, supabase } from '@/lib/supabase'
 import * as authApi from '@/lib/api/auth'
 

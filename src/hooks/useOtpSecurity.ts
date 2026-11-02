@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 
 const MAX_ATTEMPTS = 3
 const EXPIRY_MS = 10 * 60 * 1000 // 10 minutes
@@ -7,6 +7,7 @@ export function useOtpSecurity(initialCooldown = 0) {
   const [otp, setOtp]                 = useState<string[]>(['', '', '', '', '', ''])
   const [failedAttempts, setAttempts] = useState(0)
   const [resendCount, setResendCount] = useState(0)
+  const resendCountRef                = useRef(0)
   const [cooldown, setCooldown]       = useState(initialCooldown)
   const [otpSentAt, setOtpSentAt]     = useState<number | null>(null)
   const [isExpired, setIsExpired]     = useState(false)
@@ -49,16 +50,19 @@ export function useOtpSecurity(initialCooldown = 0) {
     // 0 or 1 resend: 60s
     // 2 or 3 resends: 120s (2m)
     // 4+ resends: 300s (5m)
+    const currentCount = resendCountRef.current
     let backoffSeconds = 60
-    if (resendCount >= 3) {
+    if (currentCount >= 3) {
       backoffSeconds = 300
-    } else if (resendCount >= 1) {
+    } else if (currentCount >= 1) {
       backoffSeconds = 120
     }
 
+    const nextCount = currentCount + 1
+    resendCountRef.current = nextCount
+    setResendCount(nextCount)
     setCooldown(backoffSeconds)
-    setResendCount(c => c + 1)
-  }, [resendCount])
+  }, [])
 
   /**
    * Records a failed verification attempt.

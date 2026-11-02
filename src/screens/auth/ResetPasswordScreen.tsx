@@ -31,8 +31,13 @@ export function ResetPasswordScreen() {
   } = useOtpSecurity()
 
   const otpInputs = useRef<(HTMLInputElement | null)[]>([])
+  const passwordInputRef = useRef<HTMLInputElement | null>(null)
+  const hasInitialized = useRef(false)
 
   useEffect(() => {
+    if (hasInitialized.current) return
+    hasInitialized.current = true
+
     try {
       const savedEmail = localStorage.getItem('ftc_recovery_email')
       if (savedEmail) {
@@ -72,6 +77,8 @@ export function ResetPasswordScreen() {
 
     if (i < 5) {
       otpInputs.current[i + 1]?.focus()
+    } else if (next.join('').length === 6) {
+      passwordInputRef.current?.focus()
     }
   }
 
@@ -102,6 +109,7 @@ export function ResetPasswordScreen() {
 
     if (pasted.length === 6) {
       otpInputs.current[5]?.focus()
+      passwordInputRef.current?.focus()
     } else {
       otpInputs.current[pasted.length]?.focus()
     }
@@ -215,7 +223,7 @@ export function ResetPasswordScreen() {
         <div className="w-9" />
       </div>
 
-      <div className="flex-1 overflow-y-auto px-6 pt-6 pb-8 max-w-sm mx-auto w-full flex flex-col justify-between">
+      <div className="flex-1 overflow-y-auto px-6 pt-6 pb-8 max-w-md mx-auto w-full flex flex-col justify-between">
         <div>
           <div className="w-14 h-14 rounded-full bg-emerald-500/10 grid place-items-center mb-4 mx-auto">
             <ShieldCheck size={28} className="text-emerald-600" />
@@ -256,7 +264,7 @@ export function ResetPasswordScreen() {
             {/* 6-Digit Code Input */}
             <div>
               <label className="text-[11px] font-medium text-obsidian/60 block mb-1">6-Digit Recovery Code</label>
-              <div className="flex gap-2 justify-center py-1" onPaste={handleOtpPaste}>
+              <div className="flex gap-2 justify-center py-2" onPaste={handleOtpPaste}>
                 {otp.map((digit, i) => (
                   <input
                     key={i}
@@ -270,7 +278,7 @@ export function ResetPasswordScreen() {
                     onKeyDown={e => handleOtpKeyDown(i, e)}
                     disabled={loading || success || isLocked}
                     className={cn(
-                      'w-10 h-13 sm:w-11 sm:h-13 rounded-2xl border-2 bg-bone/40 text-center font-mono text-xl font-bold outline-none transition disabled:opacity-50',
+                      'w-11 h-14 sm:w-12 sm:h-14 rounded-2xl border-2 bg-bone/40 text-center font-mono text-2xl font-bold outline-none transition disabled:opacity-40',
                       isLocked ? 'border-rose-300 bg-rose-50 text-rose-900 cursor-not-allowed' : 'border-obsidian/20 focus:border-obsidian focus:bg-paper'
                     )}
                   />
@@ -305,6 +313,7 @@ export function ResetPasswordScreen() {
               <label className="text-[11px] font-medium text-obsidian/60 block mb-1">New password</label>
               <div className="rounded-2xl border-2 border-obsidian/15 focus-within:border-obsidian px-4 py-3 bg-bone/30 transition flex items-center gap-2">
                 <input
+                  ref={passwordInputRef}
                   type={showPass ? 'text' : 'password'}
                   value={newPassword}
                   onChange={e => setNewPassword(e.target.value)}
