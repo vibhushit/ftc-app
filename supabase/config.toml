@@ -40,6 +40,10 @@ enable_confirmations = false          # disable for dev; enable in production
 subject = "Your FTC sign-in code"
 content_path = "./supabase/templates/magic-link.html"
 
+[auth.email.template.recovery]
+subject = "Your FTC password recovery code"
+content_path = "./supabase/templates/recovery.html"
+
 [auth.sms]
 enable_signup = true
 enable_confirmations = true

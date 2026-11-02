@@ -10,7 +10,7 @@ const TAB_SCREENS: Record<Tab, Screen> = {
 }
 
 const DEFAULT_STATE: AppState = {
-  screen: 'welcome',
+  screen: 'home',
   prevScreen: null,
   isAuthed: false,
   isAuthLoading: true,
@@ -111,9 +111,33 @@ function reduce(state: AppState, action: AppAction): AppState {
       return { ...state, prevScreen: state.screen, screen: 'creatorOnboard1', onboardOrigin: action.origin }
     case 'COMPLETE_AUTH': {
       const isInitialAuthScreen = ['welcome', 'signup', 'login', 'phone', 'otp', 'magicLinkSent', 'forgotPassword', 'resetPassword', 'clientOnboard'].includes(state.screen)
-      const targetScreen = isInitialAuthScreen ? 'home' : (state.screen || 'home')
-      const targetTab = TAB_SCREENS[state.activeTab] ? state.activeTab : 'home'
-      
+      let targetScreen = isInitialAuthScreen ? 'home' : (state.screen || 'home')
+      let targetTab = TAB_SCREENS[state.activeTab] ? state.activeTab : 'home'
+      let activeDraft = state.bookingDraft
+      let activeCreatorId = state.selectedCreatorId
+
+      // Restore any booking draft persisted across the authentication boundary
+      if (typeof window !== 'undefined') {
+        try {
+          const rawPending = localStorage.getItem('ftc_pending_booking_draft')
+          if (rawPending) {
+            const parsed = JSON.parse(rawPending)
+            if (parsed && parsed.creatorId) {
+              activeDraft = parsed
+              activeCreatorId = parsed.creatorId
+              targetScreen = 'booking'
+              localStorage.removeItem('ftc_pending_booking_draft')
+            }
+          }
+        } catch {}
+      }
+
+      // If state already holds a booking draft while finishing auth, navigate directly to booking
+      if (activeDraft && activeDraft.creatorId && (isInitialAuthScreen || targetScreen === 'home')) {
+        targetScreen = 'booking'
+        activeCreatorId = activeDraft.creatorId
+      }
+
       // Determine active role based on user preference or profile
       let resolvedIsCreator = action.isCreator ?? state.isCreator
       if (typeof window !== 'undefined' && state.supabaseUserId) {
@@ -123,6 +147,11 @@ function reduce(state: AppState, action: AppAction): AppState {
         } else if (savedViewMode === 'creator' && (action.isCreator || state.hasCreatorProfile)) {
           resolvedIsCreator = true
         }
+      }
+
+      // If completing a client booking checkout, enforce consumer view
+      if (activeDraft) {
+        resolvedIsCreator = false
       }
 
       return {
@@ -142,6 +171,8 @@ function reduce(state: AppState, action: AppAction): AppState {
         },
         screen: targetScreen,
         activeTab: targetTab,
+        bookingDraft: activeDraft,
+        selectedCreatorId: activeCreatorId,
       }
     }
     case 'MARK_CREATOR':
@@ -253,6 +284,21 @@ function reduce(state: AppState, action: AppAction): AppState {
 function parseInitialHash(defaultState: AppState): AppState {
   if (typeof window === 'undefined') return defaultState
 
+  let baseState = defaultState
+  try {
+    const rawPending = localStorage.getItem('ftc_pending_booking_draft')
+    if (rawPending) {
+      const parsed = JSON.parse(rawPending)
+      if (parsed && parsed.creatorId) {
+        baseState = {
+          ...defaultState,
+          bookingDraft: parsed,
+          selectedCreatorId: parsed.creatorId,
+        }
+      }
+    }
+  } catch {}
+
   // 1. Auth Tokens in URL (PKCE code or Hash access_token) take highest precedence
   const rawHash = typeof window !== 'undefined' ? window.location.hash : ''
   const rawSearch = typeof window !== 'undefined' ? window.location.search : ''
@@ -265,7 +311,7 @@ function parseInitialHash(defaultState: AppState): AppState {
 
   if (isAuthTokenUrl) {
     return {
-      ...defaultState,
+      ...baseState,
       screen: 'resetPassword',
       isAuthed: false,
     }
@@ -273,19 +319,19 @@ function parseInitialHash(defaultState: AppState): AppState {
 
   // 2. URL hash is the single source of truth for deep links
   const hash = rawHash.replace(/^#/, '')
-  if (!hash) return defaultState
+  if (!hash) return baseState
 
   const params = new URLSearchParams(hash)
   const creator = params.get('creator')
   const screen = params.get('screen') as Screen | null
 
   if (screen === 'welcome') {
-    return { ...defaultState, screen: 'welcome', isAuthed: false }
+    return { ...baseState, screen: 'welcome', isAuthed: false }
   }
 
   if (creator) {
     return {
-      ...defaultState,
+      ...baseState,
       screen: 'creator',
       selectedCreatorId: creator,
     }
@@ -295,13 +341,13 @@ function parseInitialHash(defaultState: AppState): AppState {
     const validTabs: Tab[] = ['home', 'discover', 'inbox', 'me']
     const matchingTab = validTabs.find(t => t === screen)
     return {
-      ...defaultState,
+      ...baseState,
       screen,
-      activeTab: matchingTab ?? defaultState.activeTab,
+      activeTab: matchingTab ?? baseState.activeTab,
     }
   }
 
-  return defaultState
+  return baseState
 }
 
 function syncUrlHash(state: AppState, isPopState = false) {

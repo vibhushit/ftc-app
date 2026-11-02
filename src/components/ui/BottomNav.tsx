@@ -11,8 +11,13 @@ interface BottomNavProps {
 }
 
 export function BottomNav({ active, onNav, notifications = 0 }: BottomNavProps) {
-  const { isCreator, screen, dispatch } = useAppStore(useShallow(s => ({ isCreator: s.isCreator, screen: s.screen, dispatch: s.dispatch })))
-  const tabs = isCreator ? CREATOR_NAV_TABS : CLIENT_NAV_TABS
+  const { isAuthed, isCreator, screen, dispatch } = useAppStore(useShallow(s => ({
+    isAuthed: s.isAuthed,
+    isCreator: s.isCreator,
+    screen: s.screen,
+    dispatch: s.dispatch,
+  })))
+  const tabs = (isAuthed && isCreator) ? CREATOR_NAV_TABS : CLIENT_NAV_TABS
   const isDedicatedScreenActive = tabs.some(x => x.screen && x.screen === screen)
 
   return (
@@ -39,7 +44,7 @@ export function BottomNav({ active, onNav, notifications = 0 }: BottomNavProps) 
                   className={isActive ? 'text-obsidian' : 'text-obsidian/40'}
                   strokeWidth={isActive ? 2.2 : 1.8}
                 />
-                {t.id === 'inbox' && notifications > 0 && (
+                {t.id === 'inbox' && isAuthed && notifications > 0 && (
                   <span className="absolute -top-1 -right-2 min-w-[16px] h-4 px-1 bg-danger text-paper text-[9px] font-bold rounded-full grid place-items-center">
                     {notifications}
                   </span>

@@ -13,7 +13,7 @@ import { pic, inr } from '@/data/constants'
 import { cn, shareOrCopy, formatSlotRange12h } from '@/utils'
 import { useCreator, useCreatorServices, useMonthAvailability } from '@/hooks/useCreators'
 import type { CreatorWithUser } from '@/lib/database.types'
-import type { Tier, Verification, Gender, TravelMode, TravelRadius, Creator } from '@/types'
+import type { Tier, Verification, Gender, TravelMode, TravelRadius, Creator, BookingDraft } from '@/types'
 
 function dbToCreatorFull(db: CreatorWithUser): Creator {
   return {
@@ -232,6 +232,26 @@ export function CreatorDetailScreen() {
     setValidatingSlot(true)
     setSlotConflictError(null)
 
+    const draftPayload: BookingDraft = {
+      creatorId: c.id,
+      creatorName: c.name,
+      creatorAvatar: c.avatar,
+      serviceId: activePackage.id,
+      service_id: activePackage.id,
+      packageName: activePackage.name,
+      packagePrice: activePackage.price,
+      date: bookDateLabel,
+      dateLabel: bookDateLabel,
+      time: selectedTime ? formatSlotRange(selectedTime, durMins) : '',
+      startTime: selectedTime,
+      location: c.area,
+      notes: '',
+      duration: activePackage.duration,
+      durationHours: Math.max(1, Math.round(durMins / 60)),
+      dateKey: selectedDateKey,
+      sessionDate: selectedDateKey,
+    }
+
     try {
       const check = await apiClient.validateSlot(c.id, selectedDateKey, selectedTime, durMins)
       if (!check.valid) {
@@ -243,51 +263,32 @@ export function CreatorDetailScreen() {
         return
       }
 
+      if (!state.isAuthed) {
+        try {
+          localStorage.setItem('ftc_pending_booking_draft', JSON.stringify(draftPayload))
+        } catch {}
+        dispatch({ type: 'START_BOOKING', draft: draftPayload })
+        dispatch({ type: 'GO', screen: 'login' })
+        return
+      }
+
       dispatch({
         type: 'START_BOOKING',
-        draft: {
-          creatorId: c.id,
-          creatorName: c.name,
-          creatorAvatar: c.avatar,
-          serviceId: activePackage.id,
-          service_id: activePackage.id,
-          packageName: activePackage.name,
-          packagePrice: activePackage.price,
-          date: bookDateLabel,
-          dateLabel: bookDateLabel,
-          time: selectedTime ? formatSlotRange(selectedTime, durMins) : '',
-          startTime: selectedTime,
-          location: c.area,
-          notes: '',
-          duration: activePackage.duration,
-          durationHours: Math.max(1, Math.round(durMins / 60)),
-          dateKey: selectedDateKey,
-          sessionDate: selectedDateKey,
-        }
+        draft: draftPayload,
       })
     } catch {
       // If validation call fails, proceed gracefully
+      if (!state.isAuthed) {
+        try {
+          localStorage.setItem('ftc_pending_booking_draft', JSON.stringify(draftPayload))
+        } catch {}
+        dispatch({ type: 'START_BOOKING', draft: draftPayload })
+        dispatch({ type: 'GO', screen: 'login' })
+        return
+      }
       dispatch({
         type: 'START_BOOKING',
-        draft: {
-          creatorId: c.id,
-          creatorName: c.name,
-          creatorAvatar: c.avatar,
-          serviceId: activePackage.id,
-          service_id: activePackage.id,
-          packageName: activePackage.name,
-          packagePrice: activePackage.price,
-          date: bookDateLabel,
-          dateLabel: bookDateLabel,
-          time: selectedTime ? formatSlotRange(selectedTime, durMins) : '',
-          startTime: selectedTime,
-          location: c.area,
-          notes: '',
-          duration: activePackage.duration,
-          durationHours: Math.max(1, Math.round(durMins / 60)),
-          dateKey: selectedDateKey,
-          sessionDate: selectedDateKey,
-        }
+        draft: draftPayload,
       })
     } finally {
       setValidatingSlot(false)
@@ -651,7 +652,17 @@ export function CreatorDetailScreen() {
       <div className="absolute top-0 inset-x-0 z-20 px-5 py-3 flex items-center justify-between pointer-events-none">
         <button onClick={() => dispatch({ type: 'BACK' })} className="tap pointer-events-auto w-10 h-10 rounded-full bg-paper/90 backdrop-blur grid place-items-center shadow-md"><ArrowLeft size={18} /></button>
         <div className="flex gap-2">
-          <button onClick={() => dispatch({ type: 'TOGGLE_SAVE', id: c.id })} className="tap pointer-events-auto w-10 h-10 rounded-full bg-paper/90 backdrop-blur grid place-items-center shadow-md">
+          <button
+            onClick={() => {
+              if (!state.isAuthed) {
+                dispatch({ type: 'GO', screen: 'login' })
+                return
+              }
+              dispatch({ type: 'TOGGLE_SAVE', id: c.id })
+            }}
+            className="tap pointer-events-auto w-10 h-10 rounded-full bg-paper/90 backdrop-blur grid place-items-center shadow-md cursor-pointer"
+            title={!state.isAuthed ? 'Sign in to save' : undefined}
+          >
             <Heart size={16} className={isSaved ? 'fill-danger text-danger' : ''} />
           </button>
           <button
@@ -906,7 +917,17 @@ export function CreatorDetailScreen() {
           </div>
         )}
         <div className="flex gap-2">
-          <button onClick={() => dispatch({ type: 'OPEN_CLIENT_CHAT', client: { name: c.name, avatar: c.avatar } })} className="tap w-14 rounded-2xl bg-obsidian/5 grid place-items-center">
+          <button
+            onClick={() => {
+              if (!state.isAuthed) {
+                dispatch({ type: 'GO', screen: 'login' })
+                return
+              }
+              dispatch({ type: 'OPEN_CLIENT_CHAT', client: { name: c.name, avatar: c.avatar } })
+            }}
+            className="tap w-14 rounded-2xl bg-obsidian/5 grid place-items-center cursor-pointer"
+            title={!state.isAuthed ? 'Sign in to message' : undefined}
+          >
             <MessageCircle size={19} className="text-obsidian/70" />
           </button>
           {isOwnProfile ? (

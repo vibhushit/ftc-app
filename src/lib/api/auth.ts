@@ -38,6 +38,156 @@ export async function sendOtp(phone: string) {
   return formatted
 }
 
+// ─── 6-Digit Email OTP Service Layer ──────────────────────────────────────────
+
+/**
+ * Sends a 6-digit Email OTP for user Sign-In.
+ * Strictly forbids auto-creating users so unknown emails cannot create empty accounts.
+ */
+export async function sendEmailSignInOtp(email: string) {
+  const clean = email.trim().toLowerCase()
+  if (!clean) throw new Error('Email is required.')
+
+  const { data, error } = await supabase.auth.signInWithOtp({
+    email: clean,
+    options: {
+      shouldCreateUser: false,
+    },
+  })
+
+  if (error) {
+    const msg = error.message.toLowerCase()
+    if (msg.includes('signups not allowed') || msg.includes('user not found') || msg.includes('not found')) {
+      throw new Error('No account found with this email. Please sign up first.')
+    }
+    if (msg.includes('rate limit') || msg.includes('too many') || msg.includes('over_email_send_rate_limit')) {
+      throw new Error('Too many attempts. Please wait a minute before requesting another code.')
+    }
+    throw error
+  }
+
+  return data
+}
+
+/**
+ * Sends a 6-digit Email OTP for user Sign-Up.
+ * Verifies email uniqueness and embeds name metadata directly into the auth user.
+ */
+export async function sendEmailSignUpOtp(email: string, name?: string) {
+  const clean = email.trim().toLowerCase()
+  if (!clean) throw new Error('Email is required.')
+
+  // Proactively check if email already exists
+  const exists = await checkEmailExists(clean)
+  if (exists) {
+    throw new Error('This email is already registered. Please sign in instead.')
+  }
+
+  const { data, error } = await supabase.auth.signInWithOtp({
+    email: clean,
+    options: {
+      shouldCreateUser: true,
+      data: {
+        full_name: name?.trim() || '',
+        name: name?.trim() || '',
+      },
+    },
+  })
+
+  if (error) {
+    const msg = error.message.toLowerCase()
+    if (msg.includes('already registered') || msg.includes('already exists') || msg.includes('user already')) {
+      throw new Error('This email is already registered. Please sign in instead.')
+    }
+    if (msg.includes('rate limit') || msg.includes('too many') || msg.includes('over_email_send_rate_limit')) {
+      throw new Error('Too many attempts. Please wait a minute before requesting another code.')
+    }
+    throw error
+  }
+
+  return data
+}
+
+/**
+ * Verifies 6-digit Email OTP for authentication (Sign-In or Sign-Up).
+ */
+export async function verifyEmailOtp(email: string, token: string) {
+  const cleanEmail = email.trim().toLowerCase()
+  const cleanToken = token.trim()
+
+  const { data, error } = await supabase.auth.verifyOtp({
+    email: cleanEmail,
+    token: cleanToken,
+    type: 'email',
+  })
+
+  if (error) {
+    const msg = error.message.toLowerCase()
+    if (msg.includes('expired') || msg.includes('invalid') || msg.includes('token has expired')) {
+      throw new Error('Invalid or expired 6-digit code. Please check your code or request a new one.')
+    }
+    throw error
+  }
+
+  return data
+}
+
+/**
+ * Sends a 6-digit password recovery code to the user's email.
+ */
+export async function sendPasswordRecoveryOtp(email: string) {
+  const clean = email.trim().toLowerCase()
+  if (!clean) throw new Error('Email is required.')
+
+  const { data, error } = await supabase.auth.resetPasswordForEmail(clean)
+  if (error) {
+    const msg = error.message.toLowerCase()
+    if (msg.includes('rate limit') || msg.includes('too many') || msg.includes('over_email_send_rate_limit')) {
+      throw new Error('Too many attempts. Please wait a minute before requesting another code.')
+    }
+    throw error
+  }
+
+  return data
+}
+
+/**
+ * Verifies a 6-digit password recovery code.
+ */
+export async function verifyRecoveryOtp(email: string, token: string) {
+  const cleanEmail = email.trim().toLowerCase()
+  const cleanToken = token.trim()
+
+  const { data, error } = await supabase.auth.verifyOtp({
+    email: cleanEmail,
+    token: cleanToken,
+    type: 'recovery',
+  })
+
+  if (error) {
+    const msg = error.message.toLowerCase()
+    if (msg.includes('expired') || msg.includes('invalid') || msg.includes('token has expired')) {
+      throw new Error('Invalid or expired recovery code. Please check your code or request a new one.')
+    }
+    throw error
+  }
+
+  return data
+}
+
+/**
+ * Global sign-out that revokes all sessions across all logged-in devices in PostgreSQL,
+ * and sweeps the local client storage.
+ */
+export async function signOutGlobal() {
+  try {
+    await supabase.auth.signOut({ scope: 'global' })
+  } catch (e) {
+    console.warn('[FTC] Global remote signOut failed, falling back to local sweep:', e)
+  }
+  await signOutCleanly()
+}
+
 // ─── Email OTP (works without SMS provider) ───────────────────────────────────
 export async function sendEmailOtp(email: string) {
   const { error } = await supabase.auth.signInWithOtp({ email })
@@ -266,12 +416,4 @@ export async function updateUserPassword(newPassword: string) {
   return data
 }
 
-export async function verifyPasswordResetOtp(email: string, token: string) {
-  const { data, error } = await supabase.auth.verifyOtp({
-    email,
-    token,
-    type: 'recovery',
-  })
-  if (error) throw error
-  return data
-}
+export const verifyPasswordResetOtp = verifyRecoveryOtp

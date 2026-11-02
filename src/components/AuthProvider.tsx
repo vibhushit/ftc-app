@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { supabase, supabaseAvailable } from '@/lib/supabase'
 import { useAppStore } from '@/store/appStore'
+import { PUBLIC_SCREENS } from '@/types'
 import type { AuthChangeEvent } from '@supabase/supabase-js'
 import type { UserRole } from '@/lib/database.types'
 
@@ -94,10 +95,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!mounted) return
       if (!session?.user) {
-        // Unauthenticated visitor -> stay on welcome/auth
+        // Unauthenticated visitor -> stay on public screens (home, discover, creator, etc.)
         const cur = useAppStore.getState().screen
-        const isAuthScreen = ['welcome', 'signup', 'login', 'phone', 'otp', 'magicLinkSent', 'forgotPassword', 'resetPassword'].includes(cur)
-        if (!isAuthScreen && !isRecoveryHash) {
+        const isPublic = PUBLIC_SCREENS.includes(cur)
+        if (!isPublic && !isRecoveryHash) {
           // If session expired or unauthenticated trying to access internal screen
           dispatch({ type: 'RESET' })
         } else {
@@ -225,6 +226,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         })
       } else {
         dispatch({ type: 'AUTH_READY' })
+
+        // If user authenticated while booking a creator, complete auth directly to booking
+        const pendingBooking = typeof window !== 'undefined' ? localStorage.getItem('ftc_pending_booking_draft') : null
+        const inMemoryDraft = useAppStore.getState().bookingDraft
+        if (pendingBooking || inMemoryDraft) {
+          dispatch({
+            type: 'COMPLETE_AUTH',
+            isCreator: false,
+            hasCreatorProfile: false,
+            name: name || 'Client',
+            phone: profile?.phone ?? authUser.phone ?? undefined,
+            email: profile?.email ?? authUser.email ?? undefined,
+          })
+          return
+        }
+
         // User has not finished onboarding -> check for user-scoped draft or navigate to role selection
         try {
           const userScopedDraft = localStorage.getItem(`ftc_creator_draft_${userId}`)

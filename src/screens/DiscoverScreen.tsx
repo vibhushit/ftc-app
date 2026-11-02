@@ -57,6 +57,7 @@ function dbToCreator(row: {
 }
 
 export function DiscoverScreen() {
+  const isAuthed = useAppStore(s => s.isAuthed)
   const filters = useAppStore(s => s.filters)
   const viewMode = useAppStore(s => s.viewMode)
   const saved = useAppStore(s => s.saved)
@@ -178,7 +179,13 @@ export function DiscoverScreen() {
                     c={c}
                     isSaved={saved.includes(c.id)}
                     onOpen={() => dispatch({ type: 'OPEN_CREATOR', id: c.id })}
-                    onToggleSave={() => dispatch({ type: 'TOGGLE_SAVE', id: c.id })}
+                    onToggleSave={() => {
+                      if (!isAuthed) {
+                        dispatch({ type: 'GO', screen: 'login' })
+                        return
+                      }
+                      dispatch({ type: 'TOGGLE_SAVE', id: c.id })
+                    }}
                   />
                 ))}
               </div>

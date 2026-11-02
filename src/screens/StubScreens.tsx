@@ -2,7 +2,7 @@ import { useState } from 'react'
 import {
   CalendarCheck, Bookmark, Bell, MessageCircle, Star, Shield, FileText,
   Settings, Calendar, Wallet, Link2, MapPin, Edit3, Sparkles, Copy,
-  Check, LogOut, ChevronRight, ExternalLink, ArrowLeft, X, Zap
+  Check, LogOut, ChevronRight, ExternalLink, ArrowLeft, X, Zap, User
 } from 'lucide-react'
 import { useAppStore } from '@/store/appStore'
 import { cn, shareOrCopy } from '@/utils'
@@ -70,6 +70,37 @@ export function InboxList() {
 }
 
 export function InboxScreen() {
+  const isAuthed = useAppStore(s => s.isAuthed)
+  const dispatch = useAppStore(s => s.dispatch)
+
+  if (!isAuthed) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center p-6 text-center bg-paper">
+        <div className="w-16 h-16 rounded-full bg-obsidian/5 grid place-items-center mb-4 text-obsidian/60">
+          <MessageCircle size={28} />
+        </div>
+        <h2 className="font-display text-2xl tracking-tight text-obsidian">Sign in to view messages</h2>
+        <p className="text-[13px] text-obsidian/60 max-w-sm mt-1.5 leading-relaxed">
+          Communicate directly with creators, discuss booking requirements, and review custom proposals.
+        </p>
+        <div className="mt-6 flex flex-col sm:flex-row gap-3 w-full max-w-xs">
+          <button
+            onClick={() => dispatch({ type: 'GO', screen: 'login' })}
+            className="tap flex-1 py-3 px-5 rounded-2xl bg-obsidian text-paper font-semibold text-[14px] hover:bg-obsidian/90 transition shadow-sm cursor-pointer"
+          >
+            Sign In
+          </button>
+          <button
+            onClick={() => dispatch({ type: 'GO', screen: 'signup' })}
+            className="tap flex-1 py-3 px-5 rounded-2xl bg-bone border border-line text-obsidian font-semibold text-[14px] hover:bg-bone/80 transition cursor-pointer"
+          >
+            Create Account
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex-1 flex flex-col md:flex-row bg-paper overflow-hidden h-full">
       <div className="flex-1 md:flex-none md:w-[320px] lg:w-[360px] md:border-r md:border-line h-full flex flex-col">
@@ -90,6 +121,7 @@ export function InboxScreen() {
 
 /* ─── Me Screen (Profile) ─── */
 export function MeScreen() {
+  const isAuthed = useAppStore(s => s.isAuthed)
   const user = useAppStore(s => s.user)
   const isC = useAppStore(s => s.isCreator)
   const hasCreatorProfile = useAppStore(s => s.hasCreatorProfile)
@@ -103,6 +135,97 @@ export function MeScreen() {
   const [copied, setCopied] = useState(false)
   const [showCreatorModal, setShowCreatorModal] = useState(false)
   useBodyScrollLock(showCreatorModal)
+
+  if (!isAuthed) {
+    return (
+      <div className="flex-1 flex flex-col bg-bone overflow-hidden h-full">
+        <div className="app-scroll pb-nav">
+          {/* Guest Header Card */}
+          <div className="bg-obsidian text-paper relative shrink-0 md:m-6 md:rounded-3xl overflow-hidden shadow-xl">
+            <div className="absolute inset-0 dots-acid opacity-10 pointer-events-none" />
+            <div className="relative px-6 py-10 md:p-12 flex flex-col items-center text-center max-w-md mx-auto">
+              <div className="w-16 h-16 rounded-full bg-paper/10 border border-paper/15 grid place-items-center mb-4 text-paper/80">
+                <User size={28} />
+              </div>
+              <h1 className="font-display text-2xl md:text-3xl tracking-tight leading-tight">
+                Your Account
+              </h1>
+              <p className="text-[13px] text-paper/65 mt-2 leading-relaxed">
+                Sign in to manage your bookings, save your favorite creators, and securely message professionals.
+              </p>
+              <div className="mt-6 flex flex-col sm:flex-row gap-3 w-full">
+                <button
+                  onClick={() => dispatch({ type: 'GO', screen: 'login' })}
+                  className="tap flex-1 py-3 px-5 rounded-2xl bg-acid text-obsidian font-semibold text-[14px] hover:bg-acid/90 transition shadow-sm cursor-pointer"
+                >
+                  Sign In
+                </button>
+                <button
+                  onClick={() => dispatch({ type: 'GO', screen: 'signup' })}
+                  className="tap flex-1 py-3 px-5 rounded-2xl bg-paper/10 border border-paper/15 text-paper font-semibold text-[14px] hover:bg-paper/20 transition cursor-pointer"
+                >
+                  Create Account
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Info & Support Links for Guests */}
+          <div className="px-5 py-4 max-w-2xl mx-auto w-full space-y-3">
+            <div className="text-[11px] font-mono uppercase tracking-[0.14em] text-obsidian/45 px-1">
+              Explore & Support
+            </div>
+            <div className="rounded-2xl border border-line bg-paper overflow-hidden divide-y divide-line/60 shadow-xs">
+              <button
+                onClick={() => dispatch({ type: 'GO', screen: 'safety' })}
+                className="tap w-full flex items-center justify-between p-4 text-left hover:bg-bone/50 transition cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-bone grid place-items-center text-obsidian/70">
+                    <Shield size={17} />
+                  </div>
+                  <div>
+                    <div className="text-[13.5px] font-medium text-obsidian">Safety Centre</div>
+                    <div className="text-[11px] text-obsidian/50">Escrow protection, verification & disputes</div>
+                  </div>
+                </div>
+                <ChevronRight size={16} className="text-obsidian/30" />
+              </button>
+              <button
+                onClick={() => dispatch({ type: 'GO', screen: 'legal' })}
+                className="tap w-full flex items-center justify-between p-4 text-left hover:bg-bone/50 transition cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-bone grid place-items-center text-obsidian/70">
+                    <FileText size={17} />
+                  </div>
+                  <div>
+                    <div className="text-[13.5px] font-medium text-obsidian">Legal & Terms</div>
+                    <div className="text-[11px] text-obsidian/50">Platform agreements and cancellation policies</div>
+                  </div>
+                </div>
+                <ChevronRight size={16} className="text-obsidian/30" />
+              </button>
+            </div>
+
+            {/* Become a creator prompt */}
+            <div className="p-4 rounded-2xl bg-paper border border-line flex items-center justify-between gap-3 shadow-xs">
+              <div>
+                <div className="text-[13.5px] font-semibold text-obsidian">Are you a creative professional?</div>
+                <div className="text-[11px] text-obsidian/55 mt-0.5">List your services and get booked on FTC.</div>
+              </div>
+              <button
+                onClick={() => dispatch({ type: 'GO', screen: 'signup' })}
+                className="tap shrink-0 px-3.5 py-2 rounded-xl bg-obsidian text-paper text-[12px] font-semibold hover:bg-obsidian/90 transition cursor-pointer"
+              >
+                Join as Creator
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
   const u = user ?? {}
   const name: string = (u as any).name || (isC ? 'Creator' : 'Client')
   const handle: string = (u as any).handle || `@${name.toLowerCase().replace(/\s+/g, '')}`

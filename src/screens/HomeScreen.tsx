@@ -8,6 +8,7 @@ import { useHomeCreators } from '@/hooks/useCreators'
 import type { Creator } from '@/types/bindings'
 
 export function HomeScreen() {
+  const isAuthed = useAppStore(s => s.isAuthed)
   const isCreator = useAppStore(s => s.isCreator)
   const campaigns = useAppStore(s => s.campaigns)
   const userName = useAppStore(s => s.user?.name)
@@ -34,18 +35,29 @@ export function HomeScreen() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => dispatch({ type: 'GO', screen: 'saved' })} className="tap w-10 h-10 rounded-full border border-line grid place-items-center relative">
-            <Heart size={18} />
-            {savedCount > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-acid text-obsidian text-[9px] font-bold rounded-full grid place-items-center">
-                {savedCount}
-              </span>
-            )}
-          </button>
-          <button onClick={() => dispatch({ type: 'GO', screen: 'notifications' })} className="tap w-10 h-10 rounded-full border border-line grid place-items-center relative">
-            <Bell size={18} />
-            <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-danger text-paper text-[9px] font-bold rounded-full grid place-items-center">3</span>
-          </button>
+          {!isAuthed ? (
+            <button
+              onClick={() => dispatch({ type: 'GO', screen: 'login' })}
+              className="tap px-4 py-2 rounded-full bg-obsidian text-paper text-[12.5px] font-semibold hover:bg-obsidian/90 transition shadow-xs cursor-pointer"
+            >
+              Sign In
+            </button>
+          ) : (
+            <>
+              <button onClick={() => dispatch({ type: 'GO', screen: 'saved' })} className="tap w-10 h-10 rounded-full border border-line grid place-items-center relative cursor-pointer">
+                <Heart size={18} />
+                {savedCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-acid text-obsidian text-[9px] font-bold rounded-full grid place-items-center">
+                    {savedCount}
+                  </span>
+                )}
+              </button>
+              <button onClick={() => dispatch({ type: 'GO', screen: 'notifications' })} className="tap w-10 h-10 rounded-full border border-line grid place-items-center relative cursor-pointer">
+                <Bell size={18} />
+                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-danger text-paper text-[9px] font-bold rounded-full grid place-items-center">3</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
 

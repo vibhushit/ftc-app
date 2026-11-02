@@ -26,23 +26,13 @@ import {
   SavedScreen,
 } from '@/screens/StubScreens'
 import { cn } from '@/utils'
+import { PUBLIC_SCREENS, NO_SHELL_SCREENS } from '@/types'
 import type { Tab, Screen } from '@/types'
 import { useToast } from '@/components/ui/ToastNotification'
 import type { ApiErrorEvent } from '@/services/apiClient'
 
 const TAB_SCREENS: Screen[] = ['home', 'discover', 'inbox', 'me']
 const WIDE_SCREENS: Screen[] = ['home', 'discover', 'inbox', 'me', 'saved', 'campaigns', 'creator', 'booking', 'confirmed', 'bookingDetail', 'campaignDetail', 'bookings', 'compare', 'chat', 'calendar']
-
-// Public screens accessible without authentication
-const PUBLIC_SCREENS: Screen[] = [
-  'welcome', 'signup', 'login', 'phone', 'otp', 'magicLinkSent', 'forgotPassword', 'resetPassword',
-]
-
-// Dedicated wizard screens where the app shell (sidebar/bottom nav) is hidden
-const NO_SHELL_SCREENS: Screen[] = [
-  'welcome', 'signup', 'login', 'phone', 'otp', 'magicLinkSent', 'forgotPassword', 'resetPassword', 'role', 'clientOnboard',
-  'creatorOnboard1', 'creatorOnboard2', 'creatorOnboardPackages', 'creatorOnboard3', 'creatorOnboard4', 'creatorOnboard5', 'creatorOnboardReview',
-]
 
 export function App() {
   const { screen, activeTab, isAuthed, isAuthLoading, isCreator, dispatch } = useAppStore(useShallow(s => ({
@@ -76,7 +66,7 @@ export function App() {
   // ─── Route Guard: If unauthenticated visitor tries to access protected screens ───
   useEffect(() => {
     if (!isAuthLoading && !isAuthed && !isPublicScreen) {
-      dispatch({ type: 'RESET' })
+      dispatch({ type: 'GO', screen: 'login' })
     }
   }, [isAuthLoading, isAuthed, isPublicScreen, dispatch])
 
@@ -108,11 +98,10 @@ export function App() {
         return
       }
 
-      // Hash is empty -> restore home if authed, else welcome
-      const authed = useAppStore.getState().isAuthed
+      // Hash is empty -> restore home
       dispatch({
         type: 'POP_STATE',
-        screen: authed ? 'home' : 'welcome',
+        screen: 'home',
         activeTab: 'home',
       })
     }
@@ -121,8 +110,8 @@ export function App() {
     return () => window.removeEventListener('popstate', handlePopState)
   }, [dispatch])
 
-  const showBottomNav = isAuthed && (TAB_SCREENS.includes(screen) || (isCreator && screen === 'calendar'))
-  const showSideNav = isAuthed && !NO_SHELL_SCREENS.includes(screen)
+  const showBottomNav = (TAB_SCREENS.includes(screen) || (isAuthed && isCreator && screen === 'calendar')) && !NO_SHELL_SCREENS.includes(screen)
+  const showSideNav = !NO_SHELL_SCREENS.includes(screen)
   const isWide = WIDE_SCREENS.includes(screen)
 
   const renderScreen = () => {
@@ -135,9 +124,9 @@ export function App() {
       )
     }
 
-    // Strict Guard: If not authenticated and attempting to view internal screen, render WelcomeScreen
+    // Strict Guard: If not authenticated and attempting to view internal screen, render LoginScreen
     if (!isAuthed && !isPublicScreen) {
-      return <WelcomeScreen />
+      return <LoginScreen />
     }
 
     switch (screen) {

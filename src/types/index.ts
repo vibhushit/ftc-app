@@ -33,6 +33,49 @@ export type Screen =
 
 export type Tab = 'home' | 'discover' | 'inbox' | 'me'
 
+// Public screens accessible without authentication
+export const PUBLIC_SCREENS: Screen[] = [
+  'home',
+  'discover',
+  'creator',
+  'reviews',
+  'filters',
+  'safety',
+  'legal',
+  'compare',
+  'inbox',
+  'me',
+  'welcome',
+  'signup',
+  'login',
+  'phone',
+  'otp',
+  'magicLinkSent',
+  'forgotPassword',
+  'resetPassword',
+]
+
+// Dedicated wizard screens where the app shell (sidebar/bottom nav) is hidden
+export const NO_SHELL_SCREENS: Screen[] = [
+  'welcome',
+  'signup',
+  'login',
+  'phone',
+  'otp',
+  'magicLinkSent',
+  'forgotPassword',
+  'resetPassword',
+  'role',
+  'clientOnboard',
+  'creatorOnboard1',
+  'creatorOnboard2',
+  'creatorOnboardPackages',
+  'creatorOnboard3',
+  'creatorOnboard4',
+  'creatorOnboard5',
+  'creatorOnboardReview',
+]
+
 export interface OneOnOne {
   name: string
   mins: number

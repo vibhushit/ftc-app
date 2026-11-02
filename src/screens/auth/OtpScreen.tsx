@@ -2,36 +2,64 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { ArrowLeft, RotateCcw } from 'lucide-react'
 import { useAppStore } from '@/store/appStore'
 import { useShallow } from 'zustand/shallow'
+import { useOtpSecurity } from '@/hooks/useOtpSecurity'
+import { cn } from '@/utils'
 import { supabaseAvailable } from '@/lib/supabase'
 import * as authApi from '@/lib/api/auth'
 
 export function OtpScreen() {
   const { dispatch, pendingPhone } = useAppStore(useShallow(s => ({ dispatch: s.dispatch, pendingPhone: s.pendingPhone })))
-  const [code, setCode] = useState(['', '', '', '', '', ''])
   const [loading, setLoading] = useState(false)
-  const [cooldown, setCooldown] = useState(45)
   const [error, setError] = useState('')
   const inputs = useRef<(HTMLInputElement | null)[]>([])
 
+  const {
+    otp: code,
+    setOtp: setCode,
+    isLocked,
+    isExpired,
+    cooldown,
+    recordCodeSent,
+    recordFailedAttempt,
+    formatCooldown,
+  } = useOtpSecurity(45)
+
   useEffect(() => {
     inputs.current[0]?.focus()
-    const timer = setInterval(() => setCooldown(c => (c > 0 ? c - 1 : 0)), 1000)
-    return () => clearInterval(timer)
   }, [])
 
   const handleChange = (i: number, val: string) => {
-    if (val.length > 1) val = val[val.length - 1]
+    if (isLocked) return
+    const digits = val.replace(/\D/g, '')
+    if (!digits) {
+      const next = [...code]
+      next[i] = ''
+      setCode(next)
+      return
+    }
+
+    const char = digits[digits.length - 1]
     const next = [...code]
-    next[i] = val
+    next[i] = char
     setCode(next)
-    if (val && i < 5) inputs.current[i + 1]?.focus()
+    setError('')
+
+    if (i < 5) inputs.current[i + 1]?.focus()
   }
 
   const handleKeyDown = (i: number, e: React.KeyboardEvent) => {
     if (e.key === 'Backspace' && !code[i] && i > 0) inputs.current[i - 1]?.focus()
   }
 
+  const handleResend = async () => {
+    if (cooldown > 0 || loading) return
+    setError('')
+    recordCodeSent()
+    inputs.current[0]?.focus()
+  }
+
   const submitOtp = useCallback(async (otpCode: string) => {
+    if (isLocked || loading) return
     setLoading(true)
     setError('')
     try {
@@ -41,18 +69,18 @@ export function OtpScreen() {
       }
       dispatch({ type: 'GO', screen: 'role' })
     } catch (e: any) {
-      setError(e?.message || 'Invalid code. Try again.')
-      setCode(['', '', '', '', '', ''])
+      const { isLocked: locked, errorNotice } = recordFailedAttempt()
+      setError(locked ? errorNotice : (e?.message || errorNotice))
       inputs.current[0]?.focus()
     } finally {
       setLoading(false)
     }
-  }, [pendingPhone, dispatch])
+  }, [pendingPhone, dispatch, isLocked, loading, recordFailedAttempt])
 
   useEffect(() => {
     const full = code.join('')
-    if (full.length === 6) submitOtp(full)
-  }, [code, submitOtp])
+    if (full.length === 6 && !isLocked) submitOtp(full)
+  }, [code, isLocked, submitOtp])
 
   return (
     <div className="flex-1 flex flex-col bg-paper text-obsidian">
@@ -79,21 +107,31 @@ export function OtpScreen() {
                 inputMode="numeric"
                 maxLength={1}
                 value={c}
+                disabled={loading || isLocked}
                 onChange={e => handleChange(i, e.target.value)}
                 onKeyDown={e => handleKeyDown(i, e)}
-                className="w-12 h-14 rounded-2xl border-2 border-obsidian/15 bg-bone/30 text-center font-mono text-2xl focus:border-obsidian outline-none transition"
+                className={cn(
+                  'w-12 h-14 rounded-2xl border-2 bg-bone/30 text-center font-mono text-2xl outline-none transition disabled:opacity-40',
+                  isLocked ? 'border-rose-300 bg-rose-50 text-rose-900 cursor-not-allowed' : 'border-obsidian/15 focus:border-obsidian'
+                )}
               />
             ))}
           </div>
 
-          {error && <p className="mt-4 text-[12px] text-danger text-center">{error}</p>}
+          {isExpired && !error && (
+            <p className="mt-4 text-[12px] text-danger text-center font-medium animate-fade-in">
+              This code has expired (10-minute window). Please request a new code.
+            </p>
+          )}
+
+          {error && <p className="mt-4 text-[12px] text-danger text-center animate-fade-in">{error}</p>}
 
           <div className="mt-6 flex items-center justify-between text-[12px]">
             <span className="text-obsidian/50">Didn't receive it?</span>
             {cooldown > 0 ? (
-              <span className="text-obsidian/40 font-mono">Resend in ${cooldown}s</span>
+              <span className="text-obsidian/40 font-mono">Resend in {formatCooldown(cooldown)}</span>
             ) : (
-              <button onClick={() => setCooldown(45)} className="text-iris font-semibold flex items-center gap-1">
+              <button onClick={handleResend} disabled={loading} className="text-iris font-semibold flex items-center gap-1 cursor-pointer disabled:opacity-40">
                 <RotateCcw size={12} /> Resend code
               </button>
             )}

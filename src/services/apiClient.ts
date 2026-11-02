@@ -50,8 +50,48 @@ function notifyApiError(error: ApiErrorEvent) {
 }
 
 /**
+ * Extracts a sanitized, human-readable error message from an API response.
+ * Specifically prevents Render/cloud proxy 502/503 HTML pages from leaking raw markup.
+ */
+export async function extractResponseError(res: Response): Promise<string> {
+  // 1. Detect Render/proxy waking-up or gateway errors (502, 503, 504)
+  if (res.status === 502 || res.status === 503 || res.status === 504) {
+    return 'The backend service is waking up or temporarily unavailable. Please wait a moment and try again.'
+  }
+
+  // 2. Detect HTML response bodies from proxies or web servers
+  const contentType = (res.headers.get('content-type') || '').toLowerCase()
+  if (contentType.includes('text/html')) {
+    if (res.status === 404) return 'The requested API service was not found.'
+    return `Server temporarily unavailable (${res.status} ${res.statusText || 'Gateway Error'}). Please try again shortly.`
+  }
+
+  // 3. Try parsing JSON error
+  try {
+    const errorJson = await res.json()
+    if (typeof errorJson === 'string' && errorJson.trim()) {
+      return errorJson.trim()
+    }
+    if (errorJson && typeof errorJson === 'object') {
+      const msg = errorJson.message || errorJson.error || errorJson.detail
+      if (typeof msg === 'string' && msg.trim()) return msg.trim()
+    }
+  } catch {
+    // 4. If not JSON, try text, but strictly guard against HTML tags
+    try {
+      const text = await res.text()
+      if (text && !text.includes('<html') && !text.includes('<!DOCTYPE') && !text.includes('<body>')) {
+        return text.trim()
+      }
+    } catch {}
+  }
+
+  return res.statusText || `Request failed with status ${res.status}`
+}
+
+/**
  * Universal response handler for Rust Axum and Supabase backends.
- * Extracts JSON error fields: `error`, `message`, or `detail`, falling back to statusText.
+ * Extracts clean JSON fields, sanitizes proxy HTML, and notifies subscribers.
  */
 export async function handleApiResponse<T = any>(res: Response, endpoint: string, method: string): Promise<T> {
   if (res.ok) {
@@ -59,21 +99,7 @@ export async function handleApiResponse<T = any>(res: Response, endpoint: string
     return await res.json()
   }
 
-  let errorMessage = res.statusText || `Request failed with HTTP ${res.status}`
-  try {
-    const errorJson = await res.json()
-    if (typeof errorJson === 'string') {
-      errorMessage = errorJson
-    } else if (errorJson) {
-      errorMessage = errorJson.message || errorJson.error || errorJson.detail || errorMessage
-    }
-  } catch {
-    // If not JSON, try text
-    try {
-      const text = await res.text()
-      if (text) errorMessage = text
-    } catch {}
-  }
+  const errorMessage = await extractResponseError(res)
 
   const errorEvent: ApiErrorEvent = {
     endpoint,
@@ -120,91 +146,39 @@ export const apiClient = {
   // ─── PLATFORM CONFIG ─────────────────────────────────────────────────────────
   async getConfig(): Promise<PlatformConfig> {
     const endpoint = `${getBaseUrl()}/config`
-    try {
-      const res = await fetch(endpoint)
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`)
-      return await res.json()
-    } catch (err: any) {
-      notifyApiError({
-        endpoint: '/config',
-        method: 'GET',
-        message: err?.message || 'Failed to fetch platform configuration',
-        timestamp: new Date().toLocaleTimeString(),
-      })
-      throw err
-    }
+    const res = await fetch(endpoint)
+    return handleApiResponse<PlatformConfig>(res, '/config', 'GET')
   },
 
   // ─── AUTHENTICATION ──────────────────────────────────────────────────────────
   async sendPhoneOtp(phone: string): Promise<{ success: boolean }> {
     const endpoint = `${getBaseUrl()}/auth/phone`
-    try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: await getHeaders(),
-        body: JSON.stringify({ phone }),
-      })
-      if (!res.ok) {
-        const errorText = await res.text().catch(() => res.statusText)
-        throw new Error(`HTTP ${res.status}: ${errorText}`)
-      }
-      return await res.json()
-    } catch (err: any) {
-      notifyApiError({
-        endpoint: '/auth/phone',
-        method: 'POST',
-        status: err?.status,
-        message: err?.message || 'Failed to send OTP',
-        timestamp: new Date().toLocaleTimeString(),
-      })
-      throw err
-    }
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: await getHeaders(),
+      body: JSON.stringify({ phone }),
+    })
+    return handleApiResponse<{ success: boolean }>(res, '/auth/phone', 'POST')
   },
 
   async verifyOtp(phone: string, code: string): Promise<AuthResponse> {
     const endpoint = `${getBaseUrl()}/auth/verify`
-    try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: await getHeaders(),
-        body: JSON.stringify({ phone, code }),
-      })
-      if (!res.ok) {
-        const errorText = await res.text().catch(() => res.statusText)
-        throw new Error(`HTTP ${res.status}: ${errorText}`)
-      }
-      return await res.json()
-    } catch (err: any) {
-      notifyApiError({
-        endpoint: '/auth/verify',
-        method: 'POST',
-        status: err?.status,
-        message: err?.message || 'Failed to verify OTP',
-        timestamp: new Date().toLocaleTimeString(),
-      })
-      throw err
-    }
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: await getHeaders(),
+      body: JSON.stringify({ phone, code }),
+    })
+    return handleApiResponse<AuthResponse>(res, '/auth/verify', 'POST')
   },
 
   async selectRole(role: string): Promise<{ success: boolean }> {
     const endpoint = `${getBaseUrl()}/auth/role`
-    try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: await getHeaders(),
-        body: JSON.stringify({ role }),
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      return await res.json()
-    } catch (err: any) {
-      notifyApiError({
-        endpoint: '/auth/role',
-        method: 'POST',
-        message: err?.message || 'Failed to update role',
-        timestamp: new Date().toLocaleTimeString(),
-      })
-      throw err
-    }
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: await getHeaders(),
+      body: JSON.stringify({ role }),
+    })
+    return handleApiResponse<{ success: boolean }>(res, '/auth/role', 'POST')
   },
 
   // ─── CREATORS & DISCOVERY ─────────────────────────────────────────────────────
@@ -216,38 +190,15 @@ export const apiClient = {
     if (params?.maxPrice) query.set('max_price', String(params.maxPrice))
 
     const endpoint = `${getBaseUrl()}/creators${query.toString() ? `?${query.toString()}` : ''}`
-    try {
-      const res = await fetch(endpoint)
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`)
-      const data = await res.json()
-      return data
-    } catch (err: any) {
-      notifyApiError({
-        endpoint: '/creators',
-        method: 'GET',
-        message: err?.message || 'Failed to fetch creators from live database',
-        timestamp: new Date().toLocaleTimeString(),
-      })
-      throw err
-    }
+    const res = await fetch(endpoint)
+    return handleApiResponse<Creator[]>(res, '/creators', 'GET')
   },
 
   async getCreatorById(id: string): Promise<Creator | null> {
     const endpoint = `${getBaseUrl()}/creators/${id}`
-    try {
-      const res = await fetch(endpoint)
-      if (res.status === 404) return null
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      return await res.json()
-    } catch (err: any) {
-      notifyApiError({
-        endpoint: `/creators/${id}`,
-        method: 'GET',
-        message: err?.message || `Creator with ID '${id}' not found`,
-        timestamp: new Date().toLocaleTimeString(),
-      })
-      throw err
-    }
+    const res = await fetch(endpoint)
+    if (res.status === 404) return null
+    return handleApiResponse<Creator>(res, `/creators/${id}`, 'GET')
   },
 
   async getCreatorServices(id: string): Promise<ServiceItem[]> {
@@ -255,15 +206,8 @@ export const apiClient = {
     try {
       const res = await fetch(endpoint)
       if (res.status === 404) return []
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      return await res.json()
-    } catch (err: any) {
-      notifyApiError({
-        endpoint: `/creators/${id}/services`,
-        method: 'GET',
-        message: err?.message || `Failed to fetch services for creator '${id}'`,
-        timestamp: new Date().toLocaleTimeString(),
-      })
+      return await handleApiResponse<ServiceItem[]>(res, `/creators/${id}/services`, 'GET')
+    } catch {
       return []
     }
   },
@@ -272,7 +216,7 @@ export const apiClient = {
     const endpoint = `${getBaseUrl()}/creators/check-handle?handle=${encodeURIComponent(handle)}`
     try {
       const res = await fetch(endpoint)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      if (!res.ok) throw new Error(await extractResponseError(res))
       return await res.json()
     } catch {
       return { available: true, handle: `@${handle.trim().replace(/^@/, '')}` }
@@ -281,44 +225,19 @@ export const apiClient = {
 
   async onboardCreator(payload: CreatorOnboardPayload): Promise<{ success: boolean; creator_id: string }> {
     const endpoint = `${getBaseUrl()}/creators/onboard`
-    try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: await getHeaders(),
-        body: JSON.stringify(payload),
-      })
-      if (!res.ok) {
-        const errorText = await res.text().catch(() => res.statusText)
-        throw new Error(`HTTP ${res.status}: ${errorText}`)
-      }
-      return await res.json()
-    } catch (err: any) {
-      notifyApiError({
-        endpoint: '/creators/onboard',
-        method: 'POST',
-        message: err?.message || 'Failed to onboard creator to live database',
-        timestamp: new Date().toLocaleTimeString(),
-      })
-      throw err
-    }
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: await getHeaders(),
+      body: JSON.stringify(payload),
+    })
+    return handleApiResponse<{ success: boolean; creator_id: string }>(res, '/creators/onboard', 'POST')
   },
 
   // ─── CALENDAR & SCHEDULING ───────────────────────────────────────────────────
   async getAvailability(creatorId: string, month: string, durationMinutes: number = 120): Promise<MonthAvailabilityResponse> {
     const endpoint = `${getBaseUrl()}/calendar/${creatorId}/availability?month=${month}&duration_minutes=${durationMinutes}`
-    try {
-      const res = await fetch(endpoint)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      return await res.json()
-    } catch (err: any) {
-      notifyApiError({
-        endpoint: `/calendar/${creatorId}/availability`,
-        method: 'GET',
-        message: err?.message || 'Failed to fetch calendar availability',
-        timestamp: new Date().toLocaleTimeString(),
-      })
-      throw err
-    }
+    const res = await fetch(endpoint)
+    return handleApiResponse<MonthAvailabilityResponse>(res, `/calendar/${creatorId}/availability`, 'GET')
   },
 
   async validateSlot(
@@ -335,7 +254,7 @@ export const apiClient = {
     const endpoint = `${getBaseUrl()}/calendar/${encodeURIComponent(creatorId)}/validate-slot?${params.toString()}`
     try {
       const res = await fetch(endpoint, { headers: await getHeaders() })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      if (!res.ok) throw new Error(await extractResponseError(res))
       return await res.json()
     } catch (err: any) {
       console.warn('Validate slot request error, falling back to permissive:', err)
@@ -357,8 +276,7 @@ export const apiClient = {
     const customHeaders: Record<string, string> = {}
     if (creatorId) customHeaders['x-creator-id'] = creatorId
     const res = await fetch(endpoint, { headers: await getHeaders(customHeaders) })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    return await res.json()
+    return handleApiResponse(res, '/calendar/me/calendar-settings', 'GET')
   },
 
   async updateCalendarSettings(payload: UpdateCalendarSettingsPayload, creatorId?: string): Promise<{ success: boolean; settings: any }> {
@@ -370,8 +288,7 @@ export const apiClient = {
       headers: await getHeaders(customHeaders),
       body: JSON.stringify(payload),
     })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    return await res.json()
+    return handleApiResponse(res, '/calendar/me/calendar-settings', 'POST')
   },
 
   async createOverride(payload: CreateOverridePayload, creatorId?: string): Promise<{ success: boolean; id: string; override: any }> {
@@ -383,8 +300,7 @@ export const apiClient = {
       headers: await getHeaders(customHeaders),
       body: JSON.stringify(payload),
     })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    return await res.json()
+    return handleApiResponse(res, '/calendar/me/overrides', 'POST')
   },
 
   async deleteOverride(id: string, creatorId?: string): Promise<{ success: boolean; id: string }> {
@@ -395,8 +311,7 @@ export const apiClient = {
       method: 'DELETE',
       headers: await getHeaders(customHeaders),
     })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    return await res.json()
+    return handleApiResponse(res, `/calendar/me/overrides/${id}`, 'DELETE')
   },
 
   // ─── BOOKINGS & ESCROW ────────────────────────────────────────────────────────
@@ -503,44 +418,22 @@ export const apiClient = {
   // ─── MESSAGING & QUOTES ──────────────────────────────────────────────────────
   async sendMessage(payload: ChatMessagePayload): Promise<ChatMessage> {
     const endpoint = `${getBaseUrl()}/chat/conversations/${payload.receiver_id}/messages`
-    try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: await getHeaders(),
-        body: JSON.stringify(payload),
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      return await res.json()
-    } catch (err: any) {
-      notifyApiError({
-        endpoint: `/chat/conversations/${payload.receiver_id}/messages`,
-        method: 'POST',
-        message: err?.message || 'Failed to send live message',
-        timestamp: new Date().toLocaleTimeString(),
-      })
-      throw err
-    }
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: await getHeaders(),
+      body: JSON.stringify(payload),
+    })
+    return handleApiResponse<ChatMessage>(res, `/chat/conversations/${payload.receiver_id}/messages`, 'POST')
   },
 
   async sendQuote(payload: CreateQuotePayload): Promise<CustomQuote> {
     const endpoint = `${getBaseUrl()}/chat/quotes`
-    try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: await getHeaders(),
-        body: JSON.stringify(payload),
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      return await res.json()
-    } catch (err: any) {
-      notifyApiError({
-        endpoint: '/chat/quotes',
-        method: 'POST',
-        message: err?.message || 'Failed to submit quote',
-        timestamp: new Date().toLocaleTimeString(),
-      })
-      throw err
-    }
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: await getHeaders(),
+      body: JSON.stringify(payload),
+    })
+    return handleApiResponse<CustomQuote>(res, '/chat/quotes', 'POST')
   },
 
   // ─── MEDIA UPLOAD ────────────────────────────────────────────────────────────
@@ -568,69 +461,40 @@ export const apiClient = {
     }
 
     const endpoint = `${getBaseUrl()}/media/upload-url`
-    try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: await getHeaders(),
-        body: JSON.stringify({ file_name: compressedWebP.name, file_size: compressedWebP.size }),
-      })
-      if (!res.ok) throw new Error('Failed to get presigned upload URL')
-      const { upload_url, public_url } = await res.json()
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: await getHeaders(),
+      body: JSON.stringify({ file_name: compressedWebP.name, file_size: compressedWebP.size }),
+    })
+    const { upload_url, public_url } = await handleApiResponse<{ upload_url: string; public_url: string }>(
+      res,
+      '/media/upload-url',
+      'POST'
+    )
 
-      await fetch(upload_url, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'image/webp' },
-        body: compressedWebP,
-      })
+    await fetch(upload_url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'image/webp' },
+      body: compressedWebP,
+    })
 
-      return public_url
-    } catch (err: any) {
-      notifyApiError({
-        endpoint: '/media/upload-url',
-        method: 'POST',
-        message: err?.message || 'Failed to upload portfolio image',
-        timestamp: new Date().toLocaleTimeString(),
-      })
-      throw err
-    }
+    return public_url
   },
 
   // ─── PAYOUTS & FINANCIALS ─────────────────────────────────────────────────────
   async getPayoutBalance(): Promise<PayoutBalance> {
     const endpoint = `${getBaseUrl()}/payouts/balance`
-    try {
-      const res = await fetch(endpoint, { headers: await getHeaders() })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      return await res.json()
-    } catch (err: any) {
-      notifyApiError({
-        endpoint: '/payouts/balance',
-        method: 'GET',
-        message: err?.message || 'Failed to fetch payout balance',
-        timestamp: new Date().toLocaleTimeString(),
-      })
-      throw err
-    }
+    const res = await fetch(endpoint, { headers: await getHeaders() })
+    return handleApiResponse<PayoutBalance>(res, '/payouts/balance', 'GET')
   },
 
   async withdrawPayout(payload: WithdrawPayload): Promise<{ success: boolean; message: string }> {
     const endpoint = `${getBaseUrl()}/payouts/withdraw`
-    try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: await getHeaders(),
-        body: JSON.stringify(payload),
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      return await res.json()
-    } catch (err: any) {
-      notifyApiError({
-        endpoint: '/payouts/withdraw',
-        method: 'POST',
-        message: err?.message || 'Failed to request withdrawal',
-        timestamp: new Date().toLocaleTimeString(),
-      })
-      throw err
-    }
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: await getHeaders(),
+      body: JSON.stringify(payload),
+    })
+    return handleApiResponse<{ success: boolean; message: string }>(res, '/payouts/withdraw', 'POST')
   },
 }
