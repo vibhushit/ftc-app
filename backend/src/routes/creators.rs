@@ -477,11 +477,11 @@ async fn onboard_creator(
             sqlx::query(
                 r#"
                 INSERT INTO users (id, name, city, role, is_verified)
-                VALUES ($1, $2, $3, 'both', false)
+                VALUES ($1, $2, $3, 'both'::user_role, false)
                 ON CONFLICT (id) DO UPDATE SET
                     name = EXCLUDED.name,
                     city = CASE WHEN users.city IS NULL OR users.city = '' THEN EXCLUDED.city ELSE users.city END,
-                    role = 'both'
+                    role = 'both'::user_role
                 "#
             )
             .bind(user_id)
@@ -497,11 +497,11 @@ async fn onboard_creator(
             sqlx::query(
                 r#"
                 INSERT INTO users (id, name, city, role, is_verified)
-                VALUES ($1, $2, $3, 'creator', false)
+                VALUES ($1, $2, $3, 'creator'::user_role, false)
                 ON CONFLICT (id) DO UPDATE SET
                     name = EXCLUDED.name,
                     city = CASE WHEN users.city IS NULL OR users.city = '' THEN EXCLUDED.city ELSE users.city END,
-                    role = 'creator'
+                    role = 'creator'::user_role
                 "#
             )
             .bind(user_id)
@@ -545,8 +545,8 @@ async fn onboard_creator(
                 $1, $2, $3, $4, $5, $6,
                 $7, $8, $9, $10, $11,
                 $12, $13,
-                CASE WHEN $14 = 'travel' THEN 'travel' WHEN $14 = 'both' THEN 'both' ELSE 'studio' END,
-                $15, true, 'live', 70
+                CASE WHEN $14 = 'travel' THEN 'travel'::travel_mode WHEN $14 = 'both' THEN 'both'::travel_mode ELSE 'studio'::travel_mode END,
+                $15, true, 'live'::onboard_step, 70
             )
             ON CONFLICT (id) DO UPDATE SET
                 handle = EXCLUDED.handle,
@@ -564,7 +564,7 @@ async fn onboard_creator(
                 travel_mode = EXCLUDED.travel_mode,
                 languages = EXCLUDED.languages,
                 is_published = true,
-                onboard_step = 'live'
+                onboard_step = 'live'::onboard_step
             "#
         )
         .bind(user_id)

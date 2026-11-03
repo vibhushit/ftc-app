@@ -3,7 +3,7 @@ import { Instagram, Film, Globe, Briefcase, Link2, AtSign, Check, AlertCircle } 
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { cn } from '@/utils'
-import { supabase, supabaseAvailable } from '@/lib/supabase'
+import { supabaseAvailable } from '@/lib/supabase'
 import * as authApi from '@/lib/api/auth'
 import { apiClient } from '@/services/apiClient'
 import { OnboardShell } from './OnboardShell'
@@ -54,11 +54,8 @@ export function CreatorOnboard5() {
           delivery_days: 7,
         }]
 
-    let success = false
-    let errMessage: string | null = null
-
-    // 1. Try Rust Axum Backend
     try {
+      // Single source of truth: Rust Axum backend creates user, creator profile, services & calendar defaults atomically
       await apiClient.onboardCreator({
         name: ob.name || 'Creator',
         handle: ob.handle || null,
@@ -76,74 +73,11 @@ export function CreatorOnboard5() {
         portfolio_urls: ob.portfolio ?? [],
         packages,
       })
-      if (supabaseAvailable && state.supabaseUserId) {
-        await authApi.setUserRole('creator')
-      }
-      success = true
-    } catch (e: any) {
-      console.warn('[FTC] Rust backend /creators/onboard unavailable or failed, attempting direct Supabase fallback:', e)
-      
-      // 2. Direct Supabase Fallback (ensures local dev without backend running still writes to PostgreSQL)
-      if (supabaseAvailable && state.supabaseUserId) {
-        try {
-          const userHandle = ob.handle || `@${(ob.name || 'creator').toLowerCase().replace(/[^a-z0-9]/g, '')}`
-          // Update user
-          await (supabase.from('users') as any).upsert({
-            id: state.supabaseUserId,
-            name: ob.name || 'Creator',
-            city: ob.city || 'Delhi',
-            role: 'creator',
-          })
-          // Upsert creator profile
-          await (supabase.from('creator_profiles') as any).upsert({
-            id: state.supabaseUserId,
-            handle: userHandle,
-            bio: ob.bio || '',
-            discipline: ob.discipline || 'Photography',
-            sub_skills: ob.subSkills || [],
-            years_exp: ob.yearsExp || 2,
-            city: ob.city || 'Delhi',
-            languages: (ob.languages as string[]) ?? ['Hindi', 'English'],
-            travel_mode: (ob.travelMode as string) ?? 'studio',
-            upi_id: cleanUpi,
-            ig_handle: cleanIg,
-            yt_handle: soc.yt ? soc.yt.trim() : null,
-            website_url: soc.web ? soc.web.trim() : null,
-            portfolio_urls: ob.portfolio ?? [],
-            starting_at: ob.startingPrice || 8000,
-            is_published: true,
-            onboard_step: 'live',
-            trust_score: 75,
-          })
-          // Insert packages
-          if (packages.length > 0) {
-            await (supabase.from('services') as any).delete().eq('creator_id', state.supabaseUserId)
-            const serviceRows = packages.map((p, idx) => ({
-              creator_id: state.supabaseUserId,
-              name: p.name,
-              price: p.price,
-              duration: p.duration,
-              inclusions: p.inclusions,
-              delivery_days: p.delivery_days,
-              sort_order: idx,
-              is_active: true,
-            }))
-            await (supabase.from('services') as any).insert(serviceRows)
-          }
-          await authApi.setUserRole('creator')
-          success = true
-        } catch (fallbackError: any) {
-          console.error('[FTC] Supabase fallback onboard failed:', fallbackError)
-          errMessage = fallbackError?.message || 'Database error creating profile'
-        }
-      } else {
-        errMessage = e?.message || 'Backend connection failed. Please ensure the backend server is running.'
-      }
-    }
 
-    setSubmitting(false)
+      if (supabaseAvailable && state.supabaseUserId) {
+        await authApi.setUserRole('creator').catch(() => {})
+      }
 
-    if (success) {
       if (typeof window !== 'undefined') {
         try {
           localStorage.removeItem('ftc_saved_session')
@@ -152,11 +86,15 @@ export function CreatorOnboard5() {
           }
         } catch {}
       }
+
       dispatch({ type: 'SET_ROLE', isCreator: true })
       dispatch({ type: 'MARK_CREATOR' })
       dispatch({ type: 'GO', screen: 'creatorOnboardReview' })
-    } else {
-      setSubmitError(errMessage || 'Failed to publish creator profile. Please check connection and try again.')
+    } catch (e: any) {
+      console.error('[FTC] Creator publish failed:', e)
+      setSubmitError(e?.message || 'Failed to publish creator profile. Please check connection and try again.')
+    } finally {
+      setSubmitting(false)
     }
   }
 
