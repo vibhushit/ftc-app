@@ -418,7 +418,7 @@ export function LinkBioScreen() {
   const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
   const [copied, setCopied] = useState(false)
   const u = state.user ?? {}
-  const rawHandle = (u as any).handle || (state.onboard as any)?.handle || u.name || 'creator'
+  const rawHandle = (u as any).handle || (state.onboard as any)?.handle || ''
   const handle = normalizeHandle(rawHandle)
   const name = u.name || 'Creator'
   const bioUrl = getProfileUrl(handle)

@@ -190,12 +190,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         : authUser.user_metadata?.full_name ?? authUser.user_metadata?.name ?? ''
 
       // Check if user has an established creator profile with real content
-      const { data: creatorProfile } = await supabase
-        .from('creator_profiles')
-        .select('id, is_published, discipline')
+      const { data: creatorProfile } = await (supabase.from('creator_profiles') as any)
+        .select('id, handle, is_published, discipline')
         .eq('id', userId)
         .maybeSingle()
 
+      const creatorHandle = creatorProfile?.handle ? String(creatorProfile.handle).replace(/^@+/, '') : undefined
       const hasValidCreatorProfile = Boolean(creatorProfile && (creatorProfile as any).discipline)
       const hasCreatorCapability = profile?.role === 'creator' || profile?.role === 'both' || hasValidCreatorProfile
 
@@ -220,6 +220,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email: profile?.email ?? authUser.email ?? undefined,
         isCreator: resolvedViewMode,
         hasCreatorProfile: hasCreatorCapability,
+        handle: creatorHandle,
       })
 
       // If returning user with established profile
@@ -232,6 +233,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           city: profile?.city ?? undefined,
           phone: profile?.phone ?? authUser.phone ?? undefined,
           email: profile?.email ?? authUser.email ?? undefined,
+          handle: creatorHandle,
         })
       } else {
         dispatch({ type: 'AUTH_READY' })

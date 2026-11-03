@@ -178,7 +178,7 @@ export function DiscoverScreen() {
                     key={c.id}
                     c={c}
                     isSaved={saved.includes(c.id)}
-                    onOpen={() => dispatch({ type: 'OPEN_CREATOR', id: c.id })}
+                    onOpen={() => dispatch({ type: 'OPEN_CREATOR', id: c.handle || c.id })}
                     onToggleSave={() => {
                       if (!isAuthed) {
                         dispatch({ type: 'GO', screen: 'login' })
@@ -195,7 +195,7 @@ export function DiscoverScreen() {
                   <CreatorCardLarge
                     key={c.id}
                     c={c}
-                    onOpen={() => dispatch({ type: 'OPEN_CREATOR', id: c.id })}
+                    onOpen={() => dispatch({ type: 'OPEN_CREATOR', id: c.handle || c.id })}
                   />
                 ))}
               </div>

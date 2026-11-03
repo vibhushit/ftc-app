@@ -190,7 +190,7 @@ export function HomeScreen() {
           ) : (
             <div className="flex gap-3 overflow-x-auto no-scrollbar px-5 pb-2 md:grid md:grid-cols-3 lg:grid-cols-4 md:gap-4 md:overflow-visible md:px-5">
               {featured.map(c => (
-                <CreatorCardLarge key={c.id} c={c} onOpen={() => dispatch({ type: 'OPEN_CREATOR', id: c.id })} />
+                <CreatorCardLarge key={c.id} c={c} onOpen={() => dispatch({ type: 'OPEN_CREATOR', id: c.handle || c.id })} />
               ))}
             </div>
           )}
@@ -207,7 +207,7 @@ export function HomeScreen() {
             </div>
             <div className="flex gap-3 overflow-x-auto no-scrollbar px-5 pb-2 md:grid md:grid-cols-3 lg:grid-cols-4 md:gap-4 md:overflow-visible md:px-5">
               {rising.map(c => (
-                <CreatorCardLarge key={c.id} c={c} onOpen={() => dispatch({ type: 'OPEN_CREATOR', id: c.id })} />
+                <CreatorCardLarge key={c.id} c={c} onOpen={() => dispatch({ type: 'OPEN_CREATOR', id: c.handle || c.id })} />
               ))}
             </div>
           </div>

@@ -164,10 +164,11 @@ function reduce(state: AppState, action: AppAction): AppState {
           : (action.isCreator ? true : state.hasCreatorProfile),
         user: {
           ...state.user,
-          name:  action.name  ?? state.user.name,
-          city:  action.city  ?? state.user.city,
-          email: action.email ?? state.user.email,
-          phone: action.phone ?? state.user.phone,
+          name:   action.name   ?? state.user.name,
+          city:   action.city   ?? state.user.city,
+          email:  action.email  ?? state.user.email,
+          phone:  action.phone  ?? state.user.phone,
+          handle: action.handle !== undefined ? action.handle : state.user.handle,
         },
         screen: targetScreen,
         activeTab: targetTab,
@@ -262,9 +263,10 @@ function reduce(state: AppState, action: AppAction): AppState {
         hasCreatorProfile: hasCap,
         user: {
           ...state.user,
-          name:  action.name  || state.user.name,
-          phone: action.phone || state.user.phone,
-          email: action.email || state.user.email,
+          name:   action.name   || state.user.name,
+          phone:  action.phone  || state.user.phone,
+          email:  action.email  || state.user.email,
+          handle: action.handle !== undefined ? action.handle : state.user.handle,
         },
       }
     }

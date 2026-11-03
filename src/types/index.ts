@@ -391,7 +391,7 @@ export type AppAction =
   | { type: 'SET_VIEW_MODE'; mode: 'list' | 'map' }
   | { type: 'SET_ONBOARD'; patch: Partial<OnboardState> }
   | { type: 'START_CREATOR_ONBOARD'; origin: 'me' | 'role' | 'settings' }
-  | { type: 'COMPLETE_AUTH'; isCreator: boolean; hasCreatorProfile?: boolean; name?: string; city?: string; phone?: string; email?: string }
+  | { type: 'COMPLETE_AUTH'; isCreator: boolean; hasCreatorProfile?: boolean; name?: string; city?: string; phone?: string; email?: string; handle?: string }
   | { type: 'AUTH_READY' }
   | { type: 'MARK_CREATOR' }
   | { type: 'SET_SPONSOR_ROLE'; role: 'creator' | 'brand' }
@@ -410,5 +410,5 @@ export type AppAction =
   | { type: 'CLEAR_COMPARE' }
   | { type: 'RESET' }
   | { type: 'SET_PENDING_PHONE'; phone: string }
-  | { type: 'SYNC_AUTH_USER'; userId: string; name: string; phone?: string; email?: string; isCreator?: boolean; hasCreatorProfile?: boolean }
+  | { type: 'SYNC_AUTH_USER'; userId: string; name: string; phone?: string; email?: string; isCreator?: boolean; hasCreatorProfile?: boolean; handle?: string }
   | { type: 'POP_STATE'; screen: Screen; activeTab?: Tab; selectedCreatorId?: string | null }

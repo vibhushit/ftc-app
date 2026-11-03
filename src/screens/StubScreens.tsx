@@ -228,21 +228,27 @@ export function MeScreen() {
   }
   const u = user ?? {}
   const name: string = (u as any).name || (isC ? 'Creator' : 'Client')
-  const handle: string = normalizeHandle((u as any).handle || name)
+  const handle: string = normalizeHandle((u as any).handle)
   const city: string = (u as any).city || 'Delhi NCR'
   const locality: string = (u as any).locality || ''
 
   const copyBookingLink = async () => {
+    if (!handle) return
     const link = getProfileUrl(handle)
-    const res = await shareOrCopy({
-      title: `${name} on FTC`,
-      text: `Book ${name} with verified escrow protection on FTC Creator Marketplace`,
-      url: link,
-    })
-    if (res === 'copied') {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(link)
+      } else {
+        const el = document.createElement('textarea')
+        el.value = link
+        document.body.appendChild(el)
+        el.select()
+        document.execCommand('copy')
+        document.body.removeChild(el)
+      }
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
-    }
+    } catch {}
   }
 
   const startCreatorOnboarding = () => {
@@ -375,9 +381,9 @@ export function MeScreen() {
                     <button
                       type="button"
                       onClick={() => {
-                        const activeCid = supabaseUserId || selectedCreatorId
-                        if (activeCid) {
-                          dispatch({ type: 'OPEN_CREATOR', id: activeCid })
+                        const targetId = handle || supabaseUserId || selectedCreatorId
+                        if (targetId) {
+                          dispatch({ type: 'OPEN_CREATOR', id: targetId })
                         }
                       }}
                       className="text-paper/40 hover:text-paper transition cursor-pointer"
@@ -449,8 +455,9 @@ export function MeScreen() {
                   {isC && supabaseUserId && (
                     <button
                       onClick={() => {
-                        if (supabaseUserId) {
-                          dispatch({ type: 'OPEN_CREATOR', id: supabaseUserId })
+                        const target = handle || supabaseUserId
+                        if (target) {
+                          dispatch({ type: 'OPEN_CREATOR', id: target })
                         }
                       }}
                       className="tap px-4 py-2.5 rounded-xl bg-paper border border-line text-[12.5px] font-semibold text-obsidian hover:bg-bone transition flex items-center gap-1.5 cursor-pointer shadow-xs"

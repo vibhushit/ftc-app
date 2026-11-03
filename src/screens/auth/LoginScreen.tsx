@@ -70,10 +70,11 @@ export function LoginScreen() {
             .maybeSingle()
 
           const { data: creatorProfile } = await (supabase.from('creator_profiles') as any)
-            .select('id, discipline')
+            .select('id, handle, discipline')
             .eq('id', user.id)
             .maybeSingle()
 
+          const creatorHandle = creatorProfile?.handle ? creatorProfile.handle.replace(/^@+/, '') : undefined
           const hasValidCreatorProfile = Boolean(creatorProfile && creatorProfile.discipline)
           const hasCreatorCapability = userProfile?.role === 'creator' || userProfile?.role === 'both' || hasValidCreatorProfile
 
@@ -96,6 +97,7 @@ export function LoginScreen() {
               city: userProfile?.city ?? undefined,
               phone: userProfile?.phone ?? user.phone ?? undefined,
               email: user.email,
+              handle: creatorHandle,
             })
             return
           } else {
@@ -109,6 +111,7 @@ export function LoginScreen() {
                 name: userProfile?.name || user.user_metadata?.name || 'Client',
                 email: user.email,
                 phone: userProfile?.phone ?? user.phone ?? undefined,
+                handle: creatorHandle,
               })
               return
             }
@@ -265,10 +268,11 @@ export function LoginScreen() {
             .maybeSingle()
 
           const { data: creatorProfile } = await (supabase.from('creator_profiles') as any)
-            .select('id, discipline')
+            .select('id, handle, discipline')
             .eq('id', user.id)
             .maybeSingle()
 
+          const creatorHandle = creatorProfile?.handle ? creatorProfile.handle.replace(/^@+/, '') : undefined
           const hasValidCreatorProfile = Boolean(creatorProfile && creatorProfile.discipline)
           const hasCreatorCapability = userProfile?.role === 'creator' || userProfile?.role === 'both' || hasValidCreatorProfile
 
@@ -286,6 +290,7 @@ export function LoginScreen() {
             city: userProfile?.city ?? undefined,
             phone: userProfile?.phone ?? user.phone ?? undefined,
             email: user.email,
+            handle: creatorHandle,
           })
         } catch {
           dispatch({ type: 'COMPLETE_AUTH', isCreator: false, email: user.email })

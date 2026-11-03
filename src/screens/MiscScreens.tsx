@@ -222,7 +222,7 @@ export function CompareScreen() {
       <div className="absolute bottom-0 inset-x-0 px-5 pb-6 pt-4 bg-paper/95 backdrop-blur-xl border-t border-line">
         <div className="flex gap-2">
           <button className="tap px-4 py-3.5 rounded-2xl bg-obsidian/5 font-semibold text-[13px]">Message all</button>
-          <button onClick={() => dispatch({ type: 'OPEN_CREATOR', id: creators[0].id })} className="tap flex-1 py-3.5 rounded-2xl bg-obsidian text-paper font-semibold text-[14px] flex items-center justify-center gap-2">
+          <button onClick={() => dispatch({ type: 'OPEN_CREATOR', id: creators[0].handle || creators[0].id })} className="tap flex-1 py-3.5 rounded-2xl bg-obsidian text-paper font-semibold text-[14px] flex items-center justify-center gap-2">
             Book one <ArrowRight size={15} />
           </button>
         </div>

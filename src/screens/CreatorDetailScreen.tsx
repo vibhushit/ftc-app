@@ -137,6 +137,13 @@ export function CreatorDetailScreen() {
   const [validatingSlot, setValidatingSlot] = useState(false)
   const [slotConflictError, setSlotConflictError] = useState<string | null>(null)
 
+  // Canonical URL upgrade: If profile was opened via UUID, upgrade selectedCreatorId to handle
+  useEffect(() => {
+    if (c?.handle && state.selectedCreatorId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(state.selectedCreatorId)) {
+      dispatch({ type: 'OPEN_CREATOR', id: c.handle.toLowerCase() })
+    }
+  }, [c?.handle, state.selectedCreatorId, dispatch])
+
   type Pkg = { id?: string; name: string; price: number; duration: string; revisions: number; delivery: string; inclusions: string[] }
 
   const rawServices = ((dbCreator as any)?.services && (dbCreator as any).services.length > 0)
