@@ -97,16 +97,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
     println!("  5. public.users row purged ({} row deleted)", u_res.rows_affected());
 
-    // 6. auth.users identity
+    // 6. auth.sessions & auth.users identity
+    let _ = sqlx::query("DELETE FROM auth.sessions WHERE user_id = $1")
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await;
     let a_res = sqlx::query("DELETE FROM auth.users WHERE id = $1")
         .bind(user_id)
         .execute(&mut *tx)
         .await?;
-    println!("  6. auth.users identity purged ({} row deleted)", a_res.rows_affected());
+    println!("  6. auth.users & sessions purged ({} identity row deleted)", a_res.rows_affected());
 
     tx.commit().await?;
 
     println!("\nSUCCESS: User '{}' ({}) was completely erased from the database.", target, user_id);
+    println!("Active client sessions will automatically self-evict on their next refresh or API call.");
     println!("You can now test the full signup, role selection, and onboarding flow from scratch!");
 
     Ok(())

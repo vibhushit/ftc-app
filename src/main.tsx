@@ -15,6 +15,15 @@ const queryClient = new QueryClient({
   },
 })
 
+// Prevent trackpad / mouse-wheel from accidentally changing number inputs across the entire application
+if (typeof window !== 'undefined') {
+  window.addEventListener('wheel', () => {
+    if (document.activeElement instanceof HTMLInputElement && document.activeElement.type === 'number') {
+      document.activeElement.blur()
+    }
+  }, { passive: true })
+}
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>

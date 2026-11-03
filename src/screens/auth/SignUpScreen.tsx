@@ -149,14 +149,27 @@ export function SignUpScreen() {
           } catch {}
         }
 
-        // Direct immediate transition to prevent passive listener delays
-        dispatch({
-          type: 'COMPLETE_AUTH',
-          isCreator: false,
-          hasCreatorProfile: false,
-          name: name.trim() || 'User',
-          email: user.email,
-        })
+        // Route directly: if booking draft in progress go to booking; otherwise go directly to role onboarding
+        const pendingBooking = typeof window !== 'undefined' ? localStorage.getItem('ftc_pending_booking_draft') : null
+        if (pendingBooking || bookingDraft) {
+          dispatch({
+            type: 'COMPLETE_AUTH',
+            isCreator: false,
+            hasCreatorProfile: false,
+            name: name.trim() || 'User',
+            email: user.email,
+          })
+        } else {
+          dispatch({
+            type: 'SYNC_AUTH_USER',
+            userId: user.id,
+            name: name.trim() || 'User',
+            email: user.email,
+            isCreator: false,
+            hasCreatorProfile: false,
+          })
+          dispatch({ type: 'GO', screen: 'role' })
+        }
       }
     } catch (e: any) {
       const { isLocked: locked, errorNotice } = recordFailedAttempt()

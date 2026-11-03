@@ -220,6 +220,7 @@ export function CreatorOnboardPackages() {
                       type="number"
                       value={pkg.price}
                       onChange={e => updatePackage(idx, { price: e.target.value })}
+                      onWheel={e => e.currentTarget.blur()}
                       placeholder="8000"
                       min={500}
                       className="w-full py-2.5 pl-8 pr-3 rounded-xl bg-paper border border-line text-[14px] font-mono font-semibold outline-none focus:ring-2 focus:ring-iris/20"

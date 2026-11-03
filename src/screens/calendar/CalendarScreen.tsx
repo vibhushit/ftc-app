@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ShieldCheck, Loader2 } from 'lucide-react'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
@@ -9,6 +9,7 @@ import { CalendarMonthGrid } from './components/CalendarMonthGrid'
 import { DaySlotPreview } from './components/DaySlotPreview'
 import { WeeklyScheduleCard } from './components/WeeklyScheduleCard'
 import { DateOverridesCard } from './components/DateOverridesCard'
+import { CalendarSkeleton } from './components/CalendarSkeleton'
 import { formatTime12h } from '@/utils'
 import type { OverrideStateItem, WeekScheduleMap } from './types'
 
@@ -53,43 +54,42 @@ export function CalendarScreen() {
   const myCreatorId = state.supabaseUserId || ''
   const [creatorId, setCreatorId] = useState<string>(myCreatorId)
 
-  // Live database load on mount
+  // TanStack Query for live calendar settings
+  const { data: calendarData, isLoading: isLoadingSettings } = useQuery({
+    queryKey: ['calendarSettings', creatorId || myCreatorId],
+    queryFn: () => apiClient.getCalendarSettings(creatorId || myCreatorId || undefined),
+    staleTime: 60_000,
+  })
+
+  // Synchronize query response to local editing state
   useEffect(() => {
-    let mounted = true
-    apiClient.getCalendarSettings(creatorId || undefined)
-      .then(data => {
-        if (!mounted) return
-        if (data.creator_id) {
-          setCreatorId(data.creator_id)
+    if (!calendarData) return
+    if (calendarData.creator_id) {
+      setCreatorId(calendarData.creator_id)
+    }
+    if (calendarData.schedules && calendarData.schedules.length > 0) {
+      const nextSched: WeekScheduleMap = {}
+      for (const s of calendarData.schedules) {
+        nextSched[s.day_of_week] = {
+          active: s.is_active,
+          start: s.start_time.slice(0, 5),
+          end: s.end_time.slice(0, 5),
         }
-        if (data.schedules && data.schedules.length > 0) {
-          const nextSched: WeekScheduleMap = {}
-          for (const s of data.schedules) {
-            nextSched[s.day_of_week] = {
-              active: s.is_active,
-              start: s.start_time.slice(0, 5),
-              end: s.end_time.slice(0, 5),
-            }
-          }
-          setSchedules(prev => ({ ...prev, ...nextSched }))
-        }
-        if (data.overrides) {
-          const parsed: OverrideStateItem[] = data.overrides.map((o: any) => ({
-            id: o.id,
-            date: o.date || (o.start_datetime ? o.start_datetime.slice(0, 10) : todayStr),
-            reason: o.reason || (o.override_type === 'custom_hours' ? 'Custom Working Hours' : 'Blocked by creator'),
-            override_type: (o.override_type === 'custom_hours' ? 'custom_hours' : 'blocked'),
-            custom_start_time: o.custom_start_time ? o.custom_start_time.slice(0, 5) : null,
-            custom_end_time: o.custom_end_time ? o.custom_end_time.slice(0, 5) : null,
-          }))
-          setOverrides(parsed)
-        }
-      })
-      .catch(err => {
-        console.warn('Failed to load live calendar settings:', err)
-      })
-    return () => { mounted = false }
-  }, [])
+      }
+      setSchedules(prev => ({ ...prev, ...nextSched }))
+    }
+    if (calendarData.overrides) {
+      const parsed: OverrideStateItem[] = calendarData.overrides.map((o: any) => ({
+        id: o.id,
+        date: o.date || (o.start_datetime ? o.start_datetime.slice(0, 10) : todayStr),
+        reason: o.reason || (o.override_type === 'custom_hours' ? 'Custom Working Hours' : 'Blocked by creator'),
+        override_type: (o.override_type === 'custom_hours' ? 'custom_hours' : 'blocked'),
+        custom_start_time: o.custom_start_time ? o.custom_start_time.slice(0, 5) : null,
+        custom_end_time: o.custom_end_time ? o.custom_end_time.slice(0, 5) : null,
+      }))
+      setOverrides(parsed)
+    }
+  }, [calendarData, todayStr])
 
   const [saving, setSaving] = useState(false)
   const [savedToast, setSavedToast] = useState(false)
@@ -234,6 +234,7 @@ export function CalendarScreen() {
         schedules: scheduleItems,
       }, creatorId || undefined)
 
+      qc.invalidateQueries({ queryKey: ['calendarSettings'] })
       qc.invalidateQueries({ queryKey: ['calendar'] })
       qc.invalidateQueries({ queryKey: ['creatorAvailability'] })
       setSavedToast(true)
@@ -261,7 +262,7 @@ export function CalendarScreen() {
         right={
           <button
             onClick={handleSaveSettings}
-            disabled={saving}
+            disabled={saving || isLoadingSettings}
             className="tap px-3.5 py-1.5 rounded-xl bg-obsidian text-paper text-[12px] font-semibold flex items-center gap-1.5 shadow-xs transition hover:bg-obsidian/90 disabled:opacity-50 cursor-pointer"
           >
             {saving && <Loader2 size={13} className="animate-spin" />}
@@ -272,66 +273,70 @@ export function CalendarScreen() {
 
       <div className="app-scroll px-5 md:px-6 py-4 pb-nav md:pb-6">
         <div className="max-w-4xl mx-auto w-full space-y-4">
-          <div className="md:grid md:grid-cols-2 md:gap-6 md:items-start space-y-4 md:space-y-0">
-            {/* Left Column: Calendar & Slots Preview */}
-            <div className="space-y-4">
-              <div className="rounded-2xl bg-paper border border-line p-4 md:p-5 shadow-xs">
-                <CalendarMonthGrid
-                  currentYear={currentYear}
-                  currentMonth={currentMonth}
-                  selectedDay={selectedDay}
-                  onSelectDay={setSelectedDay}
-                  onPrevMonth={prevMonth}
-                  onNextMonth={nextMonth}
-                  isCurrentOrPastMonth={isCurrentOrPastMonth}
-                  monthNames={MONTH_NAMES}
-                  todayStr={todayStr}
-                  overrides={overrides}
+          {isLoadingSettings ? (
+            <CalendarSkeleton />
+          ) : (
+            <div className="md:grid md:grid-cols-2 md:gap-6 md:items-start space-y-4 md:space-y-0">
+              {/* Left Column: Calendar & Slots Preview */}
+              <div className="space-y-4">
+                <div className="rounded-2xl bg-paper border border-line p-4 md:p-5 shadow-xs">
+                  <CalendarMonthGrid
+                    currentYear={currentYear}
+                    currentMonth={currentMonth}
+                    selectedDay={selectedDay}
+                    onSelectDay={setSelectedDay}
+                    onPrevMonth={prevMonth}
+                    onNextMonth={nextMonth}
+                    isCurrentOrPastMonth={isCurrentOrPastMonth}
+                    monthNames={MONTH_NAMES}
+                    todayStr={todayStr}
+                    overrides={overrides}
+                    schedules={schedules}
+                  />
+                  <DaySlotPreview
+                    monthName={MONTH_NAMES[currentMonth - 1]}
+                    selectedDay={selectedDay}
+                    selectedOverride={selectedOverride}
+                    isSelectedDayOff={isSelectedDayOff}
+                    previewSlots={previewSlots}
+                    onRemoveOverride={handleRemoveOverride}
+                  />
+                </div>
+              </div>
+
+              {/* Right Column: Weekly Schedule & Overrides */}
+              <div className="space-y-4">
+                <WeeklyScheduleCard
                   schedules={schedules}
+                  onToggleDayActive={handleToggleDayActive}
+                  onScheduleTimeChange={handleScheduleTimeChange}
+                  onResetGlobalHours={handleApplyGlobalHours}
                 />
-                <DaySlotPreview
-                  monthName={MONTH_NAMES[currentMonth - 1]}
-                  selectedDay={selectedDay}
-                  selectedOverride={selectedOverride}
-                  isSelectedDayOff={isSelectedDayOff}
-                  previewSlots={previewSlots}
+
+                <DateOverridesCard
+                  overrides={overrides}
+                  showAddOverride={showAddOverride}
+                  newOverrideType={newOverrideType}
+                  newOverrideDate={newOverrideDate}
+                  newOverrideReason={newOverrideReason}
+                  newOverrideStartTime={newOverrideStartTime}
+                  newOverrideEndTime={newOverrideEndTime}
+                  todayStr={todayStr}
+                  onOpenAddOverride={type => {
+                    setNewOverrideType(type)
+                    setShowAddOverride(true)
+                  }}
+                  onCloseAddOverride={() => setShowAddOverride(false)}
+                  onDateChange={setNewOverrideDate}
+                  onReasonChange={setNewOverrideReason}
+                  onStartTimeChange={setNewOverrideStartTime}
+                  onEndTimeChange={setNewOverrideEndTime}
+                  onAddOverride={handleAddOverride}
                   onRemoveOverride={handleRemoveOverride}
                 />
               </div>
             </div>
-
-            {/* Right Column: Weekly Schedule & Overrides */}
-            <div className="space-y-4">
-              <WeeklyScheduleCard
-                schedules={schedules}
-                onToggleDayActive={handleToggleDayActive}
-                onScheduleTimeChange={handleScheduleTimeChange}
-                onResetGlobalHours={handleApplyGlobalHours}
-              />
-
-              <DateOverridesCard
-                overrides={overrides}
-                showAddOverride={showAddOverride}
-                newOverrideType={newOverrideType}
-                newOverrideDate={newOverrideDate}
-                newOverrideReason={newOverrideReason}
-                newOverrideStartTime={newOverrideStartTime}
-                newOverrideEndTime={newOverrideEndTime}
-                todayStr={todayStr}
-                onOpenAddOverride={type => {
-                  setNewOverrideType(type)
-                  setShowAddOverride(true)
-                }}
-                onCloseAddOverride={() => setShowAddOverride(false)}
-                onDateChange={setNewOverrideDate}
-                onReasonChange={setNewOverrideReason}
-                onStartTimeChange={setNewOverrideStartTime}
-                onEndTimeChange={setNewOverrideEndTime}
-                onAddOverride={handleAddOverride}
-                onRemoveOverride={handleRemoveOverride}
-              />
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

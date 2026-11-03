@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { supabase, supabaseAvailable } from '@/lib/supabase'
 import { useAppStore } from '@/store/appStore'
 import { PUBLIC_SCREENS } from '@/types'
+import { signOutCleanly } from '@/lib/api/auth'
 import type { AuthChangeEvent } from '@supabase/supabase-js'
 import type { UserRole } from '@/lib/database.types'
 
@@ -167,11 +168,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       userId: string,
       authUser: { email?: string | null; phone?: string | null; user_metadata?: Record<string, string> }
     ) {
-      const { data: userRow } = await supabase
+      const { data: userRow, error: userError } = await supabase
         .from('users')
         .select('name, email, phone, role, city')
         .eq('id', userId)
         .maybeSingle()
+
+      // If user row does not exist in public.users, the account has been deleted or purged out-of-band.
+      // Automatically evict zombie tokens from localStorage and reset client state.
+      if (!userRow && !userError) {
+        console.warn(`[FTC] Active session found for non-existent user ${userId}. Evicting stale session.`)
+        await signOutCleanly()
+        return
+      }
 
       const profile = userRow as UserProfileRecord | null
 

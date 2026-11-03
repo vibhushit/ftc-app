@@ -221,11 +221,9 @@ export function CreatorDetailScreen() {
   const isSaved = state.saved.includes(c.id)
   const isOwnProfile = !!(
     (state.supabaseUserId && c.id === state.supabaseUserId) ||
-    (state.isCreator && state.user?.handle && c.handle === state.user.handle) ||
-    (state.user?.id && c.id === state.user.id)
+    (state.isCreator && state.user?.handle && c.handle === state.user.handle)
   )
   const bookReady = !isOwnProfile && !!selectedDateKey && !!selectedTime
-  const dep = depositInfo(activePackage ? activePackage.price : (c?.startingAt ?? 8000))
 
   const handleStartBooking = async () => {
     if (isOwnProfile || !hasPackages || !activePackage || !bookReady || !selectedDateKey || !selectedTime) return
@@ -422,50 +420,66 @@ export function CreatorDetailScreen() {
       </div>
 
       {/* Calendar Grid */}
-      <div className="grid grid-cols-7 gap-1.5 place-items-center">
-        {Array.from({ length: offset }).map((_, i) => (
-          <div key={'offset-' + i} className="w-8 h-8" />
-        ))}
-        {monthDays.map(d => {
-          const dateKey = `${currentYear}-${String(currentMonthNum).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-          const dayInfo = availData?.days?.[dateKey]
-          const isPast = dateKey < todayStr
-          const isToday = dateKey === todayStr
-          const isDayOff = !isPast && !isToday && (dayInfo ? (dayInfo.status === 'blocked' && (dayInfo.reason === 'Day off' || dayInfo.reason === null)) : false)
-          const isBlockedOverride = !isPast && !isToday && (dayInfo ? (dayInfo.status === 'blocked' && dayInfo.reason !== 'Day off' && dayInfo.reason !== null) : false)
-          const isAvailable = !isPast && !isToday && !isDayOff && !isBlockedOverride && (dayInfo ? dayInfo.status === 'available' : true)
-          const isBooked = !isPast && !isToday && (dayInfo ? dayInfo.status === 'booked' : false)
-          const isSelected = selectedDateKey === dateKey
-          const hasCustomHours = !isPast && !isToday && !!dayInfo?.is_custom_hours
-
-          return (
-            <button
+      {loadingAvail ? (
+        <div className="grid grid-cols-7 gap-1.5 place-items-center animate-pulse">
+          {Array.from({ length: offset }).map((_, i) => (
+            <div key={'offset-' + i} className="w-8 h-8" />
+          ))}
+          {monthDays.map(d => (
+            <div
               key={d}
-              disabled={isPast || isToday || isDayOff || isBlockedOverride}
-              onClick={() => {
-                setSelectedDateKey(dateKey)
-                setSelectedTime(null)
-              }}
-              title={isToday ? 'Same-day booking unavailable (24h advance notice required)' : undefined}
-              className={cn(
-                'w-8 h-8 rounded-xl text-[12px] font-medium tnum flex items-center justify-center transition-all relative cursor-pointer',
-                isSelected && 'bg-obsidian text-paper font-semibold shadow-md ring-2 ring-iris/40',
-                !isSelected && isPast && 'bg-obsidian/[0.02] text-obsidian/20 cursor-not-allowed',
-                !isSelected && isToday && 'ring-1 ring-obsidian/25 text-obsidian/40 bg-obsidian/[0.02] cursor-not-allowed',
-                !isSelected && !isPast && !isToday && isDayOff && 'bg-obsidian/10 text-obsidian/35 cursor-not-allowed',
-                !isSelected && !isPast && !isToday && isBlockedOverride && 'bg-rose-100 text-rose-800 font-semibold line-through cursor-not-allowed',
-                !isSelected && !isPast && !isToday && isAvailable && 'bg-emerald-100/70 hover:bg-emerald-200/80 text-emerald-950 font-semibold',
-                !isSelected && !isPast && !isToday && isBooked && 'bg-obsidian/10 text-obsidian/40 hover:bg-obsidian/20'
-              )}
+              className="w-8 h-8 rounded-xl bg-bone/60 border border-line/40 flex items-center justify-center text-[11px] font-medium text-obsidian/25"
             >
               {d}
-              {hasCustomHours && !isSelected && (
-                <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-iris ring-1 ring-paper" title="Custom creator hours" />
-              )}
-            </button>
-          )
-        })}
-      </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-7 gap-1.5 place-items-center">
+          {Array.from({ length: offset }).map((_, i) => (
+            <div key={'offset-' + i} className="w-8 h-8" />
+          ))}
+          {monthDays.map(d => {
+            const dateKey = `${currentYear}-${String(currentMonthNum).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+            const dayInfo = availData?.days?.[dateKey]
+            const isPast = dateKey < todayStr
+            const isToday = dateKey === todayStr
+            const isDayOff = !isPast && !isToday && (dayInfo ? (dayInfo.status === 'blocked' && (dayInfo.reason === 'Day off' || dayInfo.reason === null)) : false)
+            const isBlockedOverride = !isPast && !isToday && (dayInfo ? (dayInfo.status === 'blocked' && dayInfo.reason !== 'Day off' && dayInfo.reason !== null) : false)
+            const isAvailable = !isPast && !isToday && !isDayOff && !isBlockedOverride && (dayInfo ? dayInfo.status === 'available' : true)
+            const isBooked = !isPast && !isToday && (dayInfo ? dayInfo.status === 'booked' : false)
+            const isSelected = selectedDateKey === dateKey
+            const hasCustomHours = !isPast && !isToday && !!dayInfo?.is_custom_hours
+
+            return (
+              <button
+                key={d}
+                disabled={isPast || isToday || isDayOff || isBlockedOverride}
+                onClick={() => {
+                  setSelectedDateKey(dateKey)
+                  setSelectedTime(null)
+                }}
+                title={isToday ? 'Same-day booking unavailable (24h advance notice required)' : undefined}
+                className={cn(
+                  'w-8 h-8 rounded-xl text-[12px] font-medium tnum flex items-center justify-center transition-all relative cursor-pointer',
+                  isSelected && 'bg-obsidian text-paper font-semibold shadow-md ring-2 ring-iris/40',
+                  !isSelected && isPast && 'bg-obsidian/[0.02] text-obsidian/20 cursor-not-allowed',
+                  !isSelected && isToday && 'ring-1 ring-obsidian/25 text-obsidian/40 bg-obsidian/[0.02] cursor-not-allowed',
+                  !isSelected && !isPast && !isToday && isDayOff && 'bg-obsidian/10 text-obsidian/35 cursor-not-allowed',
+                  !isSelected && !isPast && !isToday && isBlockedOverride && 'bg-rose-100 text-rose-800 font-semibold line-through cursor-not-allowed',
+                  !isSelected && !isPast && !isToday && isAvailable && 'bg-emerald-100/70 hover:bg-emerald-200/80 text-emerald-950 font-semibold',
+                  !isSelected && !isPast && !isToday && isBooked && 'bg-obsidian/10 text-obsidian/40 hover:bg-obsidian/20'
+                )}
+              >
+                {d}
+                {hasCustomHours && !isSelected && (
+                  <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-iris ring-1 ring-paper" title="Custom creator hours" />
+                )}
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       {/* Time Slot Picker grouped by time of day */}
       {selectedDateKey && (
@@ -479,109 +493,125 @@ export function CreatorDetailScreen() {
             </span>
           </div>
 
-          {/* Custom Hours Banner */}
-          {activeDayAvail?.is_custom_hours && (
-            <div className="rounded-xl bg-iris/10 border border-iris/25 p-2.5 text-[11.5px] text-iris flex items-center justify-between gap-2 animate-fade-in">
-              <div className="flex items-center gap-2">
-                <Sparkles size={14} className="shrink-0" />
-                <span>
-                  <strong className="font-semibold">Special Hours:</strong>{' '}
-                  {activeDayAvail?.custom_start_time && activeDayAvail?.custom_end_time
-                    ? `${activeDayAvail.custom_start_time} – ${activeDayAvail.custom_end_time}`
-                    : 'Adjusted creator hours'}
-                  {activeDayAvail?.reason ? ` · ${activeDayAvail.reason}` : ''}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {activeDayAvail?.status === 'blocked' ? (
-            <div className="rounded-xl bg-rose-50 border border-rose-200 p-3.5 text-center space-y-1 text-rose-900 animate-fade-in">
-              <div className="text-[12px] font-semibold flex items-center justify-center gap-1.5">
-                <Lock size={13} className="text-rose-600" />
-                <span>Date Unavailable</span>
-              </div>
-              <div className="text-[11.5px] text-rose-800/80">
-                {activeDayAvail?.reason || 'The creator is not accepting bookings on this date.'}
-              </div>
-            </div>
-          ) : activeDayAvail?.status === 'unavailable' ? (
-            <div className="rounded-xl bg-bone border border-line p-3.5 text-center space-y-1 text-obsidian/70 animate-fade-in">
-              <div className="text-[12px] font-semibold flex items-center justify-center gap-1.5">
-                <Clock size={13} className="text-obsidian/40" />
-                <span>24h Advance Notice Required</span>
-              </div>
-              <div className="text-[11.5px] text-obsidian/60">
-                {activeDayAvail?.reason || 'Same-day bookings are unavailable. All bookings require at least 24 hours advance notice.'}
-              </div>
-            </div>
-          ) : activeDayAvail?.status === 'booked' ? (
-            <div className="rounded-xl bg-bone border border-line p-3.5 text-center space-y-1 text-obsidian/70 animate-fade-in">
-              <div className="text-[12px] font-semibold flex items-center justify-center gap-1.5">
-                <Clock size={13} className="text-obsidian/40" />
-                <span>Fully Booked</span>
-              </div>
-              <div className="text-[11.5px] text-obsidian/50">
-                {activeDayAvail?.reason || 'All shoot windows on this date have already been reserved.'}
-              </div>
-            </div>
-          ) : (daySlots.length === 0 && (!activeDayAvail?.slots_detail || activeDayAvail.slots_detail.length === 0)) ? (
-            <div className="rounded-xl bg-bone p-3.5 text-center text-[12px] text-obsidian/60 border border-line">
-              {activeDayAvail?.reason || 'No open slots fit this package duration on this date. Try another day or package.'}
-            </div>
-          ) : (
-            <div>
-              <div className="flex items-center justify-between text-[11px] text-obsidian/50 font-medium mb-2">
-                <div className="flex items-center gap-1.5">
-                  <Clock size={12} className="text-iris" />
-                  <span>Available & Booked Slots</span>
-                </div>
-                <span className="font-mono text-[10px] text-obsidian/40">24h Notice Applied</span>
+          {loadingAvail ? (
+            <div className="space-y-2.5 animate-pulse pt-1">
+              <div className="flex items-center justify-between text-[11px] text-obsidian/40 font-medium mb-1">
+                <div className="h-3 w-32 bg-bone rounded" />
+                <div className="h-2.5 w-20 bg-bone/70 rounded" />
               </div>
               <div className="grid grid-cols-2 gap-2">
-                {activeDayAvail?.slots_detail && activeDayAvail.slots_detail.length > 0 ? (
-                  activeDayAvail.slots_detail.map(slot => {
-                    const isAvailable = slot.is_available
-                    const isSelected = selectedTime === slot.time
-                    return (
-                      <button
-                        key={slot.time}
-                        type="button"
-                        disabled={!isAvailable}
-                        onClick={() => setSelectedTime(slot.time)}
-                        className={cn(
-                          'py-2.5 px-3 rounded-xl text-[11.5px] sm:text-[12px] font-medium tnum tracking-tight transition border text-center flex items-center justify-center whitespace-nowrap',
-                          isAvailable
-                            ? (isSelected
-                                ? 'bg-obsidian text-paper border-obsidian font-semibold shadow-xs cursor-pointer tap'
-                                : 'bg-bone border-line text-obsidian/85 hover:border-obsidian/40 cursor-pointer tap')
-                            : 'bg-obsidian/[0.04] border-line/60 text-obsidian/30 line-through cursor-not-allowed select-none opacity-50'
-                        )}
-                        title={!isAvailable ? (slot.reason || 'Slot not available') : undefined}
-                      >
-                        {formatSlotRange(slot.time, durMins)}
-                      </button>
-                    )
-                  })
-                ) : (
-                  daySlots.map(t => (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => setSelectedTime(t)}
-                      className={cn(
-                        'tap py-2.5 px-3 rounded-xl text-[11.5px] sm:text-[12px] font-medium tnum tracking-tight transition border text-center cursor-pointer flex items-center justify-center whitespace-nowrap',
-                        selectedTime === t
-                          ? 'bg-obsidian text-paper border-obsidian font-semibold shadow-xs'
-                          : 'bg-bone border-line text-obsidian/80 hover:border-obsidian/30'
-                      )}
-                    >
-                      {formatSlotRange(t, durMins)}
-                    </button>
-                  ))
-                )}
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="h-10 rounded-xl bg-bone/60 border border-line/40" />
+                ))}
               </div>
             </div>
+          ) : (
+            <>
+              {/* Custom Hours Banner */}
+              {activeDayAvail?.is_custom_hours && (
+                <div className="rounded-xl bg-iris/10 border border-iris/25 p-2.5 text-[11.5px] text-iris flex items-center justify-between gap-2 animate-fade-in">
+                  <div className="flex items-center gap-2">
+                    <Sparkles size={14} className="shrink-0" />
+                    <span>
+                      <strong className="font-semibold">Special Hours:</strong>{' '}
+                      {activeDayAvail?.custom_start_time && activeDayAvail?.custom_end_time
+                        ? `${activeDayAvail.custom_start_time} – ${activeDayAvail.custom_end_time}`
+                        : 'Adjusted creator hours'}
+                      {activeDayAvail?.reason ? ` · ${activeDayAvail.reason}` : ''}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {activeDayAvail?.status === 'blocked' ? (
+                <div className="rounded-xl bg-rose-50 border border-rose-200 p-3.5 text-center space-y-1 text-rose-900 animate-fade-in">
+                  <div className="text-[12px] font-semibold flex items-center justify-center gap-1.5">
+                    <Lock size={13} className="text-rose-600" />
+                    <span>Date Unavailable</span>
+                  </div>
+                  <div className="text-[11.5px] text-rose-800/80">
+                    {activeDayAvail?.reason || 'The creator is not accepting bookings on this date.'}
+                  </div>
+                </div>
+              ) : activeDayAvail?.status === 'unavailable' ? (
+                <div className="rounded-xl bg-bone border border-line p-3.5 text-center space-y-1 text-obsidian/70 animate-fade-in">
+                  <div className="text-[12px] font-semibold flex items-center justify-center gap-1.5">
+                    <Clock size={13} className="text-obsidian/40" />
+                    <span>24h Advance Notice Required</span>
+                  </div>
+                  <div className="text-[11.5px] text-obsidian/60">
+                    {activeDayAvail?.reason || 'Same-day bookings are unavailable. All bookings require at least 24 hours advance notice.'}
+                  </div>
+                </div>
+              ) : activeDayAvail?.status === 'booked' ? (
+                <div className="rounded-xl bg-bone border border-line p-3.5 text-center space-y-1 text-obsidian/70 animate-fade-in">
+                  <div className="text-[12px] font-semibold flex items-center justify-center gap-1.5">
+                    <Clock size={13} className="text-obsidian/40" />
+                    <span>Fully Booked</span>
+                  </div>
+                  <div className="text-[11.5px] text-obsidian/50">
+                    {activeDayAvail?.reason || 'All shoot windows on this date have already been reserved.'}
+                  </div>
+                </div>
+              ) : (daySlots.length === 0 && (!activeDayAvail?.slots_detail || activeDayAvail.slots_detail.length === 0)) ? (
+                <div className="rounded-xl bg-bone p-3.5 text-center text-[12px] text-obsidian/60 border border-line">
+                  {activeDayAvail?.reason || 'No open slots fit this package duration on this date. Try another day or package.'}
+                </div>
+              ) : (
+                <div>
+                  <div className="flex items-center justify-between text-[11px] text-obsidian/50 font-medium mb-2">
+                    <div className="flex items-center gap-1.5">
+                      <Clock size={12} className="text-iris" />
+                      <span>Available & Booked Slots</span>
+                    </div>
+                    <span className="font-mono text-[10px] text-obsidian/40">24h Notice Applied</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {activeDayAvail?.slots_detail && activeDayAvail.slots_detail.length > 0 ? (
+                      activeDayAvail.slots_detail.map(slot => {
+                        const isAvailable = slot.is_available
+                        const isSelected = selectedTime === slot.time
+                        return (
+                          <button
+                            key={slot.time}
+                            type="button"
+                            disabled={!isAvailable}
+                            onClick={() => setSelectedTime(slot.time)}
+                            className={cn(
+                              'py-2.5 px-3 rounded-xl text-[11.5px] sm:text-[12px] font-medium tnum tracking-tight transition border text-center flex items-center justify-center whitespace-nowrap',
+                              isAvailable
+                                ? (isSelected
+                                    ? 'bg-obsidian text-paper border-obsidian font-semibold shadow-xs cursor-pointer tap'
+                                    : 'bg-bone border-line text-obsidian/85 hover:border-obsidian/40 cursor-pointer tap')
+                                : 'bg-obsidian/[0.04] border-line/60 text-obsidian/30 line-through cursor-not-allowed select-none opacity-50'
+                            )}
+                            title={!isAvailable ? (slot.reason || 'Slot not available') : undefined}
+                          >
+                            {formatSlotRange(slot.time, durMins)}
+                          </button>
+                        )
+                      })
+                    ) : (
+                      daySlots.map(t => (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => setSelectedTime(t)}
+                          className={cn(
+                            'tap py-2.5 px-3 rounded-xl text-[11.5px] sm:text-[12px] font-medium tnum tracking-tight transition border text-center cursor-pointer flex items-center justify-center whitespace-nowrap',
+                            selectedTime === t
+                              ? 'bg-obsidian text-paper border-obsidian font-semibold shadow-xs'
+                              : 'bg-bone border-line text-obsidian/80 hover:border-obsidian/30'
+                          )}
+                        >
+                          {formatSlotRange(t, durMins)}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}

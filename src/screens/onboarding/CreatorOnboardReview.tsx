@@ -48,8 +48,9 @@ export function CreatorOnboardReview() {
       } catch {}
     }
 
-    dispatch({ type: 'SET_ROLE', isCreator: true })
+    const isClientTarget = targetTab === 'home'
     dispatch({ type: 'MARK_CREATOR' })
+    dispatch({ type: 'SET_ROLE', isCreator: !isClientTarget })
     dispatch({ type: 'GO_TAB', tab: targetTab })
   }
 

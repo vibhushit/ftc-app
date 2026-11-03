@@ -110,7 +110,7 @@ function QuoteModal({ partnerName, onClose, onSend }: { partnerName: string; onC
           <div className="flex gap-3">
             <div className="flex-1">
               <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-obsidian/50 mb-1.5">Price (₹)</div>
-              <input type="number" value={price} onChange={e => setPrice(e.target.value)} className="w-full p-3 rounded-xl bg-bone border border-line outline-none text-[13px] tnum focus:border-iris" />
+              <input type="number" value={price} onChange={e => setPrice(e.target.value)} onWheel={e => e.currentTarget.blur()} className="w-full p-3 rounded-xl bg-bone border border-line outline-none text-[13px] tnum focus:border-iris" />
             </div>
             <div className="flex-1">
               <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-obsidian/50 mb-1.5">Est. delivery</div>

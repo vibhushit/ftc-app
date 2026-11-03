@@ -9,7 +9,7 @@ import { useQueryClient } from '@tanstack/react-query'
 let hasBackendWarmedUp = false
 
 const EXPECTED_COLD_START_MS = 35_000
-const GRACE_PERIOD_MS = 800
+const GRACE_PERIOD_MS = 1200
 
 export function BackendWarmupOverlay() {
   const queryClient = useQueryClient()
@@ -30,7 +30,7 @@ export function BackendWarmupOverlay() {
 
     let pollTimer: ReturnType<typeof setTimeout> | null = null
 
-    // Grace timer: only show overlay if the server doesn't respond within 800ms
+    // Grace timer: only show overlay if the server doesn't respond within 1200ms
     const graceTimer = setTimeout(() => {
       if (!hasBackendWarmedUp && isMountedRef.current) {
         setVisible(true)
