@@ -115,11 +115,24 @@ export async function verifyEmailOtp(email: string, token: string) {
   const cleanEmail = email.trim().toLowerCase()
   const cleanToken = token.trim()
 
-  const { data, error } = await supabase.auth.verifyOtp({
+  let { data, error } = await supabase.auth.verifyOtp({
     email: cleanEmail,
     token: cleanToken,
     type: 'email',
   })
+
+  // If type: 'email' fails, try type: 'signup' (in case GoTrue tagged the OTP under new registration)
+  if (error) {
+    const retry = await supabase.auth.verifyOtp({
+      email: cleanEmail,
+      token: cleanToken,
+      type: 'signup',
+    })
+    if (!retry.error && retry.data?.user) {
+      data = retry.data
+      error = null
+    }
+  }
 
   if (error) {
     const msg = error.message.toLowerCase()
