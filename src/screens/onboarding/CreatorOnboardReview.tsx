@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Check, Sparkles, Copy, ArrowRight, X } from 'lucide-react'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
+import { getProfileUrl, normalizeHandle } from '@/utils'
 import { supabaseAvailable } from '@/lib/supabase'
 import * as authApi from '@/lib/api/auth'
 
@@ -17,13 +18,13 @@ export function CreatorOnboardReview() {
     }
   }, [])
 
-  const handle = state.onboard.handle || state.onboard.name.toLowerCase().replace(/[^a-z0-9]/g, '') || 'creator'
-  const cleanHandle = handle.replace(/^@+/, '')
-  const publicUrl = `findtoconnect.com/@${cleanHandle}`
+  const cleanHandle = normalizeHandle(state.onboard.handle || state.onboard.name || 'creator')
+  const fullUrl = getProfileUrl(cleanHandle)
+  const displayUrl = fullUrl.replace(/^https?:\/\//, '')
 
   const handleCopy = () => {
     if (navigator?.clipboard?.writeText) {
-      navigator.clipboard.writeText(`https://${publicUrl}`)
+      navigator.clipboard.writeText(fullUrl)
       setCopied(true)
       setTimeout(() => setCopied(false), 2500)
     }
@@ -102,7 +103,7 @@ export function CreatorOnboardReview() {
 
           <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-obsidian/70 border border-paper/10 mt-1">
             <span className="font-mono text-[13px] text-paper/90 truncate select-all">
-              {publicUrl}
+              {displayUrl}
             </span>
             <button
               type="button"

@@ -15,7 +15,7 @@ import { SimpleHeader } from '@/components/ui/SimpleHeader'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { inr } from '@/data/constants'
-import { cn, shareOrCopy } from '@/utils'
+import { cn, shareOrCopy, getProfileUrl, normalizeHandle } from '@/utils'
 import { supabaseAvailable } from '@/lib/supabase'
 import * as authApi from '@/lib/api/auth'
 import * as creatorsApi from '@/lib/api/creators'
@@ -98,7 +98,7 @@ export function SettingsScreen() {
         if (hasProfile && state.supabaseUserId) {
           await creatorsApi.upsertCreatorProfile({
             id: state.supabaseUserId,
-            handle: cleanHandle ? `@${cleanHandle}` : undefined,
+            handle: cleanHandle ? cleanHandle : undefined,
             upi_id: upi.trim() || undefined,
             city: city.trim() || undefined,
           })
@@ -110,7 +110,7 @@ export function SettingsScreen() {
         patch: {
           name: name.trim(),
           city: city.trim(),
-          handle: cleanHandle ? `@${cleanHandle}` : u.handle,
+          handle: cleanHandle ? cleanHandle : normalizeHandle(u.handle),
         },
       })
 
@@ -418,9 +418,10 @@ export function LinkBioScreen() {
   const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
   const [copied, setCopied] = useState(false)
   const u = state.user ?? {}
-  const handle = (u as any).handle ? (u as any).handle.replace(/^@/, '') : 'rhea'
+  const rawHandle = (u as any).handle || (state.onboard as any)?.handle || u.name || 'creator'
+  const handle = normalizeHandle(rawHandle)
   const name = u.name || 'Creator'
-  const bioUrl = `https://ftc.app/${handle}`
+  const bioUrl = getProfileUrl(handle)
 
   const handleShare = async () => {
     const res = await shareOrCopy({

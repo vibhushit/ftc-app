@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Home, MapPin, Globe, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
-import { cn } from '@/utils'
+import { cn, getProfileUrl, normalizeHandle } from '@/utils'
 import { apiClient } from '@/services/apiClient'
 import { OnboardShell } from './OnboardShell'
 
@@ -13,7 +13,7 @@ export function CreatorOnboard1() {
   const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
   const ob = state.onboard
   const [name, setName] = useState(ob.name)
-  const [handle, setHandle] = useState(ob.handle || (ob.name ? ob.name.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '') : ''))
+  const [handle, setHandle] = useState(normalizeHandle(ob.handle || (ob.name ? ob.name.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '') : '')))
   const [handleEdited, setHandleEdited] = useState(Boolean(ob.handle))
   const [handleStatus, setHandleStatus] = useState<'idle' | 'checking' | 'available' | 'taken' | 'invalid'>(ob.handle ? 'available' : 'idle')
   const [handleError, setHandleError] = useState<string | null>(null)
@@ -112,7 +112,7 @@ export function CreatorOnboard1() {
             type: 'SET_ONBOARD',
             patch: {
               name,
-              handle: `@${cleanHandle}`,
+              handle: cleanHandle,
               city,
               bio,
               languages: langs,
@@ -252,7 +252,7 @@ export function CreatorOnboard1() {
             </div>
           </div>
           <div className="mt-1 text-[11px] text-obsidian/40 font-mono">
-            findtoconnect.com/@{cleanHandle || 'username'}
+            {getProfileUrl(cleanHandle || 'username').replace(/^https?:\/\//, '')}
           </div>
         </div>
 

@@ -33,6 +33,13 @@ pub fn router() -> Router<AppState> {
         .route("/me/toggle-holiday-mode", post(toggle_holiday_mode))
 }
 
+pub const RESERVED_HANDLES: &[&str] = &[
+    "admin", "administrator", "support", "ftc", "help", "api", "official",
+    "verify", "verified", "profile", "creator", "creators", "billing", "settings",
+    "home", "explore", "discover", "inbox", "dashboard", "me", "login", "signup",
+    "auth", "booking", "bookings", "calendar", "payouts", "terms", "privacy", "legal",
+];
+
 #[derive(Debug, Deserialize)]
 pub struct CheckHandleQuery {
     pub handle: String,
@@ -47,8 +54,16 @@ async fn check_handle_availability(
     if clean.len() < 3 || clean.len() > 30 {
         return Ok(Json(json!({
             "available": false,
-            "handle": format!("@{}", clean),
+            "handle": clean,
             "reason": "Handle must be between 3 and 30 characters"
+        })));
+    }
+
+    if RESERVED_HANDLES.contains(&clean.as_str()) {
+        return Ok(Json(json!({
+            "available": false,
+            "handle": clean,
+            "reason": "This handle is reserved by the platform"
         })));
     }
 
@@ -60,18 +75,15 @@ async fn check_handle_availability(
     if !is_valid_format {
         return Ok(Json(json!({
             "available": false,
-            "handle": format!("@{}", clean),
+            "handle": clean,
             "reason": "Handle can only contain lowercase letters, numbers, underscores, and dots"
         })));
     }
 
-    let formatted = format!("@{}", clean);
-
     if let Some(ref pool) = state.pool {
         let exists = sqlx::query_scalar::<_, bool>(
-            "SELECT EXISTS(SELECT 1 FROM creator_profiles WHERE handle = $1 OR handle = $2)"
+            "SELECT EXISTS(SELECT 1 FROM creator_profiles WHERE LOWER(TRIM(LEADING '@' FROM handle)) = $1)"
         )
-        .bind(&formatted)
         .bind(&clean)
         .fetch_one(pool)
         .await
@@ -79,14 +91,14 @@ async fn check_handle_availability(
 
         return Ok(Json(json!({
             "available": !exists,
-            "handle": formatted,
+            "handle": clean,
             "reason": if exists { Some("Handle is already taken") } else { None }
         })));
     }
 
     Ok(Json(json!({
         "available": true,
-        "handle": formatted,
+        "handle": clean,
         "reason": None::<String>
     })))
 }
@@ -103,7 +115,7 @@ async fn get_creators(
             SELECT
                 u.id::text,
                 u.name,
-                cp.handle,
+                TRIM(LEADING '@' FROM cp.handle) AS handle,
                 COALESCE(u.avatar_url, ''),
                 cp.discipline,
                 cp.sub_skills,
@@ -200,7 +212,7 @@ async fn get_creator_by_id(
             SELECT
                 u.id::text,
                 u.name,
-                cp.handle,
+                TRIM(LEADING '@' FROM cp.handle) AS handle,
                 COALESCE(u.avatar_url, ''),
                 cp.discipline,
                 cp.sub_skills,
@@ -214,7 +226,8 @@ async fn get_creator_by_id(
                 cp.portfolio_urls
             FROM creator_profiles cp
             JOIN users u ON u.id = cp.id
-            WHERE u.id::text = $1 OR cp.handle = $1
+            WHERE u.id::text = $1 
+               OR LOWER(TRIM(LEADING '@' FROM cp.handle)) = LOWER(TRIM(LEADING '@' FROM $1))
             LIMIT 1
         "#;
 
@@ -402,12 +415,17 @@ async fn onboard_creator(
             ));
         }
 
-        let formatted = format!("@{}", clean);
+        if RESERVED_HANDLES.contains(&clean.as_str()) {
+            return Err((
+                axum::http::StatusCode::BAD_REQUEST,
+                Json(json!({ "error": "This handle is reserved by the platform" }))
+            ));
+        }
+
         if let Some(ref pool) = state.pool {
             let is_taken = sqlx::query_scalar::<_, bool>(
-                "SELECT EXISTS(SELECT 1 FROM creator_profiles WHERE (handle = $1 OR handle = $2) AND id != $3)"
+                "SELECT EXISTS(SELECT 1 FROM creator_profiles WHERE LOWER(TRIM(LEADING '@' FROM handle)) = $1 AND id != $2)"
             )
-            .bind(&formatted)
             .bind(&clean)
             .bind(user_id)
             .fetch_one(pool)
@@ -417,11 +435,11 @@ async fn onboard_creator(
             if is_taken {
                 return Err((
                     axum::http::StatusCode::CONFLICT,
-                    Json(json!({ "error": format!("Handle {} is already taken. Please choose another.", formatted) }))
+                    Json(json!({ "error": format!("Handle {} is already taken. Please choose another.", clean) }))
                 ));
             }
         }
-        formatted
+        clean
     } else {
         let raw_name = payload.name.trim().to_lowercase();
         let sanitized_name: String = raw_name
@@ -435,18 +453,18 @@ async fn onboard_creator(
             sanitized_name.to_string()
         };
 
-        let mut auto_handle = format!("@{}", base_handle);
+        let mut auto_handle = base_handle.clone();
         if let Some(ref pool) = state.pool {
             let mut suffix = 1;
             while let Ok(Some(_)) = sqlx::query_scalar::<_, String>(
-                "SELECT handle FROM creator_profiles WHERE handle = $1 AND id != $2 LIMIT 1"
+                "SELECT handle FROM creator_profiles WHERE LOWER(TRIM(LEADING '@' FROM handle)) = $1 AND id != $2 LIMIT 1"
             )
             .bind(&auto_handle)
             .bind(user_id)
             .fetch_optional(pool)
             .await {
                 suffix += 1;
-                auto_handle = format!("@{}_{}", base_handle, suffix);
+                auto_handle = format!("{}_{}", base_handle, suffix);
             }
         }
         auto_handle

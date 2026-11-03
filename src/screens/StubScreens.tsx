@@ -5,7 +5,7 @@ import {
   Check, LogOut, ChevronRight, ExternalLink, ArrowLeft, X, Zap, User
 } from 'lucide-react'
 import { useAppStore } from '@/store/appStore'
-import { cn, shareOrCopy } from '@/utils'
+import { cn, shareOrCopy, getProfileUrl, normalizeHandle } from '@/utils'
 import { signOutCleanly } from '@/lib/api/auth'
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 
@@ -228,12 +228,12 @@ export function MeScreen() {
   }
   const u = user ?? {}
   const name: string = (u as any).name || (isC ? 'Creator' : 'Client')
-  const handle: string = (u as any).handle || `@${name.toLowerCase().replace(/\s+/g, '')}`
+  const handle: string = normalizeHandle((u as any).handle || name)
   const city: string = (u as any).city || 'Delhi NCR'
   const locality: string = (u as any).locality || ''
 
   const copyBookingLink = async () => {
-    const link = `https://ftc.app/${handle.replace(/^@/, '')}`
+    const link = getProfileUrl(handle)
     const res = await shareOrCopy({
       title: `${name} on FTC`,
       text: `Book ${name} with verified escrow protection on FTC Creator Marketplace`,
@@ -268,7 +268,7 @@ export function MeScreen() {
     { icon: Wallet,        label: 'Payouts & Revenue', sub: 'Direct bank & UPI settlements',         s: 'payouts' },
     { icon: MessageCircle, label: 'Messages & Quotes', sub: 'Client inquiries & proposals',          s: 'inbox' },
     { icon: Star,          label: 'Client Reviews', sub: `${bookingCount} reviews verified`,          s: 'reviews' },
-    { icon: Link2,         label: 'Link-in-Bio',    sub: `ftc.app/${handle.replace(/^@/, '')}`,      s: 'linkbio' },
+    { icon: Link2,         label: 'Link-in-Bio',    sub: `profile/${handle}`,                                 s: 'linkbio' },
     { icon: Shield,        label: 'Safety Centre',  sub: 'Escrow protection & disputes',           s: 'safety' },
     { icon: FileText,      label: 'Legal & Agreements', sub: 'Your signed agreements',              s: 'legal' },
     { icon: Settings,      label: 'Account Settings', sub: 'Profile, notifications, security',      s: 'settings' },
@@ -371,7 +371,7 @@ export function MeScreen() {
                     <span className="px-1.5 py-0.5 rounded bg-acid/20 text-acid text-[9px] font-mono uppercase">Instant Escrow</span>
                   </div>
                   <div className="font-display text-xl md:text-2xl text-paper tracking-tight mt-1 truncate flex items-center gap-1.5">
-                    <span>ftc.app/{handle.replace(/^@/, '')}</span>
+                    <span>{getProfileUrl(handle).replace(/^https?:\/\//, '')}</span>
                     <button
                       type="button"
                       onClick={() => {

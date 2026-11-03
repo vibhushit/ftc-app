@@ -224,6 +224,14 @@ export const apiClient = {
     return handleApiResponse<Creator>(res, `/creators/${id}`, 'GET')
   },
 
+  async getCreatorByHandle(handle: string): Promise<Creator | null> {
+    const clean = handle.trim().replace(/^@+/, '')
+    const endpoint = `${getBaseUrl()}/creators/handle/${encodeURIComponent(clean)}`
+    const res = await fetch(endpoint)
+    if (res.status === 404) return null
+    return handleApiResponse<Creator>(res, `/creators/handle/${clean}`, 'GET')
+  },
+
   async getCreatorServices(id: string): Promise<ServiceItem[]> {
     const endpoint = `${getBaseUrl()}/creators/${id}/services`
     try {

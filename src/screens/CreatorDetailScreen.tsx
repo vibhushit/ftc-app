@@ -4,13 +4,13 @@ import {
   ArrowLeft, Heart, Share2, MapPin, BadgeCheck, Shield, Check, Star, Clock,
   ChevronRight, ChevronLeft, MessageCircle, HelpCircle, Volume2, Coffee,
   ArrowRight, CalendarCheck, Instagram, Film, Briefcase, Globe, Link2,
-  Loader2, Sparkles, Lock, AlertCircle
+  Loader2, Sparkles, Lock, AlertCircle, UserX
 } from 'lucide-react'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { apiClient } from '@/services/apiClient'
 import { pic, inr } from '@/data/constants'
-import { cn, shareOrCopy, formatSlotRange12h } from '@/utils'
+import { cn, shareOrCopy, formatSlotRange12h, getProfileUrl } from '@/utils'
 import { useCreator, useCreatorServices, useMonthAvailability } from '@/hooks/useCreators'
 import type { CreatorWithUser } from '@/lib/database.types'
 import type { Tier, Verification, Gender, TravelMode, TravelRadius, Creator, BookingDraft } from '@/types'
@@ -69,19 +69,27 @@ function depositInfo(price: number) {
 
 export function CreatorDetailScreen() {
   const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
-  const id = state.selectedCreatorId || (state.isCreator ? state.supabaseUserId : null)
+  const id = state.selectedCreatorId === '__not_found__'
+    ? null
+    : (state.selectedCreatorId || (state.isCreator ? state.supabaseUserId : null))
   const { data: dbCreator, isLoading } = useCreator(id)
   const { data: dbServices }           = useCreatorServices(id)
 
   let c: Creator | undefined = dbCreator ? dbToCreatorFull(dbCreator) : undefined
 
-  // Fallback for newly created creator viewing their own profile
-  if (!c && (id === state.supabaseUserId || id === state.user.handle || (state.isCreator && state.user.name))) {
+  // Fallback strictly for newly created creator viewing their own profile
+  const isSelfProfile = Boolean(
+    (id && state.supabaseUserId && id === state.supabaseUserId) ||
+    (id && state.user?.handle && id.replace(/^@+/, '').toLowerCase() === state.user.handle.replace(/^@+/, '').toLowerCase()) ||
+    (!state.selectedCreatorId && state.isCreator)
+  )
+
+  if (!c && isSelfProfile && (id === state.supabaseUserId || (state.user?.handle && id === state.user.handle) || state.isCreator)) {
     const ob = state.onboard
     c = {
       id: id || state.supabaseUserId || 'my_profile',
       name: ob.name || state.user.name || 'Creator',
-      handle: state.user.handle || `@${(ob.name || state.user.name || 'creator').toLowerCase().replace(/\s+/g, '_')}`,
+      handle: state.user?.handle ? state.user.handle.replace(/^@+/, '') : (ob.name || state.user.name || 'creator').toLowerCase().replace(/\s+/g, '_'),
       discipline: ob.discipline || 'Photography',
       subSkills: ob.subSkills?.length ? ob.subSkills : ['Commercial', 'Editorial'],
       city: ob.city || state.user.city || 'Delhi',
@@ -211,19 +219,32 @@ export function CreatorDetailScreen() {
     </div>
   )
   if (!c) return (
-    <div className="flex-1 flex flex-col items-center justify-center">
-      <div className="text-4xl mb-3">👤</div>
-      <div className="font-display text-xl">Creator not found</div>
-      <button onClick={() => dispatch({ type: 'BACK' })} className="tap mt-4 px-5 py-3 rounded-2xl bg-obsidian text-paper text-[14px] font-semibold">← Back</button>
+    <div className="flex-1 flex flex-col items-center justify-center p-8 text-center min-h-[50vh]">
+      <div className="w-12 h-12 rounded-2xl bg-bone border border-line flex items-center justify-center text-obsidian/40 mb-3">
+        <UserX size={20} />
+      </div>
+      <div className="font-mono text-[10px] uppercase tracking-widest text-obsidian/40 mb-1">404 · Not Found</div>
+      <div className="font-display text-2xl font-light text-obsidian">Creator not found</div>
+      <p className="text-[13px] text-obsidian/60 mt-1.5 max-w-xs">
+        This creator profile does not exist or the link is invalid.
+      </p>
+      <button
+        onClick={() => dispatch({ type: 'GO', screen: 'home' })}
+        className="tap mt-5 px-6 py-3 rounded-2xl bg-obsidian text-paper text-[13.5px] font-semibold cursor-pointer shadow-sm hover:bg-obsidian/90 transition"
+      >
+        Explore FTC Creators
+      </button>
     </div>
   )
 
   const isSaved = state.saved.includes(c.id)
   const isOwnProfile = !!(
     (state.supabaseUserId && c.id === state.supabaseUserId) ||
-    (state.isCreator && state.user?.handle && c.handle === state.user.handle)
+    (state.isCreator && state.user?.handle && c.handle.toLowerCase() === state.user.handle.replace(/^@+/, '').toLowerCase()) ||
+    isSelfProfile
   )
-  const bookReady = !isOwnProfile && !!selectedDateKey && !!selectedTime
+  const isOtherCreatorViewing = Boolean(state.isAuthed && state.isCreator && !isOwnProfile)
+  const bookReady = !isOwnProfile && !isOtherCreatorViewing && !!selectedDateKey && !!selectedTime
 
   const handleStartBooking = async () => {
     if (isOwnProfile || !hasPackages || !activePackage || !bookReady || !selectedDateKey || !selectedTime) return
@@ -678,10 +699,68 @@ export function CreatorDetailScreen() {
   )
 
   return (
-    <div className="flex-1 flex flex-col bg-paper overflow-hidden">
-      <div className="absolute top-0 inset-x-0 z-20 px-5 py-3 flex items-center justify-between pointer-events-none">
-        <button onClick={() => dispatch({ type: 'BACK' })} className="tap pointer-events-auto w-10 h-10 rounded-full bg-paper/90 backdrop-blur grid place-items-center shadow-md"><ArrowLeft size={18} /></button>
-        <div className="flex gap-2">
+    <div className="flex-1 flex flex-col bg-paper overflow-hidden relative">
+      {/* Owner Preview Mode Top Banner */}
+      {isOwnProfile && (
+        <aside aria-label="Profile preview banner" className="shrink-0 z-30 bg-bone border-b border-line px-4 py-2.5 flex items-center justify-between gap-3 text-obsidian">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="w-1.5 h-1.5 rounded-full bg-iris shrink-0" />
+            <span className="text-[11.5px] font-medium text-obsidian/80 truncate">
+              Public Profile Preview <span className="hidden sm:inline text-obsidian/45">· Viewing as a client</span>
+            </span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => dispatch({ type: 'GO', screen: 'settings' })}
+              className="tap px-2.5 py-1 rounded-md border border-line bg-paper text-[10.5px] font-mono uppercase tracking-wider text-obsidian/70 hover:text-obsidian hover:border-obsidian/30 transition cursor-pointer"
+            >
+              Edit Profile
+            </button>
+            <button
+              onClick={() => dispatch({ type: 'GO', screen: 'home' })}
+              className="tap px-2.5 py-1 rounded-md bg-obsidian text-paper text-[10.5px] font-mono uppercase tracking-wider hover:bg-obsidian/90 transition cursor-pointer"
+            >
+              Dashboard
+            </button>
+          </div>
+        </aside>
+      )}
+
+      {/* Creator Mode Visiting Gate Modal */}
+      {isOtherCreatorViewing && (
+        <div className="fixed inset-0 z-50 bg-obsidian/60 backdrop-blur-xs flex items-center justify-center p-6 animate-fade-in">
+          <div className="w-full max-w-sm rounded-3xl bg-paper border border-line p-6 shadow-2xl text-center space-y-4">
+            <div className="font-mono text-[10px] uppercase tracking-widest text-obsidian/50">
+              Creator Mode Active
+            </div>
+            <div className="font-display text-2xl font-light text-obsidian tracking-tight">
+              Switch to client mode to view this profile
+            </div>
+            <p className="text-[13px] text-obsidian/60 leading-relaxed">
+              You are currently browsing in Creator Mode. Switch to Client Mode to explore creators and book services.
+            </p>
+            <div className="pt-2 space-y-2">
+              <button
+                onClick={() => dispatch({ type: 'SET_ROLE', isCreator: false })}
+                className="tap w-full py-3.5 rounded-2xl bg-obsidian text-paper font-semibold text-[13.5px] cursor-pointer hover:bg-obsidian/90 transition shadow-sm"
+              >
+                Switch to Client Mode
+              </button>
+              <button
+                onClick={() => dispatch({ type: 'GO', screen: 'home' })}
+                className="tap w-full py-2.5 text-[12px] text-obsidian/50 hover:text-obsidian font-mono uppercase tracking-wider transition cursor-pointer"
+              >
+                Return to Dashboard
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="relative flex-1 min-h-0 flex flex-col">
+        <div className="absolute top-0 inset-x-0 z-20 px-5 py-3 flex items-center justify-between pointer-events-none">
+          <button onClick={() => dispatch({ type: 'BACK' })} className="tap pointer-events-auto w-10 h-10 rounded-full bg-paper/90 backdrop-blur grid place-items-center shadow-md"><ArrowLeft size={18} /></button>
+          <div className="flex gap-2">
           <button
             onClick={() => {
               if (!state.isAuthed) {
@@ -700,7 +779,7 @@ export function CreatorDetailScreen() {
               const res = await shareOrCopy({
                 title: `${c.name} on FTC`,
                 text: `Book ${c.name} (${c.discipline}) with verified escrow on FTC Creator Marketplace`,
-                url: `https://ftc.app/${c.handle.replace(/^@/, '')}`,
+                url: getProfileUrl(c.handle),
               })
               if (res === 'copied') {
                 setShareToast(true)
@@ -949,14 +1028,19 @@ export function CreatorDetailScreen() {
         <div className="flex gap-2">
           <button
             onClick={() => {
+              if (isOwnProfile) return
               if (!state.isAuthed) {
                 dispatch({ type: 'GO', screen: 'login' })
                 return
               }
               dispatch({ type: 'OPEN_CLIENT_CHAT', client: { name: c.name, avatar: c.avatar } })
             }}
-            className="tap w-14 rounded-2xl bg-obsidian/5 grid place-items-center cursor-pointer"
-            title={!state.isAuthed ? 'Sign in to message' : undefined}
+            disabled={isOwnProfile}
+            className={cn(
+              "tap w-14 rounded-2xl grid place-items-center",
+              isOwnProfile ? "bg-obsidian/5 opacity-40 cursor-not-allowed" : "bg-obsidian/5 cursor-pointer"
+            )}
+            title={isOwnProfile ? 'Messaging disabled in preview mode' : (!state.isAuthed ? 'Sign in to message' : undefined)}
           >
             <MessageCircle size={19} className="text-obsidian/70" />
           </button>
@@ -996,6 +1080,7 @@ export function CreatorDetailScreen() {
             </button>
           )}
         </div>
+      </div>
       </div>
     </div>
   )

@@ -128,3 +128,23 @@ export async function shareOrCopy(data: { title: string; text?: string; url: str
   }
   return 'copied'
 }
+
+/**
+ * Resolves the canonical profile URL for a creator.
+ * Example: https://findtoconnect.com/profile/rahul (or http://localhost:5173/profile/rahul in dev)
+ */
+export function getProfileUrl(handle?: string | null): string {
+  const clean = (handle || '').trim().replace(/^@+/, '').toLowerCase()
+  const origin = typeof window !== 'undefined' && window.location.origin
+    ? window.location.origin
+    : 'https://findtoconnect.com'
+  return clean ? `${origin}/profile/${clean}` : origin
+}
+
+/**
+ * Strips any '@' prefix and lowercases a handle for clean storage and display.
+ */
+export function normalizeHandle(handle?: string | null): string {
+  return (handle || '').trim().replace(/^@+/, '').toLowerCase()
+}
+

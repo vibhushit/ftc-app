@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Instagram, Film, Globe, Briefcase, Link2, AtSign, Check, AlertCircle } from 'lucide-react'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
-import { cn } from '@/utils'
+import { cn, getProfileUrl, normalizeHandle } from '@/utils'
 import { supabaseAvailable } from '@/lib/supabase'
 import * as authApi from '@/lib/api/auth'
 import { apiClient } from '@/services/apiClient'
@@ -58,7 +58,7 @@ export function CreatorOnboard5() {
       // Single source of truth: Rust Axum backend creates user, creator profile, services & calendar defaults atomically
       await apiClient.onboardCreator({
         name: ob.name || 'Creator',
-        handle: ob.handle || null,
+        handle: ob.handle ? normalizeHandle(ob.handle) : null,
         bio: ob.bio || '',
         discipline: ob.discipline || 'Photography',
         sub_skills: ob.subSkills || [],
@@ -228,7 +228,7 @@ export function CreatorOnboard5() {
         <div className="p-4 rounded-2xl bg-obsidian relative overflow-hidden text-paper">
           <div className="text-[10px] font-mono uppercase tracking-wider text-acid">Direct Booking Link</div>
           <div className="font-display text-lg text-paper mt-0.5">
-            findtoconnect.com/{cleanIg || 'yourname'}
+            {getProfileUrl(normalizeHandle(state.onboard.handle || state.onboard.name || 'yourname')).replace(/^https?:\/\//, '')}
           </div>
           <p className="mt-1.5 text-[11px] text-paper/60 leading-relaxed">
             Add this link to your Instagram bio. Clients book directly with FTC Escrow protection — no back-and-forth price bargaining.

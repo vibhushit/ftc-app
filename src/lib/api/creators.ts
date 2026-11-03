@@ -29,8 +29,48 @@ export async function searchCreators(params: CreatorSearchParams = {}) {
   }
 }
 
+function apiCreatorToWithUser(fromApi: any): CreatorWithUser {
+  return {
+    id: fromApi.id,
+    handle: (fromApi.handle || '').trim().replace(/^@+/, ''),
+    discipline: fromApi.discipline,
+    sub_skills: fromApi.sub_skills || [],
+    city: fromApi.city,
+    area: fromApi.locality || '',
+    starting_at: fromApi.starting_at,
+    avg_rating: fromApi.rating,
+    review_count: fromApi.review_count,
+    bio: fromApi.bio || '',
+    portfolio_urls: fromApi.portfolio_urls || [],
+    tier: 'Rising',
+    verification: fromApi.verified ? 'vetted' : 'phone',
+    is_pro: fromApi.verified,
+    response_time: '< 2 hrs',
+    next_slot: 'Today',
+    languages: ['Hindi', 'English'],
+    tagline: '',
+    repeat_rate: 90,
+    travel_radius: 'city',
+    gender: 'prefer_not_to_say',
+    trust_score: 85,
+    available_today: true,
+    travel_mode: 'both',
+    users: {
+      name: fromApi.name,
+      avatar_url: fromApi.avatar,
+      email: '',
+      phone: '',
+    },
+  } as unknown as CreatorWithUser
+}
+
 // ─── Profile by ID ────────────────────────────────────────────────────────────
 export async function getCreatorById(id: string): Promise<CreatorWithUser | null> {
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+  if (!isUuid) {
+    return getCreatorByHandle(id)
+  }
+
   try {
     const { data, error } = await supabase
       .from('creator_profiles')
@@ -50,38 +90,7 @@ export async function getCreatorById(id: string): Promise<CreatorWithUser | null
   try {
     const fromApi = await apiClient.getCreatorById(id)
     if (fromApi) {
-      return {
-        id: fromApi.id,
-        handle: fromApi.handle,
-        discipline: fromApi.discipline,
-        sub_skills: fromApi.sub_skills || [],
-        city: fromApi.city,
-        area: fromApi.locality || '',
-        starting_at: fromApi.starting_at,
-        avg_rating: fromApi.rating,
-        review_count: fromApi.review_count,
-        bio: fromApi.bio || '',
-        portfolio_urls: fromApi.portfolio_urls || [],
-        tier: 'Rising',
-        verification: fromApi.verified ? 'vetted' : 'phone',
-        is_pro: fromApi.verified,
-        response_time: '< 2 hrs',
-        next_slot: 'Today',
-        languages: ['Hindi', 'English'],
-        tagline: '',
-        repeat_rate: 90,
-        travel_radius: 'city',
-        gender: 'prefer_not_to_say',
-        trust_score: 85,
-        available_today: true,
-        travel_mode: 'both',
-        users: {
-          name: fromApi.name,
-          avatar_url: fromApi.avatar,
-          email: '',
-          phone: '',
-        },
-      } as unknown as CreatorWithUser
+      return apiCreatorToWithUser(fromApi)
     }
   } catch {}
 
@@ -90,11 +99,24 @@ export async function getCreatorById(id: string): Promise<CreatorWithUser | null
 
 // ─── Profile by handle ────────────────────────────────────────────────────────
 export async function getCreatorByHandle(handle: string): Promise<CreatorWithUser | null> {
-  const clean = handle.startsWith('@') ? handle : `@${handle}`
+  const clean = handle.trim().replace(/^@+/, '').toLowerCase()
+  if (!clean) return null
+
+  // 1. Primary: Query Rust Axum backend single source of truth
+  try {
+    const fromApi = await apiClient.getCreatorByHandle(clean)
+    if (fromApi) {
+      return apiCreatorToWithUser(fromApi)
+    }
+  } catch (e) {
+    console.warn('[FTC] apiClient getCreatorByHandle failed:', e)
+  }
+
+  // 2. Fallback to Supabase
   try {
     const { data } = await (supabase.from('creator_profiles') as any)
       .select('*, users!inner(name, avatar_url, email, phone)')
-      .ilike('handle', clean)
+      .or(`handle.ilike.${clean},handle.ilike.@${clean}`)
       .maybeSingle()
 
     if (data) return data as unknown as CreatorWithUser
@@ -105,8 +127,12 @@ export async function getCreatorByHandle(handle: string): Promise<CreatorWithUse
 
 // ─── Onboarding ───────────────────────────────────────────────────────────────
 export async function upsertCreatorProfile(patch: Partial<CreatorProfileRow> & { id: string }) {
+  const sanitizedPatch = { ...patch }
+  if (sanitizedPatch.handle) {
+    sanitizedPatch.handle = sanitizedPatch.handle.replace(/^@+/, '').trim()
+  }
   const { data, error } = await (supabase.from('creator_profiles') as any)
-    .upsert(patch, { onConflict: 'id' })
+    .upsert(sanitizedPatch, { onConflict: 'id' })
     .select()
     .single()
 

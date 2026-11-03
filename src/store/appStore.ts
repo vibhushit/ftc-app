@@ -317,7 +317,26 @@ function parseInitialHash(defaultState: AppState): AppState {
     }
   }
 
-  // 2. URL hash is the single source of truth for deep links
+  // 2. Direct Pathname Check for /profile/:username (Canonical Profile URLs)
+  const pathname = typeof window !== 'undefined' ? window.location.pathname : ''
+  if (pathname.startsWith('/profile/') || pathname === '/profile') {
+    const rawHandle = pathname.slice('/profile'.length).replace(/^\/+/, '').trim()
+    // Strict 404 rule: Any handle containing '@' or failing alphanumeric/dot/underscore regex is marked not found
+    if (!rawHandle || rawHandle.includes('@') || !/^[a-zA-Z0-9._]{3,30}$/.test(rawHandle)) {
+      return {
+        ...baseState,
+        screen: 'creator',
+        selectedCreatorId: '__not_found__',
+      }
+    }
+    return {
+      ...baseState,
+      screen: 'creator',
+      selectedCreatorId: rawHandle.toLowerCase(),
+    }
+  }
+
+  // 3. URL hash fallback for internal navigation
   const hash = rawHash.replace(/^#/, '')
   if (!hash) return baseState
 
@@ -330,10 +349,18 @@ function parseInitialHash(defaultState: AppState): AppState {
   }
 
   if (creator) {
+    const cleanCreator = creator.trim()
+    if (cleanCreator.includes('@')) {
+      return {
+        ...baseState,
+        screen: 'creator',
+        selectedCreatorId: '__not_found__',
+      }
+    }
     return {
       ...baseState,
       screen: 'creator',
-      selectedCreatorId: creator,
+      selectedCreatorId: cleanCreator.toLowerCase(),
     }
   }
 
@@ -366,19 +393,56 @@ function syncUrlHash(state: AppState, isPopState = false) {
     return
   }
 
+  let nextPath = window.location.pathname
   let nextHash = ''
-  if (state.screen === 'creator' && state.selectedCreatorId) {
-    nextHash = `creator=${state.selectedCreatorId}`
+
+  if (state.screen === 'creator') {
+    if (state.selectedCreatorId && state.selectedCreatorId !== '__not_found__') {
+      const clean = state.selectedCreatorId.replace(/^@+/, '').toLowerCase()
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clean)
+      if (!isUuid) {
+        nextPath = `/profile/${clean}`
+        nextHash = ''
+      } else {
+        if (state.supabaseUserId === clean && state.user?.handle) {
+          nextPath = `/profile/${state.user.handle.replace(/^@+/, '').toLowerCase()}`
+          nextHash = ''
+        } else {
+          nextHash = `creator=${clean}`
+        }
+      }
+    }
   } else if (state.screen && state.screen !== 'welcome' && state.screen !== 'home') {
     nextHash = `screen=${state.screen}`
+    if (nextPath.startsWith('/profile')) {
+      nextPath = '/'
+    }
+  } else {
+    // Home or Welcome
+    nextHash = ''
+    if (nextPath.startsWith('/profile')) {
+      nextPath = '/'
+    }
   }
+
+  const currentPath = window.location.pathname
   const currentHash = window.location.hash.replace(/^#/, '')
 
-  if (currentHash !== nextHash) {
-    const targetUrl = nextHash ? `#${nextHash}` : (window.location.pathname + window.location.search)
+  const pathChanged = currentPath !== nextPath
+  const hashChanged = currentHash !== nextHash
+
+  if (pathChanged || hashChanged) {
+    const targetUrl = nextPath + (nextHash ? `#${nextHash}` : '') + (window.location.search || '')
     if (!isPopState) {
       // Push history state so browser Back/Forward buttons navigate seamlessly inside the app
       window.history.pushState(
+        { screen: state.screen, activeTab: state.activeTab, selectedCreatorId: state.selectedCreatorId },
+        '',
+        targetUrl
+      )
+    } else if (pathChanged) {
+      // Silent canonicalization of address bar without pushing duplicate history entries
+      window.history.replaceState(
         { screen: state.screen, activeTab: state.activeTab, selectedCreatorId: state.selectedCreatorId },
         '',
         targetUrl

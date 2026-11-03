@@ -74,16 +74,46 @@ export function App() {
   // ─── Browser History Sync (Back / Forward Button & Swipe Support) ───
   useEffect(() => {
     const handlePopState = () => {
+      const rawPath = typeof window !== 'undefined' ? window.location.pathname : ''
       const rawHash = typeof window !== 'undefined' ? window.location.hash.replace(/^#/, '') : ''
+
+      // 1. Direct check for /profile/:username
+      if (rawPath.startsWith('/profile/') || rawPath === '/profile') {
+        const rawHandle = rawPath.slice('/profile'.length).replace(/^\/+/, '').trim()
+        if (!rawHandle || rawHandle.includes('@') || !/^[a-zA-Z0-9._]{3,30}$/.test(rawHandle)) {
+          dispatch({
+            type: 'POP_STATE',
+            screen: 'creator',
+            selectedCreatorId: '__not_found__',
+          })
+          return
+        }
+        dispatch({
+          type: 'POP_STATE',
+          screen: 'creator',
+          selectedCreatorId: rawHandle.toLowerCase(),
+        })
+        return
+      }
+
       const params = new URLSearchParams(rawHash)
       const creatorId = params.get('creator')
       const screenParam = params.get('screen') as Screen | null
 
       if (creatorId) {
+        const cleanCreator = creatorId.trim()
+        if (cleanCreator.includes('@')) {
+          dispatch({
+            type: 'POP_STATE',
+            screen: 'creator',
+            selectedCreatorId: '__not_found__',
+          })
+          return
+        }
         dispatch({
           type: 'POP_STATE',
           screen: 'creator',
-          selectedCreatorId: creatorId,
+          selectedCreatorId: cleanCreator.toLowerCase(),
         })
         return
       }
@@ -99,7 +129,7 @@ export function App() {
         return
       }
 
-      // Hash is empty -> restore home
+      // Hash and path are empty/root -> restore home
       dispatch({
         type: 'POP_STATE',
         screen: 'home',
