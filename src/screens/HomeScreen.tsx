@@ -162,8 +162,16 @@ export function HomeScreen() {
             )}
           </div>
           {loading ? (
-            <div className="px-5 py-8 flex items-center justify-center gap-2 text-obsidian/40 text-sm font-mono">
-              <span className="w-2 h-2 rounded-full bg-obsidian/30 animate-pulse" /> Loading creators...
+            <div className="flex gap-3 overflow-x-auto no-scrollbar px-5 pb-2 md:grid md:grid-cols-3 lg:grid-cols-4 md:gap-4 md:overflow-visible md:px-5">
+              {[1, 2, 3, 4].map(idx => (
+                <div key={idx} className="shrink-0 w-[240px] md:w-full md:shrink animate-pulse">
+                  <div className="aspect-[3/4] rounded-2xl bg-bone/70 border border-line" />
+                  <div className="pt-2.5 space-y-1.5">
+                    <div className="h-3.5 bg-bone rounded-md w-3/4" />
+                    <div className="h-3 bg-bone rounded-md w-1/2" />
+                  </div>
+                </div>
+              ))}
             </div>
           ) : featured.length === 0 ? (
             <div className="mx-5 p-6 rounded-3xl bg-bone border border-line text-center">

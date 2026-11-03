@@ -143,6 +143,29 @@ async function getHeaders(customHeaders?: Record<string, string>): Promise<Heade
  * No mock data, no in-memory fallbacks, pure live communication.
  */
 export const apiClient = {
+  // ─── HEALTH CHECK ────────────────────────────────────────────────────────────
+  async checkHealth(): Promise<boolean> {
+    try {
+      const rootUrl = getBaseUrl().replace(/\/api\/?$/, '')
+      const res = await fetch(`${rootUrl}/health`, {
+        method: 'GET',
+        cache: 'no-store',
+      })
+      if (res.ok) return true
+    } catch {}
+
+    try {
+      const configUrl = `${getBaseUrl()}/config`
+      const res = await fetch(configUrl, {
+        method: 'GET',
+        cache: 'no-store',
+      })
+      return res.ok
+    } catch {
+      return false
+    }
+  },
+
   // ─── PLATFORM CONFIG ─────────────────────────────────────────────────────────
   async getConfig(): Promise<PlatformConfig> {
     const endpoint = `${getBaseUrl()}/config`

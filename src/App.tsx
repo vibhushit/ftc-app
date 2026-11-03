@@ -5,6 +5,7 @@ import { AuthProvider } from '@/components/AuthProvider'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { EnvironmentSwitcher } from '@/components/ui/EnvironmentSwitcher'
 import { NetworkStatusBanner } from '@/components/ui/NetworkStatusBanner'
+import { BackendWarmupOverlay } from '@/components/ui/BackendWarmupOverlay'
 import { BottomNav } from '@/components/ui/BottomNav'
 import { SideNav } from '@/components/ui/SideNav'
 import { WelcomeScreen } from '@/screens/WelcomeScreen'
@@ -197,6 +198,7 @@ export function App() {
       <AuthProvider>
         <NetworkStatusBanner />
         <EnvironmentSwitcher />
+        <BackendWarmupOverlay />
         <div className="app-shell">
           {showSideNav && (
             <SideNav

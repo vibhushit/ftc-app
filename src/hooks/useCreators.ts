@@ -20,6 +20,8 @@ export function useHomeCreators(enabled = true) {
     queryFn:   () => apiClient.getCreators(),
     staleTime: 300_000,
     gcTime:    600_000,
+    retry:     3,
+    retryDelay: attempt => Math.min(attempt * 3000, 10000),
     enabled,
   })
 }
@@ -30,6 +32,8 @@ export function useCreatorSearch(params: creatorsApi.CreatorSearchParams = {}, e
     queryKey:  CREATOR_KEYS.search(params),
     queryFn:   () => creatorsApi.searchCreators(params),
     staleTime: 120_000,
+    retry:     3,
+    retryDelay: attempt => Math.min(attempt * 3000, 10000),
     enabled,
   })
 }
