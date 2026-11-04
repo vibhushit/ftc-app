@@ -976,7 +976,8 @@ async fn release_escrow(Path(id): Path<String>) -> Json<Value> {
 }
 
 pub async fn sweep_expired_bookings(pool: &sqlx::PgPool) -> Result<u64, sqlx::Error> {
-    let rows_affected = sqlx::query(
+    // 1. Expire stale pending requests (24h SLA)
+    let p_affected = sqlx::query(
         r#"
         UPDATE bookings
         SET status = 'cancelled', cancellation_reason = '24-hour creator SLA expired', updated_at = now()
@@ -989,11 +990,28 @@ pub async fn sweep_expired_bookings(pool: &sqlx::PgPool) -> Result<u64, sqlx::Er
     .await?
     .rows_affected();
 
-    if rows_affected > 0 {
-        tracing::info!("⏰ Swept and cancelled {} expired pending booking requests", rows_affected);
+    // 2. Expire confirmed bookings whose session ended >48 hours ago without completion
+    let c_affected = sqlx::query(
+        r#"
+        UPDATE bookings
+        SET status = 'cancelled', cancellation_reason = 'Wrap-up window expired (48h after session)', updated_at = now()
+        WHERE status = 'confirmed'
+          AND (
+            (end_time IS NOT NULL AND end_time + interval '48 hours' < now())
+            OR (end_time IS NULL AND session_date IS NOT NULL AND session_date < current_date - interval '2 days')
+          )
+        "#
+    )
+    .execute(pool)
+    .await?
+    .rows_affected();
+
+    let total = p_affected + c_affected;
+    if total > 0 {
+        tracing::info!("⏰ Sweep: {} pending expired, {} confirmed expired (>48h)", p_affected, c_affected);
     }
 
-    Ok(rows_affected)
+    Ok(total)
 }
 
 async fn expire_pending_bookings(State(state): State<AppState>) -> Result<Json<Value>, AppError> {

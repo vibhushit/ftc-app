@@ -8,7 +8,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useAppStore } from '@/store/appStore'
 import { inr } from '@/data/constants'
 import { CRM_TABS, CRM_EMPTY } from '@/data/constants'
-import { cn, formatIsoSlot12h, formatFallbackSession12h, isBookingRequestExpired } from '@/utils'
+import { cn, formatIsoSlot12h, formatFallbackSession12h, isBookingRequestExpired, isConfirmedBookingExpired } from '@/utils'
 import { apiClient } from '@/services/apiClient'
 import { useToast } from '@/components/ui/ToastNotification'
 import { useMyJobs } from '@/hooks/useBookings'
@@ -72,11 +72,13 @@ export function CreatorPipelineHome() {
     (b.status === 'requested' || b.status === 'pending_approval' || b.status === 'pending') && !isBookingRequestExpired(b)
   )
   const confirmedJobs = allJobs.filter((b: any) =>
-    b.status === 'confirmed' || b.status === 'upcoming' || b.status === 'in_progress'
+    (b.status === 'confirmed' || b.status === 'upcoming' || b.status === 'in_progress') &&
+    !isConfirmedBookingExpired(b) &&
+    (b.start_time || b.session_date || b.date || b.when)
   )
   const completedJobs = allJobs.filter((b: any) => b.status === 'completed')
   const cancelledJobs = allJobs.filter((b: any) =>
-    b.status === 'cancelled' || b.status === 'declined' || isBookingRequestExpired(b)
+    b.status === 'cancelled' || b.status === 'declined' || isBookingRequestExpired(b) || isConfirmedBookingExpired(b)
   )
 
   const jobs = tab === 'requested' || tab === 'pending_approval'
@@ -226,9 +228,11 @@ export function CreatorPipelineHome() {
         ) : (
           <div className="space-y-3 md:space-y-0 md:grid md:grid-cols-2 md:gap-3">
             {jobs.map(b => {
-              const isExpired = isBookingRequestExpired(b)
-              const isPending = (b.status === 'pending_approval' || b.status === 'pending' || b.status === 'requested') && !isExpired
-              const isConfirmedOrActive = b.status === 'confirmed' || b.status === 'upcoming' || b.status === 'in_progress'
+              const isReqExpired = isBookingRequestExpired(b)
+              const isConfExpired = isConfirmedBookingExpired(b)
+              const isExpired = isReqExpired || isConfExpired
+              const isPending = (b.status === 'pending_approval' || b.status === 'pending' || b.status === 'requested') && !isReqExpired
+              const isConfirmedOrActive = (b.status === 'confirmed' || b.status === 'upcoming' || b.status === 'in_progress') && !isConfExpired
               const isCompleted = b.status === 'completed'
               const isCancelled = b.status === 'cancelled' || b.status === 'declined' || isExpired
 
@@ -349,22 +353,28 @@ export function CreatorPipelineHome() {
                     <div className="mt-3 pt-3 border-t border-line flex items-center justify-between gap-2">
                       <span className={cn(
                         'px-2 py-0.5 rounded-md text-[11px] font-mono font-semibold',
-                        isExpired || (b.cancellation_reason || b.cancellationReason || '').toLowerCase().includes('sla')
+                        isConfExpired || (b.cancellation_reason || b.cancellationReason || '').toLowerCase().includes('wrap-up')
                           ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                          : b.status === 'declined' || (b.cancellation_reason || b.cancellationReason || '').toLowerCase().includes('creator')
-                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                            : 'bg-bone text-obsidian/60 border border-line'
+                          : isReqExpired || (b.cancellation_reason || b.cancellationReason || '').toLowerCase().includes('sla')
+                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                            : b.status === 'declined' || (b.cancellation_reason || b.cancellationReason || '').toLowerCase().includes('creator')
+                              ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                              : 'bg-bone text-obsidian/60 border border-line'
                       )}>
-                        {isExpired || (b.cancellation_reason || b.cancellationReason || '').toLowerCase().includes('sla')
-                          ? 'Expired (24h SLA)'
-                          : b.status === 'declined' || (b.cancellation_reason || b.cancellationReason || '').toLowerCase().includes('creator')
-                            ? 'Declined by you'
-                            : 'Cancelled by client'}
+                        {isConfExpired || (b.cancellation_reason || b.cancellationReason || '').toLowerCase().includes('wrap-up')
+                          ? 'Expired (48h wrap-up)'
+                          : isReqExpired || (b.cancellation_reason || b.cancellationReason || '').toLowerCase().includes('sla')
+                            ? 'Expired (24h SLA)'
+                            : b.status === 'declined' || (b.cancellation_reason || b.cancellationReason || '').toLowerCase().includes('creator')
+                              ? 'Declined by you'
+                              : 'Cancelled by client'}
                       </span>
                       <span className="text-[11px] text-obsidian/50 font-mono italic truncate max-w-[200px]">
-                        {isExpired || (b.cancellation_reason || b.cancellationReason || '').toLowerCase().includes('sla')
-                          ? '24-hour response window lapsed'
-                          : (b.cancellation_reason || b.cancellationReason || '')}
+                        {isConfExpired || (b.cancellation_reason || b.cancellationReason || '').toLowerCase().includes('wrap-up')
+                          ? '48h wrap-up window lapsed'
+                          : isReqExpired || (b.cancellation_reason || b.cancellationReason || '').toLowerCase().includes('sla')
+                            ? '24-hour response window lapsed'
+                            : (b.cancellation_reason || b.cancellationReason || '')}
                       </span>
                     </div>
                   )}

@@ -7,7 +7,7 @@ import { useAppStore } from '@/store/appStore'
 import { useShallow } from 'zustand/shallow'
 import { useMyBookings } from '@/hooks/useBookings'
 import { inr } from '@/data/constants'
-import { cn, formatIsoSlot12h, formatFallbackSession12h, isBookingRequestExpired } from '@/utils'
+import { cn, formatIsoSlot12h, formatFallbackSession12h, isBookingRequestExpired, isConfirmedBookingExpired } from '@/utils'
 
 type BookingFilterTab = 'all' | 'active' | 'completed' | 'cancelled'
 
@@ -86,23 +86,29 @@ export function BookingsScreen() {
   const counts = useMemo(() => ({
     all: bookings.length,
     active: bookings.filter((b: any) =>
-      (b.status === 'confirmed' || b.status === 'pending' || b.status === 'pending_approval' || b.status === 'in_progress') && !isBookingRequestExpired(b)
+      (b.status === 'confirmed' || b.status === 'pending' || b.status === 'pending_approval' || b.status === 'in_progress') &&
+      !isBookingRequestExpired(b) && !isConfirmedBookingExpired(b)
     ).length,
     completed: bookings.filter((b: any) => b.status === 'completed').length,
-    cancelled: bookings.filter((b: any) => b.status === 'cancelled' || b.status === 'declined' || isBookingRequestExpired(b)).length,
+    cancelled: bookings.filter((b: any) =>
+      b.status === 'cancelled' || b.status === 'declined' || isBookingRequestExpired(b) || isConfirmedBookingExpired(b)
+    ).length,
   }), [bookings])
 
   const filteredBookings = useMemo(() => {
     if (filterTab === 'active') {
       return bookings.filter((b: any) =>
-        (b.status === 'confirmed' || b.status === 'pending' || b.status === 'pending_approval' || b.status === 'in_progress') && !isBookingRequestExpired(b)
+        (b.status === 'confirmed' || b.status === 'pending' || b.status === 'pending_approval' || b.status === 'in_progress') &&
+        !isBookingRequestExpired(b) && !isConfirmedBookingExpired(b)
       )
     }
     if (filterTab === 'completed') {
       return bookings.filter((b: any) => b.status === 'completed')
     }
     if (filterTab === 'cancelled') {
-      return bookings.filter((b: any) => b.status === 'cancelled' || b.status === 'declined' || isBookingRequestExpired(b))
+      return bookings.filter((b: any) =>
+        b.status === 'cancelled' || b.status === 'declined' || isBookingRequestExpired(b) || isConfirmedBookingExpired(b)
+      )
     }
     return bookings
   }, [bookings, filterTab])

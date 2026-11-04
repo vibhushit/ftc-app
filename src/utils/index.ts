@@ -226,4 +226,49 @@ export function isBookingRequestExpired(booking: {
   return false
 }
 
+/**
+ * Checks whether a confirmed booking's 48-hour wrap-up window has passed since scheduled session end.
+ */
+export function isConfirmedBookingExpired(booking: {
+  status?: string | null
+  end_time?: string | null
+  endTime?: string | null
+  start_time?: string | null
+  startTime?: string | null
+  session_date?: string | null
+  sessionDate?: string | null
+} | null | undefined): boolean {
+  if (!booking) return false
+  const status = booking.status
+  if (status !== 'confirmed' && status !== 'in_progress' && status !== 'upcoming') return false
+
+  const end = booking.end_time || booking.endTime
+  if (end) {
+    const endTime = new Date(end).getTime()
+    if (!isNaN(endTime)) {
+      // 48 hours after end_time
+      return Date.now() > endTime + 48 * 60 * 60 * 1000
+    }
+  }
+
+  const start = booking.start_time || booking.startTime
+  if (start) {
+    const startTime = new Date(start).getTime()
+    if (!isNaN(startTime)) {
+      // Fallback: 50 hours after start_time (assuming 2h session + 48h grace)
+      return Date.now() > startTime + 50 * 60 * 60 * 1000
+    }
+  }
+
+  const sessDate = booking.session_date || booking.sessionDate
+  if (sessDate) {
+    const dateTime = new Date(sessDate).getTime()
+    if (!isNaN(dateTime)) {
+      return Date.now() > dateTime + 72 * 60 * 60 * 1000
+    }
+  }
+
+  return false
+}
+
 
