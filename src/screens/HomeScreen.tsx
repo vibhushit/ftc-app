@@ -109,8 +109,9 @@ export function HomeScreen() {
                   <img src={lastBooking.clientAvatar} className="w-10 h-10 rounded-full object-cover border-2 border-paper" alt="" />
                   <div className="flex-1 flex gap-2">
                     <button
-                      onClick={() => { dispatch({ type: 'OPEN_CLIENT_CHAT', client: { name: lastBooking.clientName, avatar: lastBooking.clientAvatar } }) }}
-                      className="tap flex-1 py-2.5 rounded-xl bg-paper/10 text-paper text-[12px] font-medium flex items-center justify-center gap-1 hover:bg-paper/15 transition cursor-pointer"
+                      disabled
+                      title="Messaging coming soon"
+                      className="tap flex-1 py-2.5 rounded-xl bg-paper/5 text-paper/30 text-[12px] font-medium flex items-center justify-center gap-1 opacity-40 cursor-not-allowed"
                     >
                       <MessageCircle size={13} /> Message
                     </button>

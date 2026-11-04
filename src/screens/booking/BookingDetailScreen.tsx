@@ -9,7 +9,7 @@ import { SimpleHeader } from '@/components/ui/SimpleHeader'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { inr } from '@/data/constants'
-import { cn, formatIsoSlot12h, formatFallbackSession12h } from '@/utils'
+import { cn, formatIsoSlot12h, formatFallbackSession12h, isBookingRequestExpired } from '@/utils'
 import { apiClient } from '@/services/apiClient'
 import { useToast } from '@/components/ui/ToastNotification'
 import { useBooking, useRealtimeBooking } from '@/hooks/useBookings'
@@ -167,6 +167,7 @@ export function BookingDetailScreen() {
   const [remaining, setRemaining] = useState<{ expired: boolean; hours: number; minutes: number } | null>(() => {
     return isPending ? calcRemainingSla(createdAtStr, expiresAtStr) : null
   })
+  const isExpired = !!remaining?.expired || isBookingRequestExpired(b)
 
   // Live countdown ticker for cooldown
   useEffect(() => {
@@ -338,6 +339,10 @@ export function BookingDetailScreen() {
   const [processingAction, setProcessingAction] = useState(false)
 
   const handleAcceptRequest = async () => {
+    if (isExpired) {
+      showError('This booking request has expired because the 24-hour response window has passed.')
+      return
+    }
     setProcessingAction(true)
     try {
       await apiClient.acceptBooking(bookingId)
@@ -440,10 +445,10 @@ export function BookingDetailScreen() {
                     </span>
                   </div>
                   <p className="mt-1 text-[12px] text-amber-900/80 leading-relaxed">
-                    {remaining.expired
+                    {isExpired
                       ? isCreatorViewing
-                        ? 'The 24-hour response window has ended. Please respond or reach out to support.'
-                        : `The 24-hour response window for ${creatorName} has ended. You can cancel this request below to release your escrow advance.`
+                        ? 'The 24-hour response window has lapsed without confirmation. This booking request has expired and can no longer be accepted.'
+                        : `The 24-hour response window for ${creatorName} has ended. Your escrow advance deposit is released back to your account.`
                       : isCreatorViewing
                         ? 'You have 24 hours from booking to accept or decline this request in your pipeline.'
                         : `${creatorName} has 24 hours to confirm your booking. If unconfirmed within this window, your advance is automatically refunded.`}
@@ -754,7 +759,7 @@ export function BookingDetailScreen() {
             {/* Primary Action Buttons */}
             <div className="space-y-2.5 mb-6">
               {/* Creator Accept / Decline Actions for Pending Requests */}
-              {isCreatorViewing && (status === 'pending' || status === 'pending_approval') && (
+              {isCreatorViewing && (status === 'pending' || status === 'pending_approval') && !isExpired && (
                 <div className="space-y-2 mb-1">
                   <button
                     disabled={processingAction}
@@ -780,13 +785,21 @@ export function BookingDetailScreen() {
                 </div>
               )}
 
+              {/* Notice when viewing an expired request */}
+              {isCreatorViewing && (status === 'pending' || status === 'pending_approval') && isExpired && (
+                <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-[12.5px] flex items-center gap-2.5 mb-2">
+                  <AlertCircle size={16} className="text-amber-700 shrink-0" />
+                  <span>This booking request expired because the 24-hour confirmation window lapsed.</span>
+                </div>
+              )}
+
               <button
                 disabled
-                className="tap w-full py-3.5 rounded-2xl bg-paper border border-line text-obsidian/40 font-semibold text-[13.5px] flex items-center justify-center gap-2 cursor-not-allowed opacity-60"
-                title="Messaging is coming soon"
+                className="tap w-full py-3.5 rounded-2xl bg-paper border border-line text-obsidian/40 font-semibold text-[13.5px] flex items-center justify-center gap-2 cursor-not-allowed opacity-40"
+                title="Messaging coming soon"
               >
                 <MessageCircle size={16} />
-                <span>Message (Coming soon)</span>
+                <span>Message</span>
               </button>
 
               {/* Cancel Booking Action (Client) */}

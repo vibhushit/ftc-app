@@ -40,6 +40,7 @@ function apiCreatorToWithUser(fromApi: any): CreatorWithUser {
     starting_at: fromApi.starting_at,
     avg_rating: fromApi.rating,
     review_count: fromApi.review_count,
+    completed_jobs: fromApi.completed_jobs ?? 0,
     bio: fromApi.bio || '',
     portfolio_urls: fromApi.portfolio_urls || [],
     tier: 'Rising',
@@ -55,6 +56,9 @@ function apiCreatorToWithUser(fromApi: any): CreatorWithUser {
     trust_score: 85,
     available_today: true,
     travel_mode: 'both',
+    ig_handle: fromApi.ig_handle || null,
+    yt_handle: fromApi.yt_handle || null,
+    website_url: fromApi.website_url || null,
     users: {
       name: fromApi.name,
       avatar_url: fromApi.avatar,

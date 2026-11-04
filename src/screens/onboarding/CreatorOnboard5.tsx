@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Instagram, Film, Globe, Briefcase, Link2, AtSign, Check, AlertCircle } from 'lucide-react'
+import { Instagram, Film, Globe, AtSign, Check, AlertCircle } from 'lucide-react'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { cn, getProfileUrl, normalizeHandle } from '@/utils'
@@ -8,26 +8,52 @@ import * as authApi from '@/lib/api/auth'
 import { apiClient } from '@/services/apiClient'
 import { OnboardShell } from './OnboardShell'
 
+function validateUrlInput(val: string, domain?: string, required = false): { valid: boolean; normalized: string | null; error?: string } {
+  const trimmed = val.trim()
+  if (!trimmed) {
+    if (required) return { valid: false, normalized: null, error: 'Instagram profile URL is required' }
+    return { valid: true, normalized: null }
+  }
+  if (trimmed.length > 100) {
+    return { valid: false, normalized: null, error: 'URL must be 100 characters or less' }
+  }
+  if (!/^https?:\/\//i.test(trimmed) && !/^www\./i.test(trimmed)) {
+    return { valid: false, normalized: null, error: 'URL must start with https:// or www.' }
+  }
+
+  let full = trimmed
+  if (/^www\./i.test(full)) {
+    full = 'https://' + full
+  }
+
+  try {
+    const parsed = new URL(full)
+    if (!parsed.hostname || !parsed.hostname.includes('.')) {
+      return { valid: false, normalized: null, error: 'Please enter a valid web URL' }
+    }
+    if (domain && !parsed.hostname.toLowerCase().includes(domain.toLowerCase())) {
+      return { valid: false, normalized: null, error: `Must be a valid ${domain} link` }
+    }
+    if (domain && (parsed.pathname === '/' || parsed.pathname === '')) {
+      return { valid: false, normalized: null, error: `Please include your profile handle or channel path` }
+    }
+    return { valid: true, normalized: full }
+  } catch {
+    return { valid: false, normalized: null, error: 'Invalid URL format' }
+  }
+}
+
 export function CreatorOnboard5() {
   const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
-  const [soc, setSoc] = useState({ ig: '', yt: '', be: '', li: '', web: '' })
+  const [soc, setSoc] = useState({ ig: '', yt: '', web: '' })
   const [upi, setUpi] = useState('')
   const [termsAgreed, setTermsAgreed] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
-  // Strict Instagram sanitization & validation (alphanumeric, dots, underscores, max 30)
-  const sanitizeIg = (val: string) => {
-    return val
-      .replace(/^https?:\/\/(www\.)?instagram\.com\//i, '')
-      .replace(/^@/, '')
-      .split(/[/?#]/)[0]
-      .trim()
-  }
-
-  const cleanIg = sanitizeIg(soc.ig)
-  const IG_REGEX = /^[a-zA-Z0-9._]{1,30}$/
-  const isValidIg = cleanIg.length >= 1 && IG_REGEX.test(cleanIg)
+  const igStatus = validateUrlInput(soc.ig, 'instagram.com', true)
+  const ytStatus = validateUrlInput(soc.yt, 'youtube.com', false)
+  const webStatus = validateUrlInput(soc.web, undefined, false)
 
   // UPI VPA Validation: name@bankhandle (e.g. mobile@paytm or name@okaxis)
   const cleanUpi = upi.trim().toLowerCase()
@@ -67,9 +93,9 @@ export function CreatorOnboard5() {
         languages: (ob.languages as string[]) ?? ['Hindi', 'English'],
         travel_mode: (ob.travelMode as string) ?? 'studio',
         upi_id: cleanUpi,
-        instagram_handle: cleanIg,
-        youtube_handle: soc.yt ? soc.yt.trim() : null,
-        website_url: soc.web ? soc.web.trim() : null,
+        instagram_handle: igStatus.normalized!,
+        youtube_handle: ytStatus.normalized,
+        website_url: webStatus.normalized,
         portfolio_urls: ob.portfolio ?? [],
         packages,
       })
@@ -98,14 +124,12 @@ export function CreatorOnboard5() {
     }
   }
 
-  type SocKey = keyof typeof soc
+  type SocKey = 'ig' | 'yt' | 'web'
 
   const SOCIALS: { k: SocKey; icon: typeof Instagram; label: string; ph: string; req: boolean }[] = [
-    { k: 'ig',  icon: Instagram, label: 'Instagram',       ph: 'username or @username', req: true },
-    { k: 'yt',  icon: Film,      label: 'YouTube',         ph: 'youtube.com/@channel', req: false },
-    { k: 'be',  icon: Globe,     label: 'Behance / Dribbble', ph: 'behance.net/you', req: false },
-    { k: 'li',  icon: Briefcase, label: 'LinkedIn',        ph: 'linkedin.com/in/you', req: false },
-    { k: 'web', icon: Link2,     label: 'Website',         ph: 'yoursite.com',      req: false },
+    { k: 'ig',  icon: Instagram, label: 'Instagram Profile URL', ph: 'https://instagram.com/yourhandle or www...', req: true },
+    { k: 'yt',  icon: Film,      label: 'YouTube Channel URL',   ph: 'https://youtube.com/@channel or www...',    req: false },
+    { k: 'web', icon: Globe,     label: 'Website / Portfolio',    ph: 'https://yourportfolio.com or www...',       req: false },
   ]
 
   return (
@@ -115,7 +139,7 @@ export function CreatorOnboard5() {
       sub="Link your social profile and specify your UPI ID for escrow payouts."
       onBack={() => dispatch({ type: 'GO', screen: 'creatorOnboard3' })}
       cta={submitting ? 'Publishing profile…' : 'Publish Profile'}
-      ctaDisabled={!isValidIg || !isValidUpi || !termsAgreed || submitting}
+      ctaDisabled={!igStatus.valid || !ytStatus.valid || !webStatus.valid || !isValidUpi || !termsAgreed || submitting}
       ctaAction={submit}
     >
       <div className="space-y-5">
@@ -170,52 +194,51 @@ export function CreatorOnboard5() {
           <div className="text-[11px] font-mono uppercase tracking-wider text-obsidian/50 mb-2">Connected Accounts</div>
           <div className="space-y-2">
             {SOCIALS.map(s => {
-              const isIg = s.k === 'ig'
-              const filled = isIg ? isValidIg : soc[s.k].trim().length > 0
-              const hasError = isIg && soc.ig.trim().length > 0 && !isValidIg
+              const val = soc[s.k]
+              const status = s.k === 'ig' ? igStatus : s.k === 'yt' ? ytStatus : webStatus
+              const isFilled = val.trim().length > 0 && status.valid
+              const hasError = val.trim().length > 0 && !status.valid
 
               return (
                 <div
                   key={s.k}
                   className={cn(
-                    'rounded-2xl border-2 transition p-3',
-                    filled ? 'border-iris bg-iris-tint/60' : hasError ? 'border-danger/60 bg-danger/5' : 'border-line bg-paper'
+                    'rounded-2xl border-2 transition p-3.5',
+                    isFilled ? 'border-iris bg-iris-tint/60' : hasError ? 'border-danger/60 bg-danger/5' : 'border-line bg-paper'
                   )}
                 >
                   <div className="flex items-center gap-2.5">
                     <div className={cn(
                       'w-9 h-9 rounded-xl grid place-items-center shrink-0 transition',
-                      filled ? 'bg-iris text-paper' : 'bg-bone text-obsidian/60 border border-line'
+                      isFilled ? 'bg-iris text-paper' : 'bg-bone text-obsidian/60 border border-line'
                     )}>
                       <s.icon size={16} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[12px] font-semibold">{s.label}</span>
-                        {s.req ? (
-                          <span className="px-1.5 py-0.5 rounded text-[8px] font-mono font-semibold bg-acid text-obsidian">REQUIRED</span>
-                        ) : (
-                          <span className="text-[9px] font-mono text-obsidian/40">optional</span>
-                        )}
-                        {filled && <Check size={12} className="text-success" strokeWidth={3} />}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[12px] font-semibold text-obsidian">{s.label}</span>
+                          {s.req ? (
+                            <span className="px-1.5 py-0.5 rounded text-[8px] font-mono font-semibold bg-acid text-obsidian">REQUIRED</span>
+                          ) : (
+                            <span className="text-[9px] font-mono text-obsidian/40">optional</span>
+                          )}
+                        </div>
+                        {isFilled && <span className="flex items-center gap-1 text-[11px] text-success font-semibold"><Check size={12} strokeWidth={3} /> Valid</span>}
                       </div>
-                      <div className="flex items-center gap-1 mt-0.5">
-                        {isIg && <span className="text-[13px] text-obsidian/40 font-mono select-none">@</span>}
-                        <input
-                          value={isIg ? cleanIg : soc[s.k]}
-                          onChange={e => {
-                            const val = isIg ? sanitizeIg(e.target.value) : e.target.value
-                            setSoc({ ...soc, [s.k]: val })
-                          }}
-                          placeholder={s.ph}
-                          className="w-full bg-transparent text-[13px] outline-none font-sans"
-                        />
-                      </div>
+                      <input
+                        value={val}
+                        maxLength={100}
+                        onChange={e => setSoc({ ...soc, [s.k]: e.target.value })}
+                        placeholder={s.ph}
+                        className="w-full bg-transparent text-[13px] outline-none font-sans text-obsidian placeholder:text-obsidian/30 mt-1"
+                      />
                     </div>
                   </div>
                   {hasError && (
-                    <div className="mt-1.5 pl-11 text-[11px] text-danger">
-                      Valid letters, numbers, periods, and underscores only (max 30 characters).
+                    <div className="mt-1.5 pl-11 text-[11px] text-danger flex items-center gap-1">
+                      <AlertCircle size={11} className="shrink-0" />
+                      <span>{status.error}</span>
                     </div>
                   )}
                 </div>

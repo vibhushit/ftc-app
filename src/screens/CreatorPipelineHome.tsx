@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Clock, Bell, Check, X,
   AlertCircle, KeyRound, ShieldAlert, LifeBuoy, Loader2,
@@ -8,7 +8,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useAppStore } from '@/store/appStore'
 import { inr } from '@/data/constants'
 import { CRM_TABS, CRM_EMPTY } from '@/data/constants'
-import { cn, formatIsoSlot12h, formatFallbackSession12h } from '@/utils'
+import { cn, formatIsoSlot12h, formatFallbackSession12h, isBookingRequestExpired } from '@/utils'
 import { apiClient } from '@/services/apiClient'
 import { useToast } from '@/components/ui/ToastNotification'
 import { useMyJobs } from '@/hooks/useBookings'
@@ -59,10 +59,25 @@ export function CreatorPipelineHome() {
   // Live Supabase jobs merged with fallback
   const allJobs: any[] = (dbJobs && dbJobs.length > 0) ? dbJobs : creatorBookings
 
-  const pendingRequests = allJobs.filter((b: any) => b.status === 'requested' || b.status === 'pending_approval' || b.status === 'pending')
-  const confirmedJobs = allJobs.filter((b: any) => b.status === 'confirmed' || b.status === 'upcoming' || b.status === 'in_progress')
+  useEffect(() => {
+    // Proactively sweep expired bookings to synchronize database & Supabase
+    apiClient.expirePendingBookings().then(res => {
+      if (res && res.swept_count > 0) {
+        qc.invalidateQueries({ queryKey: ['bookings'] })
+      }
+    }).catch(() => {})
+  }, [qc])
+
+  const pendingRequests = allJobs.filter((b: any) =>
+    (b.status === 'requested' || b.status === 'pending_approval' || b.status === 'pending') && !isBookingRequestExpired(b)
+  )
+  const confirmedJobs = allJobs.filter((b: any) =>
+    b.status === 'confirmed' || b.status === 'upcoming' || b.status === 'in_progress'
+  )
   const completedJobs = allJobs.filter((b: any) => b.status === 'completed')
-  const cancelledJobs = allJobs.filter((b: any) => b.status === 'cancelled' || b.status === 'declined')
+  const cancelledJobs = allJobs.filter((b: any) =>
+    b.status === 'cancelled' || b.status === 'declined' || isBookingRequestExpired(b)
+  )
 
   const jobs = tab === 'requested' || tab === 'pending_approval'
     ? pendingRequests
@@ -73,8 +88,12 @@ export function CreatorPipelineHome() {
         : completedJobs
 
 
-  const handleAccept = async (e: React.MouseEvent, bookingId: string) => {
+  const handleAccept = async (e: React.MouseEvent, bookingId: string, bookingObj?: any) => {
     e.stopPropagation()
+    if (bookingObj && isBookingRequestExpired(bookingObj)) {
+      showError('This booking request has expired because the 24-hour response window has passed.')
+      return
+    }
     setProcessingId(bookingId)
     try {
       await apiClient.acceptBooking(bookingId)
@@ -207,10 +226,11 @@ export function CreatorPipelineHome() {
         ) : (
           <div className="space-y-3 md:space-y-0 md:grid md:grid-cols-2 md:gap-3">
             {jobs.map(b => {
-              const isPending = b.status === 'pending_approval' || b.status === 'pending'
+              const isExpired = isBookingRequestExpired(b)
+              const isPending = (b.status === 'pending_approval' || b.status === 'pending' || b.status === 'requested') && !isExpired
               const isConfirmedOrActive = b.status === 'confirmed' || b.status === 'upcoming' || b.status === 'in_progress'
               const isCompleted = b.status === 'completed'
-              const isCancelled = b.status === 'cancelled' || b.status === 'declined'
+              const isCancelled = b.status === 'cancelled' || b.status === 'declined' || isExpired
 
               const clientName = b.consumer?.name || b.clientName || 'Client'
               const clientAvatar = b.consumer?.avatar_url || b.clientAvatar || ''
@@ -295,7 +315,7 @@ export function CreatorPipelineHome() {
                         </button>
                         <button
                           disabled={processingId === b.id}
-                          onClick={e => handleAccept(e, b.id)}
+                          onClick={e => handleAccept(e, b.id, b)}
                           className="tap py-2 rounded-xl bg-obsidian text-paper hover:bg-obsidian/90 text-[12px] font-semibold flex items-center justify-center gap-1.5 shadow-xs transition disabled:opacity-50"
                         >
                           <Check size={14} className="text-acid" />
@@ -329,23 +349,23 @@ export function CreatorPipelineHome() {
                     <div className="mt-3 pt-3 border-t border-line flex items-center justify-between gap-2">
                       <span className={cn(
                         'px-2 py-0.5 rounded-md text-[11px] font-mono font-semibold',
-                        b.status === 'declined' || (b.cancellation_reason || b.cancellationReason || '').toLowerCase().includes('creator')
-                          ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                          : (b.cancellation_reason || b.cancellationReason || '').toLowerCase().includes('sla')
-                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                        isExpired || (b.cancellation_reason || b.cancellationReason || '').toLowerCase().includes('sla')
+                          ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                          : b.status === 'declined' || (b.cancellation_reason || b.cancellationReason || '').toLowerCase().includes('creator')
+                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
                             : 'bg-bone text-obsidian/60 border border-line'
                       )}>
-                        {b.status === 'declined' || (b.cancellation_reason || b.cancellationReason || '').toLowerCase().includes('creator')
-                          ? 'Declined by you'
-                          : (b.cancellation_reason || b.cancellationReason || '').toLowerCase().includes('sla')
-                            ? 'Expired (24h SLA)'
+                        {isExpired || (b.cancellation_reason || b.cancellationReason || '').toLowerCase().includes('sla')
+                          ? 'Expired (24h SLA)'
+                          : b.status === 'declined' || (b.cancellation_reason || b.cancellationReason || '').toLowerCase().includes('creator')
+                            ? 'Declined by you'
                             : 'Cancelled by client'}
                       </span>
-                      {(b.cancellation_reason || b.cancellationReason) && (
-                        <span className="text-[11px] text-obsidian/50 font-mono italic truncate max-w-[200px]">
-                          {b.cancellation_reason || b.cancellationReason}
-                        </span>
-                      )}
+                      <span className="text-[11px] text-obsidian/50 font-mono italic truncate max-w-[200px]">
+                        {isExpired || (b.cancellation_reason || b.cancellationReason || '').toLowerCase().includes('sla')
+                          ? '24-hour response window lapsed'
+                          : (b.cancellation_reason || b.cancellationReason || '')}
+                      </span>
                     </div>
                   )}
                 </div>

@@ -201,6 +201,28 @@ async fn get_creators(
     Json(vec![])
 }
 
+#[derive(sqlx::FromRow)]
+struct CreatorDetailRow {
+    id: String,
+    name: String,
+    handle: String,
+    avatar: String,
+    discipline: String,
+    sub_skills: Vec<String>,
+    city: String,
+    area: String,
+    starting_at: i32,
+    avg_rating: f32,
+    review_count: i32,
+    completed_jobs: i32,
+    bio: String,
+    is_verified: bool,
+    portfolio_urls: Vec<String>,
+    ig_handle: Option<String>,
+    yt_handle: Option<String>,
+    website_url: Option<String>,
+}
+
 async fn get_creator_by_id(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -210,20 +232,24 @@ async fn get_creator_by_id(
     if let Some(ref pool) = state.pool {
         let query_str = r#"
             SELECT
-                u.id::text,
+                u.id::text AS id,
                 u.name,
                 TRIM(LEADING '@' FROM cp.handle) AS handle,
-                COALESCE(u.avatar_url, ''),
+                COALESCE(u.avatar_url, '') AS avatar,
                 cp.discipline,
                 cp.sub_skills,
                 cp.city,
                 cp.area,
                 cp.starting_at,
-                COALESCE(cp.avg_rating::float4, 5.0),
+                COALESCE(cp.avg_rating::float4, 5.0) AS avg_rating,
                 cp.review_count,
+                COALESCE(cp.completed_jobs, 0)::int4 AS completed_jobs,
                 cp.bio,
                 u.is_verified,
-                cp.portfolio_urls
+                cp.portfolio_urls,
+                cp.ig_handle,
+                cp.yt_handle,
+                cp.website_url
             FROM creator_profiles cp
             JOIN users u ON u.id = cp.id
             WHERE u.id::text = $1 
@@ -231,14 +257,11 @@ async fn get_creator_by_id(
             LIMIT 1
         "#;
 
-        if let Ok(row) = sqlx::query_as::<_, (
-            String, String, String, String, String, Vec<String>,
-            String, String, i32, f32, i32, String, bool, Vec<String>
-        )>(query_str)
+        if let Ok(row) = sqlx::query_as::<_, CreatorDetailRow>(query_str)
         .bind(&id)
         .fetch_one(pool)
         .await {
-            let creator_uuid = uuid::Uuid::parse_str(&row.0).unwrap_or_default();
+            let creator_uuid = uuid::Uuid::parse_str(&row.id).unwrap_or_default();
 
             // Query active services from database
             let services = sqlx::query_as::<_, (
@@ -280,20 +303,24 @@ async fn get_creator_by_id(
             })).collect();
 
             return Ok(Json(json!({
-                "id": row.0,
-                "name": row.1,
-                "handle": row.2,
-                "avatar": row.3,
-                "discipline": row.4,
-                "sub_skills": row.5,
-                "city": row.6,
-                "locality": row.7,
-                "starting_at": row.8,
-                "rating": row.9,
-                "review_count": row.10,
-                "bio": row.11,
-                "verified": row.12,
-                "portfolio_urls": row.13,
+                "id": row.id,
+                "name": row.name,
+                "handle": row.handle,
+                "avatar": row.avatar,
+                "discipline": row.discipline,
+                "sub_skills": row.sub_skills,
+                "city": row.city,
+                "locality": row.area,
+                "starting_at": row.starting_at,
+                "rating": row.avg_rating,
+                "review_count": row.review_count,
+                "completed_jobs": row.completed_jobs,
+                "bio": row.bio,
+                "verified": row.is_verified,
+                "portfolio_urls": row.portfolio_urls,
+                "ig_handle": row.ig_handle.unwrap_or_default(),
+                "yt_handle": row.yt_handle.unwrap_or_default(),
+                "website_url": row.website_url.unwrap_or_default(),
                 "services": services_json,
             })));
         }

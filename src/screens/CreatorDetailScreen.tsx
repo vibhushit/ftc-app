@@ -1,16 +1,17 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
-  ArrowLeft, Heart, Share2, MapPin, BadgeCheck, Shield, Check, Star, Clock,
-  ChevronRight, ChevronLeft, MessageCircle, HelpCircle, Volume2, Coffee,
-  ArrowRight, CalendarCheck, Instagram, Film, Briefcase, Globe, Link2,
+  ArrowLeft, Heart, Share2, MapPin, BadgeCheck, Check, Star, Clock,
+  ChevronRight, ChevronLeft, MessageCircle, Volume2,
+  ArrowRight, CalendarCheck, Instagram, Film, Briefcase, Globe,
   Loader2, Sparkles, Lock, AlertCircle, UserX
 } from 'lucide-react'
 import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { apiClient } from '@/services/apiClient'
-import { pic, inr } from '@/data/constants'
-import { cn, shareOrCopy, formatSlotRange12h, getProfileUrl } from '@/utils'
+import { inr } from '@/data/constants'
+import { cn, shareOrCopy, formatSlotRange12h, getProfileUrl, normalizeSocialUrl } from '@/utils'
 import { useCreator, useCreatorServices, useMonthAvailability } from '@/hooks/useCreators'
 import type { CreatorWithUser } from '@/lib/database.types'
 import type { Tier, Verification, Gender, TravelMode, TravelRadius, Creator, BookingDraft } from '@/types'
@@ -27,7 +28,7 @@ function dbToCreatorFull(db: CreatorWithUser): Creator {
     avatar:       db.users.avatar_url || '',
     portfolio:    db.portfolio_urls?.length
                     ? db.portfolio_urls
-                    : [pic(db.users.name + '-1', 1200, 1500), pic(db.users.name + '-2', 1200, 1200)],
+                    : (db.users.avatar_url ? [db.users.avatar_url] : []),
     rating:       Number(db.avg_rating),
     reviews:      db.review_count,
     startingAt:   db.starting_at,
@@ -48,7 +49,9 @@ function dbToCreatorFull(db: CreatorWithUser): Creator {
     trustScore:   db.trust_score,
     availableToday: db.available_today,
     travelMode:   db.travel_mode as TravelMode,
-    oneOnOne:     { name: '1:1 Call', mins: 30, price: 999, type: 'Video call', today: false },
+    igHandle:     db.ig_handle,
+    ytHandle:     db.yt_handle,
+    websiteUrl:   db.website_url,
     lat:          db.lat ?? undefined,
     lng:          db.lng ?? undefined,
   }
@@ -65,6 +68,23 @@ function Stat({ value, label, unit }: { value: string | number; label: string; u
 
 function depositInfo(price: number) {
   return price <= 10000 ? { full: true, pct: 100, advance: price } : { full: false, pct: 30, advance: Math.round(price * 0.3) }
+}
+
+const slideVariants = {
+  enter: (direction: number) => ({
+    x: direction > 0 ? '100%' : direction < 0 ? '-100%' : 0,
+    opacity: 0,
+  }),
+  center: {
+    zIndex: 1,
+    x: 0,
+    opacity: 1,
+  },
+  exit: (direction: number) => ({
+    zIndex: 0,
+    x: direction < 0 ? '100%' : '-100%',
+    opacity: 0,
+  }),
 }
 
 export function CreatorDetailScreen() {
@@ -95,7 +115,9 @@ export function CreatorDetailScreen() {
       city: ob.city || state.user.city || 'Delhi',
       area: ob.area || '',
       avatar: (state.user as any).avatar || '',
-      portfolio: ob.portfolio?.length ? ob.portfolio : [pic('my-1', 1200, 1500), pic('my-2', 1200, 1200)],
+      portfolio: ob.portfolio?.length
+        ? ob.portfolio
+        : ((state.user as any).avatar ? [(state.user as any).avatar] : []),
       rating: 5.0,
       reviews: 0,
       startingAt: ob.startingPrice || 8000,
@@ -116,7 +138,9 @@ export function CreatorDetailScreen() {
       trustScore: 80,
       availableToday: true,
       travelMode: 'both',
-      oneOnOne: { name: '1:1 Call', mins: 30, price: 999, type: 'Video call', today: false },
+      igHandle: (ob as any)?.ig || null,
+      ytHandle: (ob as any)?.yt || null,
+      websiteUrl: (ob as any)?.web || null,
     }
   }
 
@@ -126,7 +150,47 @@ export function CreatorDetailScreen() {
   const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000)
   const tomorrowStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`
 
-  const [portfolioIdx, setPortfolioIdx] = useState(0)
+  const [[portfolioIdx, direction], setSlideState] = useState<[number, number]>([0, 0])
+  const heroRef = useRef<HTMLDivElement>(null)
+
+  const portfolio = useMemo(() => c?.portfolio || [], [c?.portfolio])
+  const activePhotoIdx = portfolio.length > 0 ? Math.min(portfolioIdx, portfolio.length - 1) : 0
+
+  const validSocials = useMemo(() => {
+    if (!c) return []
+    const links: { icon: typeof Instagram; label: string; url: string }[] = []
+    const igUrl = normalizeSocialUrl(c.igHandle, 'instagram.com')
+    if (igUrl) links.push({ icon: Instagram, label: 'Instagram', url: igUrl })
+
+    const ytUrl = normalizeSocialUrl(c.ytHandle, 'youtube.com')
+    if (ytUrl) links.push({ icon: Film, label: 'YouTube', url: ytUrl })
+
+    const webUrl = normalizeSocialUrl(c.websiteUrl)
+    if (webUrl) links.push({ icon: Globe, label: 'Website', url: webUrl })
+
+    return links
+  }, [c?.igHandle, c?.ytHandle, c?.websiteUrl])
+
+  const paginate = (newDirection: number) => {
+    if (portfolio.length <= 1) return
+    setSlideState(([curr]) => {
+      const next = curr + newDirection
+      if (next < 0 || next >= portfolio.length) return [curr, 0]
+      return [next, newDirection]
+    })
+  }
+
+  const goToSlide = (idx: number) => {
+    if (idx < 0 || idx >= portfolio.length) return
+    setSlideState(([curr]) => [idx, idx > curr ? 1 : -1])
+  }
+
+  useEffect(() => {
+    if (portfolioIdx >= portfolio.length && portfolio.length > 0) {
+      setSlideState([0, 0])
+    }
+  }, [portfolio.length, portfolioIdx])
+
   const [selectedPkg, setSelectedPkg] = useState(0)
   const [currentYear, setCurrentYear] = useState(tomorrow.getFullYear())
   const [currentMonthNum, setCurrentMonthNum] = useState(tomorrow.getMonth() + 1)
@@ -335,42 +399,36 @@ export function CreatorDetailScreen() {
           </p>
         </div>
       ) : (
-        <>
-          <div className="flex items-start gap-1.5 mb-3 text-[11px] text-obsidian/55 leading-snug">
-            <HelpCircle size={13} className="text-iris shrink-0 mt-0.5" />
-            <span>FTC Secure escrow — quick gigs paid in full; bigger projects take a deposit with balance due on delivery.</span>
-          </div>
-          <div className="space-y-2">
-            {packages.map((p, i) => (
-              <button key={p.id ?? i} onClick={() => setSelectedPkg(i)} className={cn('tap w-full text-left p-4 rounded-2xl border-2 transition-colors', selectedPkg === i ? 'border-obsidian bg-obsidian text-paper' : 'border-line bg-paper')}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-display text-lg">{p.name}</span>
-                      {i === 1 && <span className="px-1.5 py-0.5 rounded bg-acid text-obsidian text-[9px] font-mono uppercase">Popular</span>}
-                    </div>
-                    <div className={cn('text-[11px] mt-0.5', selectedPkg === i ? 'text-paper/60' : 'text-obsidian/60')}>
-                      {p.duration} · {p.revisions} revision{p.revisions > 1 ? 's' : ''} · {p.delivery}
-                    </div>
+        <div className="space-y-2 mt-2">
+          {packages.map((p, i) => (
+            <button key={p.id ?? i} onClick={() => setSelectedPkg(i)} className={cn('tap w-full text-left p-4 rounded-2xl border-2 transition-colors', selectedPkg === i ? 'border-obsidian bg-obsidian text-paper' : 'border-line bg-paper')}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-display text-lg">{p.name}</span>
+                    {i === 1 && <span className="px-1.5 py-0.5 rounded bg-acid text-obsidian text-[9px] font-mono uppercase">Popular</span>}
                   </div>
-                  <div className="text-right">
-                    <div className="font-display text-xl tracking-tight tnum">{inr(p.price)}</div>
-                    <div className={cn('text-[10px] font-medium', selectedPkg === i ? 'text-acid' : 'text-iris')}>
-                      {depositInfo(p.price).full ? 'Pay in full · escrow' : depositInfo(p.price).pct + '% to reserve'}
-                    </div>
+                  <div className={cn('text-[11px] mt-0.5', selectedPkg === i ? 'text-paper/60' : 'text-obsidian/60')}>
+                    {p.duration} · {p.revisions} revision{p.revisions > 1 ? 's' : ''} · {p.delivery}
                   </div>
                 </div>
-                {selectedPkg === i && p.inclusions.length > 0 && (
-                  <ul className="mt-3 pt-3 border-t border-paper/20 space-y-1">
-                    {p.inclusions.map(inc => (
-                      <li key={inc} className="text-[11px] flex items-center gap-2"><Check size={12} className="text-acid" />{inc}</li>
-                    ))}
-                  </ul>
-                )}
-              </button>
-            ))}
-          </div>
-        </>
+                <div className="text-right">
+                  <div className="font-display text-xl tracking-tight tnum">{inr(p.price)}</div>
+                  <div className={cn('text-[10px] font-medium', selectedPkg === i ? 'text-acid' : 'text-iris')}>
+                    {depositInfo(p.price).full ? 'Pay in full · escrow' : depositInfo(p.price).pct + '% to reserve'}
+                  </div>
+                </div>
+              </div>
+              {selectedPkg === i && p.inclusions.length > 0 && (
+                <ul className="mt-3 pt-3 border-t border-paper/20 space-y-1">
+                  {p.inclusions.map(inc => (
+                    <li key={inc} className="text-[11px] flex items-center gap-2"><Check size={12} className="text-acid" />{inc}</li>
+                  ))}
+                </ul>
+              )}
+            </button>
+          ))}
+        </div>
       )}
     </div>
   )
@@ -654,7 +712,7 @@ export function CreatorDetailScreen() {
   )
 
   const desktopCta = (
-    <div className="px-5 pb-5">
+    <div className="p-5 pt-4 border-t border-line bg-paper">
       {slotConflictError && (
         <div className="mb-2.5 px-3.5 py-2.5 rounded-xl bg-danger/10 border border-danger/20 text-danger text-[11px] flex items-center gap-2 animate-fade-in leading-tight">
           <AlertCircle size={14} className="shrink-0" />
@@ -662,46 +720,56 @@ export function CreatorDetailScreen() {
         </div>
       )}
       {bookReady && (
-        <div className="flex items-center gap-1.5 mb-2 text-[11px] text-obsidian/60">
+        <div className="flex items-center gap-1.5 mb-2.5 text-[11px] text-obsidian/60">
           <CalendarCheck size={12} className="text-success" />
           {bookDateLabel} · {selectedTime ? formatSlotRange(selectedTime, durMins) : ''} · {packageSummary}
         </div>
       )}
-      {isOwnProfile ? (
+      <div className="flex gap-2.5 items-center">
         <button
           disabled
-          className="w-full py-3.5 rounded-2xl font-semibold text-[13px] bg-obsidian/10 text-obsidian/50 cursor-not-allowed flex items-center justify-center gap-2"
+          className="tap w-12 h-12 rounded-2xl grid place-items-center shrink-0 border border-line/60 bg-obsidian/5 text-obsidian/30 opacity-40 cursor-not-allowed"
+          title="Direct messaging coming soon"
+          aria-label="Direct messaging coming soon"
         >
-          <span>Your Profile (Preview Mode)</span>
+          <MessageCircle size={19} />
         </button>
-      ) : !hasPackages ? (
-        <button
-          disabled
-          className="w-full py-3.5 rounded-2xl font-semibold text-[13px] bg-obsidian/10 text-obsidian/40 cursor-not-allowed flex items-center justify-center gap-2"
-        >
-          <span>Get a Quote (Coming Soon)</span>
-        </button>
-      ) : (
-        <button
-          disabled={!bookReady || validatingSlot}
-          onClick={handleStartBooking}
-          className={cn('tap w-full py-3.5 rounded-2xl font-semibold text-[14px] flex items-center justify-center gap-2 transition-all', bookReady && !validatingSlot ? 'bg-obsidian text-paper' : 'bg-bone text-obsidian/40')}
-        >
-          {validatingSlot ? (
-            <>
-              <Loader2 size={16} className="animate-spin" />
-              <span>Verifying slot…</span>
-            </>
-          ) : !bookReady ? (
-            'Select date & time'
-          ) : (
-            <>
-              <span>Request to Book</span>
-              <ArrowRight size={16} />
-            </>
-          )}
-        </button>
-      )}
+        {isOwnProfile ? (
+          <button
+            disabled
+            className="tap flex-1 py-3.5 rounded-2xl font-semibold text-[13px] bg-obsidian/10 text-obsidian/50 cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            <span>Your Profile (Preview Mode)</span>
+          </button>
+        ) : !hasPackages ? (
+          <button
+            disabled
+            className="tap flex-1 py-3.5 rounded-2xl font-semibold text-[13px] bg-obsidian/10 text-obsidian/40 cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            <span>Get a Quote (Coming Soon)</span>
+          </button>
+        ) : (
+          <button
+            disabled={!bookReady || validatingSlot}
+            onClick={handleStartBooking}
+            className={cn('tap flex-1 py-3.5 rounded-2xl font-semibold text-[14px] flex items-center justify-center gap-2 transition-all', bookReady && !validatingSlot ? 'bg-obsidian text-paper cursor-pointer' : 'bg-bone text-obsidian/40 cursor-not-allowed')}
+          >
+            {validatingSlot ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                <span>Verifying slot…</span>
+              </>
+            ) : !bookReady ? (
+              'Select date & time'
+            ) : (
+              <>
+                <span>Request to Book</span>
+                <ArrowRight size={16} />
+              </>
+            )}
+          </button>
+        )}
+      </div>
     </div>
   )
 
@@ -765,7 +833,7 @@ export function CreatorDetailScreen() {
       )}
 
       <div className="relative flex-1 min-h-0 flex flex-col">
-        <div className="absolute top-0 inset-x-0 z-20 px-5 py-3 flex items-center justify-between pointer-events-none">
+        <div className="absolute top-0 inset-x-0 z-30 px-5 py-3 md:px-8 md:py-4 flex items-center justify-between pointer-events-none max-w-6xl mx-auto">
           <button onClick={() => dispatch({ type: 'BACK' })} className="tap pointer-events-auto w-10 h-10 rounded-full bg-paper/90 backdrop-blur grid place-items-center shadow-md"><ArrowLeft size={18} /></button>
           <div className="flex gap-2">
           <button
@@ -783,73 +851,194 @@ export function CreatorDetailScreen() {
           </button>
           <button
             onClick={async () => {
+              const url = getProfileUrl(c.handle)
+              if (navigator.clipboard?.writeText) {
+                try {
+                  await navigator.clipboard.writeText(url)
+                  setShareToast(true)
+                  setTimeout(() => setShareToast(false), 2000)
+                  return
+                } catch {}
+              }
               const res = await shareOrCopy({
                 title: `${c.name} on FTC`,
-                text: `Book ${c.name} (${c.discipline}) with verified escrow on FTC Creator Marketplace`,
-                url: getProfileUrl(c.handle),
+                url,
               })
               if (res === 'copied') {
                 setShareToast(true)
                 setTimeout(() => setShareToast(false), 2000)
               }
             }}
-            className="tap pointer-events-auto w-10 h-10 rounded-full bg-paper/90 backdrop-blur grid place-items-center shadow-md cursor-pointer"
+            className="tap pointer-events-auto w-10 h-10 rounded-full bg-paper/90 backdrop-blur grid place-items-center shadow-md cursor-pointer hover:bg-paper transition-colors"
+            title="Share or copy profile link"
+            aria-label="Share profile"
           >
             <Share2 size={16} />
           </button>
         </div>
       </div>
       {shareToast && (
-        <div className="absolute left-1/2 -translate-x-1/2 z-30 px-4 py-2.5 rounded-full bg-obsidian text-paper text-[12px] font-medium shadow-2xl flex items-center gap-2" style={{ bottom: 96 }}>
+        <div className="fixed left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-full bg-obsidian text-paper text-[12px] font-medium shadow-2xl flex items-center gap-2" style={{ bottom: 96 }}>
           <Check size={14} className="text-acid" /> Profile link copied
         </div>
       )}
 
-      <div className="app-scroll pb-28 md:pb-8">
-      <div className="md:grid md:grid-cols-[1fr_380px] md:gap-6 md:items-start md:px-6 md:pt-6">
-      <div className="md:min-w-0">
+      <div className="app-scroll pb-28 md:pb-12">
+      <div className="md:grid md:grid-cols-[1fr_380px] md:gap-8 md:items-start md:px-6 md:pt-6 max-w-6xl mx-auto w-full">
+      <div className="md:min-w-0 md:rounded-3xl md:border md:border-line md:bg-paper md:overflow-hidden md:shadow-xs">
         {/* Hero */}
-        <div className="relative aspect-[4/5] bg-obsidian overflow-hidden">
-          <img src={c.portfolio[portfolioIdx]} className="w-full h-full object-cover" alt="" />
-          <div className="absolute inset-0 bg-gradient-to-b from-obsidian/40 via-transparent to-obsidian/80" />
-          <div className="absolute top-2 right-2 left-2 flex gap-1">
-            {c.portfolio.map((_, i) => (
-              <button key={i} onClick={() => setPortfolioIdx(i)} className={cn('flex-1 h-0.5 rounded-full', i === portfolioIdx ? 'bg-paper' : 'bg-paper/30')} />
-            ))}
-          </div>
-          <div className="absolute bottom-0 inset-x-0 p-5 text-paper">
+        <div ref={heroRef} className="relative aspect-[4/5] bg-obsidian overflow-hidden group touch-pan-y select-none md:rounded-t-3xl">
+          {portfolio.length === 0 ? (
+            <div className="w-full h-full bg-obsidian flex flex-col items-center justify-center text-paper/40 p-6 text-center select-none">
+              <div className="w-16 h-16 rounded-2xl bg-paper/10 border border-paper/10 flex items-center justify-center text-paper/60 mb-3">
+                <Briefcase size={28} className="text-paper/40" />
+              </div>
+              <div className="font-display text-xl text-paper/90">{c.name}</div>
+              <div className="text-[12px] text-paper/50 mt-1">{c.discipline}{c.city ? ` · ${c.city}` : ''}</div>
+            </div>
+          ) : (
+            <>
+              <AnimatePresence initial={false} custom={direction}>
+                <motion.img
+                  key={activePhotoIdx}
+                  src={portfolio[activePhotoIdx]}
+                  custom={direction}
+                  variants={slideVariants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  transition={{
+                    x: { type: 'spring', stiffness: 350, damping: 32 },
+                    opacity: { duration: 0.18 },
+                  }}
+                  drag={portfolio.length > 1 ? 'x' : false}
+                  dragDirectionLock
+                  dragConstraints={{ left: 0, right: 0 }}
+                  dragElastic={0.2}
+                  onTap={(_, info) => {
+                    if (portfolio.length <= 1) return
+                    const rect = heroRef.current?.getBoundingClientRect()
+                    if (!rect) return
+                    const tapX = info.point.x - rect.left
+                    if (tapX < rect.width * 0.35) {
+                      if (activePhotoIdx > 0) paginate(-1)
+                    } else {
+                      if (activePhotoIdx < portfolio.length - 1) paginate(1)
+                    }
+                  }}
+                  onDragEnd={(_, { offset, velocity }) => {
+                    const swipe = Math.abs(offset.x) * velocity.x
+                    if (offset.x < -40 || swipe < -6000) {
+                      if (activePhotoIdx < portfolio.length - 1) paginate(1)
+                    } else if (offset.x > 40 || swipe > 6000) {
+                      if (activePhotoIdx > 0) paginate(-1)
+                    }
+                  }}
+                  className="absolute inset-0 w-full h-full object-cover select-none pointer-events-auto"
+                  alt={c.name}
+                />
+              </AnimatePresence>
+
+              {/* Gradient scrim for text readability */}
+              <div className="absolute inset-0 bg-gradient-to-b from-obsidian/40 via-transparent to-obsidian/85 pointer-events-none z-10" />
+
+              {/* Segmented bar indicators + Counter pill */}
+              {portfolio.length > 1 && (
+                <>
+                  <div className="absolute top-2.5 right-3.5 left-3.5 z-20 flex gap-1 pointer-events-auto">
+                    {portfolio.map((_, i) => (
+                      <button
+                        key={i}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          goToSlide(i)
+                        }}
+                        className={cn(
+                          'flex-1 h-1 rounded-full transition-all duration-200 cursor-pointer',
+                          i === activePhotoIdx ? 'bg-paper shadow-sm' : 'bg-paper/30 hover:bg-paper/50'
+                        )}
+                        aria-label={`Go to photo ${i + 1}`}
+                      />
+                    ))}
+                  </div>
+                  <div className="absolute top-5 right-4 z-20 px-2 py-0.5 rounded-full bg-obsidian/60 backdrop-blur-md border border-paper/10 text-[10px] font-mono text-paper/80 tnum pointer-events-none">
+                    {activePhotoIdx + 1} / {portfolio.length}
+                  </div>
+
+                  {/* Desktop hover arrows */}
+                  {activePhotoIdx > 0 && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        paginate(-1)
+                      }}
+                      className="hidden md:flex absolute left-4 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full bg-paper/90 hover:bg-paper text-obsidian backdrop-blur items-center justify-center shadow-lg transition-all opacity-0 group-hover:opacity-100 cursor-pointer active:scale-95"
+                      aria-label="Previous photo"
+                    >
+                      <ChevronLeft size={18} />
+                    </button>
+                  )}
+                  {activePhotoIdx < portfolio.length - 1 && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        paginate(1)
+                      }}
+                      className="hidden md:flex absolute right-4 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full bg-paper/90 hover:bg-paper text-obsidian backdrop-blur items-center justify-center shadow-lg transition-all opacity-0 group-hover:opacity-100 cursor-pointer active:scale-95"
+                      aria-label="Next photo"
+                    >
+                      <ChevronRight size={18} />
+                    </button>
+                  )}
+                </>
+              )}
+            </>
+          )}
+
+          {/* Identity info overlay */}
+          <div className="absolute bottom-0 inset-x-0 p-5 text-paper z-20 pointer-events-none">
             {(c.verification === 'vetted' || c.verification === 'id') && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-paper/90 text-obsidian text-[10px] font-mono uppercase tracking-[0.1em] mb-2">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-paper/90 text-obsidian text-[10px] font-mono uppercase tracking-[0.1em] mb-2 shadow-sm">
                 <BadgeCheck size={11} className="text-iris" /> Verified
               </span>
             )}
             <h1 className="font-display text-4xl tracking-tight leading-none">{c.name}</h1>
             <div className="mt-1 flex items-center gap-2 text-[12px] opacity-80">
-              <span>{c.handle}</span><span>·</span>
-              <span className="flex items-center gap-1"><MapPin size={11} />{c.area}, {c.city}</span>
+              <span>{c.handle}</span>
+              {(c.area || c.city) && (
+                <>
+                  <span>·</span>
+                  <span className="flex items-center gap-1"><MapPin size={11} />{[c.area, c.city].filter(Boolean).join(', ')}</span>
+                </>
+              )}
             </div>
           </div>
         </div>
 
         {/* Stats */}
-        <div className="px-5 py-5 border-b border-line grid grid-cols-4 gap-2">
-          <Stat value={c.rating.toFixed(1)} label="Rating" />
-          <Stat value={c.completed} label="Projects" />
-          <Stat value={c.yearsExp} label="Years" unit="yr" />
-          <Stat value={c.responseTime.replace('~', '')} label="Reply" />
+        <div className="px-5 py-5 border-b border-line grid grid-cols-3 gap-3">
+          <Stat value={c.reviews > 0 ? c.rating.toFixed(1) : 'New'} label="Rating" />
+          <Stat value={c.completed || 0} label="Projects" />
+          <Stat value={c.yearsExp || 1} label="Experience" unit="yr" />
         </div>
 
         {/* Tagline + skills */}
         <div className="px-5 py-5 border-b border-line">
-          <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-obsidian/50 mb-2">Tagline</div>
-          <p className="font-display text-xl tracking-tight leading-tight">{c.tagline}</p>
-          <div className="flex flex-wrap gap-1.5 mt-4">
-            {c.subSkills.map(s => <span key={s} className="px-2.5 py-1 rounded-full bg-bone text-[11px] border border-line">{s}</span>)}
-          </div>
-          <div className="mt-4 space-y-2">
+          {c.tagline?.trim() && (
+            <div className="mb-4">
+              <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-obsidian/50 mb-1.5">Tagline</div>
+              <p className="font-display text-xl tracking-tight leading-tight">{c.tagline.trim()}</p>
+            </div>
+          )}
+          {c.subSkills?.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {c.subSkills.map(s => <span key={s} className="px-2.5 py-1 rounded-full bg-bone text-[11px] border border-line">{s}</span>)}
+            </div>
+          )}
+          <div className={cn("space-y-2", c.subSkills?.length > 0 && "mt-4")}>
             <div className="flex items-center gap-2 text-[12px] text-obsidian/70">
               <Volume2 size={14} className="text-iris shrink-0" />
-              <span><span className="text-obsidian/45">Speaks </span>{c.languages.join(', ')}</span>
+              <span><span className="text-obsidian/45">Speaks </span>{c.languages?.length ? c.languages.join(', ') : 'English, Hindi'}</span>
             </div>
             <div className="flex items-center gap-2 text-[12px] text-obsidian/70">
               <MapPin size={14} className="text-iris shrink-0" />
@@ -858,92 +1047,29 @@ export function CreatorDetailScreen() {
           </div>
         </div>
 
-        {/* Trust */}
-        <div className="px-5 py-5 border-b border-line">
-          <div className="flex items-center justify-between mb-3">
-            <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-obsidian/50">Trust & verification</div>
-            <div className="text-[10px] text-obsidian/40">100-point scale</div>
-          </div>
-          <div className="mb-4 p-4 rounded-2xl bg-bone border border-line">
-            <div className="flex items-end justify-between mb-2">
-              <div className="flex items-center gap-1.5">
-                <Shield size={15} className="text-iris" />
-                <span className="font-display text-base tracking-tight">Trust score</span>
-              </div>
-              <div className="flex items-baseline gap-0.5">
-                <span className="font-display text-2xl tnum" style={{ color: c.trustScore >= 80 ? '#16A34A' : '#7D61F2' }}>{c.trustScore}</span>
-                <span className="text-[11px] text-obsidian/40 font-mono">/100</span>
-              </div>
-            </div>
-            <div className="h-2 rounded-full bg-obsidian/10 overflow-hidden">
-              <div className="h-full rounded-full" style={{ width: c.trustScore + '%', background: c.trustScore >= 80 ? '#16A34A' : '#7D61F2' }} />
-            </div>
-          </div>
-          <div className="space-y-2">
-            {[
-              { label: 'Phone verified', on: true },
-              { label: 'Government ID verified', on: c.verification === 'id' || c.verification === 'vetted' },
-              { label: 'FTC Vetted (human-reviewed)', on: c.verification === 'vetted' },
-              { label: 'Social proof linked', on: true },
-            ].map(item => (
-              <div key={item.label} className="flex items-center gap-2 text-[12px]">
-                {item.on
-                  ? <div className="w-4 h-4 rounded-full bg-iris grid place-items-center"><Check size={11} className="text-paper" /></div>
-                  : <div className="w-4 h-4 rounded-full border border-line" />}
-                <span className={item.on ? '' : 'text-obsidian/40'}>{item.label}</span>
-              </div>
-            ))}
-          </div>
-          <div className="mt-4 p-3 rounded-xl bg-iris-tint flex items-center gap-3">
-            <Shield size={20} className="text-iris shrink-0" />
-            <div>
-              <div className="text-[11px] font-semibold">Trust tier: Excellent</div>
-              <div className="text-[11px] text-obsidian/60">{(c.repeatRate * 100).toFixed(0)}% of clients book again</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Social links */}
-        <div className="px-5 py-4 border-b border-line">
-          <div className="flex items-center justify-between">
+        {/* Social links — rendered only when valid links exist */}
+        {validSocials.length > 0 && (
+          <div className="px-5 py-3.5 border-b border-line flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              {[[Instagram, 'Instagram'], [Film, 'YouTube'], [Briefcase, 'LinkedIn'], [Globe, 'Website'], [Link2, 'Portfolio']].map(([Ic, label], i) => (
-                <button key={i} title={label as string} className="tap w-9 h-9 rounded-xl bg-bone border border-line grid place-items-center">
-                  <Ic size={15} className="text-obsidian/70" />
-                </button>
+              {validSocials.map(({ icon: Icon, label, url }) => (
+                <a
+                  key={label}
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={label}
+                  className="tap w-9 h-9 rounded-xl bg-bone border border-line grid place-items-center hover:bg-obsidian/5 transition-colors cursor-pointer text-obsidian/70 hover:text-obsidian"
+                  aria-label={label}
+                >
+                  <Icon size={15} />
+                </a>
               ))}
             </div>
-            <span className="flex items-center gap-1 text-[11px] font-medium text-success">
-              <BadgeCheck size={13} /> {(c.verification === 'id' || c.verification === 'vetted') ? 'Verified via Instagram' : 'Self-reported'}
-            </span>
-          </div>
-          <div className="mt-3 p-3 rounded-xl bg-iris-tint flex items-center gap-2">
-            <Link2 size={13} className="text-iris shrink-0" />
-            <span className="text-[11px] text-obsidian/70">Came from Instagram? Same creator, verified — book here with escrow-protected payment.</span>
-          </div>
-        </div>
-
-        {/* 1:1 session */}
-        {c.oneOnOne && (
-          <div className="px-5 py-5 border-b border-line">
-            <div className="rounded-2xl bg-obsidian text-paper p-4 relative overflow-hidden">
-              <div className="absolute inset-0 dots-acid opacity-10 pointer-events-none" />
-              <div className="relative flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-acid grid place-items-center shrink-0"><Coffee size={22} className="text-obsidian" /></div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-display text-lg tracking-tight leading-none">{c.oneOnOne.name}</span>
-                    {c.oneOnOne.today && <span className="px-1.5 py-0.5 rounded-full bg-success text-paper text-[9px] font-mono uppercase">Today</span>}
-                  </div>
-                  <div className="text-[11.5px] text-paper/60 mt-1 flex items-center gap-2">
-                    <span className="flex items-center gap-1"><Clock size={11} />{c.oneOnOne.mins} min</span>
-                    <span>· {c.oneOnOne.type}</span>
-                  </div>
-                </div>
-                <div className="text-right shrink-0"><div className="font-display text-xl tnum">{inr(c.oneOnOne.price)}</div></div>
-              </div>
-              <button className="tap relative mt-3 w-full py-2.5 rounded-xl bg-acid text-obsidian text-[13px] font-semibold">Book session</button>
-            </div>
+            {(c.verification === 'id' || c.verification === 'vetted') && (
+              <span className="flex items-center gap-1 text-[11px] font-medium text-success">
+                <BadgeCheck size={13} /> Verified
+              </span>
+            )}
           </div>
         )}
 
@@ -954,62 +1080,33 @@ export function CreatorDetailScreen() {
         </div>
 
         {/* Reviews */}
-        <div className="px-5 py-5 border-b border-line">
+        <div className="px-5 py-5 border-b border-line md:border-b-0">
           <div className="flex items-center justify-between mb-3">
-            <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-obsidian/50">Reviews · verified only</div>
-            <button className="tap text-[11px] font-medium text-iris">See all {c.reviews} →</button>
-          </div>
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            {['Quality', 'Communication', 'Timeliness', 'Value'].map((axis, i) => {
-              const score = (4.6 + (i * 13 % 4) / 10).toFixed(1)
-              return (
-                <div key={axis} className="flex items-center gap-2">
-                  <div className="flex-1">
-                    <div className="text-[11px] text-obsidian/60">{axis}</div>
-                    <div className="h-1.5 bg-bone rounded-full overflow-hidden mt-1">
-                      <div className="h-full bg-obsidian rounded-full" style={{ width: `${(parseFloat(score) / 5) * 100}%` }} />
-                    </div>
-                  </div>
-                  <span className="font-display text-sm tnum">{score}</span>
-                </div>
-              )
-            })}
-          </div>
-          <div className="space-y-3">
-            {[
-              { name: 'Aditi K.', text: "Absolutely floored by the delivery. Arrived early, stayed late, didn't miss a single detail.", when: '2w ago' },
-              { name: 'Raghav M.', text: 'Second time booking. Know the shoot brief better than we do at this point. Highly recommend.', when: '1mo ago' },
-            ].map((r, i) => (
-              <div key={i} className="p-3 rounded-xl bg-bone">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="font-semibold text-[12px]">{r.name}</span>
-                  <div className="flex items-center gap-1 text-[10px]">
-                    <div className="flex">{Array.from({ length: 5 }).map((_, k) => <Star key={k} size={10} className="fill-obsidian text-obsidian" />)}</div>
-                    <span className="text-obsidian/50 tnum">· {r.when}</span>
-                  </div>
-                </div>
-                <p className="text-[12px] text-obsidian/80 leading-relaxed">{r.text}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Message CTA */}
-        <div className="px-5 py-5">
-          <button onClick={() => dispatch({ type: 'OPEN_CLIENT_CHAT', client: { name: c.name, avatar: c.avatar } })} className="tap w-full rounded-2xl bg-bone p-4 flex items-center gap-4 text-left active:bg-obsidian/5">
-            <div className="w-12 h-12 rounded-2xl bg-obsidian grid place-items-center shrink-0"><MessageCircle size={22} className="text-acid" /></div>
-            <div className="flex-1">
-              <div className="font-display text-base leading-tight">Have a question first?</div>
-              <div className="text-[11px] text-obsidian/60 mt-0.5">Message {c.name ? c.name.split(' ')[0] : 'Creator'} or request a custom quote before you book.</div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-obsidian/50">
+              Client Reviews {c.reviews > 0 ? `(${c.reviews})` : ''}
             </div>
-            <ChevronRight size={18} className="text-obsidian/40" />
-          </button>
+            {c.reviews > 0 && (
+              <span className="text-[11px] font-medium text-obsidian/60 flex items-center gap-1">
+                <Star size={11} className="fill-obsidian text-obsidian" /> {c.rating.toFixed(1)}
+              </span>
+            )}
+          </div>
+
+          <div className="p-6 rounded-2xl bg-bone/70 border border-line text-center space-y-1.5">
+            <div className="w-10 h-10 rounded-full bg-paper border border-line mx-auto grid place-items-center mb-2">
+              <Star size={16} className="text-obsidian/30" />
+            </div>
+            <div className="font-display text-[15px] text-obsidian/90">No client reviews yet</div>
+            <p className="text-[12px] text-obsidian/50 max-w-xs mx-auto leading-relaxed">
+              Reviews will appear here after completed bookings with escrow protection.
+            </p>
+          </div>
         </div>
       </div>
 
       {/* Desktop booking rail — sticky, mirrors the mobile packages/calendar/CTA flow */}
       <div className="hidden md:block md:sticky md:top-6">
-        <div className="rounded-2xl border border-line bg-paper overflow-hidden shadow-sm">
+        <div className="rounded-3xl border border-line bg-paper overflow-hidden shadow-xs">
           {packagesBlock}
           {calendarBlock}
           {desktopCta}
@@ -1019,7 +1116,7 @@ export function CreatorDetailScreen() {
       </div>
 
       {/* Sticky bottom CTA — mobile only; desktop uses the sidebar CTA above */}
-      <div className="md:hidden absolute bottom-0 inset-x-0 px-5 pt-3 pb-[max(16px,env(safe-area-inset-bottom))] bg-paper/95 backdrop-blur-xl border-t border-line z-10">
+      <div className="md:hidden absolute bottom-0 inset-x-0 px-5 pt-3 pb-[max(16px,env(safe-area-inset-bottom))] bg-paper/95 backdrop-blur-xl border-t border-line z-20">
         {slotConflictError && (
           <div className="mb-2 px-3 py-2 rounded-xl bg-danger/10 border border-danger/20 text-danger text-[11px] flex items-center gap-1.5 animate-fade-in leading-tight">
             <AlertCircle size={13} className="shrink-0" />
@@ -1034,22 +1131,12 @@ export function CreatorDetailScreen() {
         )}
         <div className="flex gap-2">
           <button
-            onClick={() => {
-              if (isOwnProfile) return
-              if (!state.isAuthed) {
-                dispatch({ type: 'GO', screen: 'login' })
-                return
-              }
-              dispatch({ type: 'OPEN_CLIENT_CHAT', client: { name: c.name, avatar: c.avatar } })
-            }}
-            disabled={isOwnProfile}
-            className={cn(
-              "tap w-14 rounded-2xl grid place-items-center",
-              isOwnProfile ? "bg-obsidian/5 opacity-40 cursor-not-allowed" : "bg-obsidian/5 cursor-pointer"
-            )}
-            title={isOwnProfile ? 'Messaging disabled in preview mode' : (!state.isAuthed ? 'Sign in to message' : undefined)}
+            disabled
+            className="tap w-14 rounded-2xl grid place-items-center bg-obsidian/5 text-obsidian/30 opacity-40 cursor-not-allowed"
+            title="Direct messaging coming soon"
+            aria-label="Direct messaging coming soon"
           >
-            <MessageCircle size={19} className="text-obsidian/70" />
+            <MessageCircle size={19} />
           </button>
           {isOwnProfile ? (
             <button

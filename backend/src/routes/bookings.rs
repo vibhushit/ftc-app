@@ -89,6 +89,9 @@ async fn list_bookings(
         None => return Ok(Json(vec![])),
     };
 
+    // Auto-sweep expired bookings so callers always receive fresh statuses
+    let _ = sweep_expired_bookings(pool).await;
+
     let user_id = resolve_user_id(&headers)
         .unwrap_or_else(|| "00000000-0000-0000-0000-000000000000".to_string());
 
@@ -375,7 +378,10 @@ async fn request_booking(
         r#"
         SELECT COUNT(*) FROM bookings
         WHERE creator_id = $1::uuid
-          AND status IN ('confirmed', 'pending')
+          AND (
+            status = 'confirmed'
+            OR (status = 'pending' AND (request_expires_at IS NULL OR request_expires_at > now()))
+          )
           AND start_time IS NOT NULL
           AND end_time IS NOT NULL
           AND start_time < $3::timestamptz
@@ -554,11 +560,53 @@ async fn accept_booking(
     let booking_uuid = uuid::Uuid::parse_str(&id)
         .map_err(|_| AppError::BadRequest("Invalid booking UUID".into()))?;
 
+    // Check if booking exists, is pending, and has not expired
+    let existing = sqlx::query_as::<_, (String, Option<chrono::DateTime<chrono::Utc>>)>(
+        r#"
+        SELECT status::text, request_expires_at
+        FROM bookings
+        WHERE id = $1::uuid
+        "#
+    )
+    .bind(booking_uuid)
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| AppError::InternalServerError(format!("Database error checking booking: {}", e)))?;
+
+    match existing {
+        Some((status, expires_at)) => {
+            if status != "pending" {
+                return Err(AppError::BadRequest(format!("Booking is not in pending state (current status: {})", status)));
+            }
+            if let Some(exp) = expires_at {
+                if exp < chrono::Utc::now() {
+                    let _ = sqlx::query(
+                        r#"
+                        UPDATE bookings
+                        SET status = 'cancelled', cancellation_reason = '24-hour creator SLA expired', updated_at = now()
+                        WHERE id = $1::uuid
+                        "#
+                    )
+                    .bind(booking_uuid)
+                    .execute(pool)
+                    .await;
+
+                    return Err(AppError::BadRequest(
+                        "This booking request has expired because the 24-hour response window has passed.".into()
+                    ));
+                }
+            }
+        }
+        None => {
+            return Err(AppError::NotFound("Booking not found".into()));
+        }
+    }
+
     let rows_affected = sqlx::query(
         r#"
         UPDATE bookings
         SET status = 'confirmed', confirmed_at = now(), updated_at = now()
-        WHERE id = $1::uuid AND status = 'pending'
+        WHERE id = $1::uuid AND status = 'pending' AND (request_expires_at IS NULL OR request_expires_at > now())
         "#
     )
     .bind(booking_uuid)
@@ -568,7 +616,7 @@ async fn accept_booking(
     .rows_affected();
 
     if rows_affected == 0 {
-        return Err(AppError::BadRequest("Booking is not in pending state or does not exist".into()));
+        return Err(AppError::BadRequest("Booking is not in pending state or has expired".into()));
     }
 
     Ok(Json(json!({
@@ -927,21 +975,34 @@ async fn release_escrow(Path(id): Path<String>) -> Json<Value> {
     Json(json!({ "success": true, "booking_id": id, "escrow_status": "released" }))
 }
 
+pub async fn sweep_expired_bookings(pool: &sqlx::PgPool) -> Result<u64, sqlx::Error> {
+    let rows_affected = sqlx::query(
+        r#"
+        UPDATE bookings
+        SET status = 'cancelled', cancellation_reason = '24-hour creator SLA expired', updated_at = now()
+        WHERE status = 'pending'
+          AND request_expires_at IS NOT NULL
+          AND request_expires_at < now()
+        "#
+    )
+    .execute(pool)
+    .await?
+    .rows_affected();
+
+    if rows_affected > 0 {
+        tracing::info!("⏰ Swept and cancelled {} expired pending booking requests", rows_affected);
+    }
+
+    Ok(rows_affected)
+}
+
 async fn expire_pending_bookings(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
     let pool = state.pool.as_ref()
         .ok_or_else(|| AppError::InternalServerError("Database pool unavailable".into()))?;
 
-    let rows_affected = sqlx::query(
-        r#"
-        UPDATE bookings
-        SET status = 'declined', cancellation_reason = '24-hour creator SLA expired', updated_at = now()
-        WHERE status = 'pending_approval' AND request_expires_at < now()
-        "#
-    )
-    .execute(pool)
-    .await
-    .map_err(|e| AppError::InternalServerError(format!("Database error expiring bookings: {}", e)))?
-    .rows_affected();
+    let rows_affected = sweep_expired_bookings(pool)
+        .await
+        .map_err(|e| AppError::InternalServerError(format!("Database error expiring bookings: {}", e)))?;
 
     tracing::info!("⏰ Expired {} stale booking requests", rows_affected);
 

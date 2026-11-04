@@ -148,3 +148,82 @@ export function normalizeHandle(handle?: string | null): string {
   return (handle || '').trim().replace(/^@+/, '').toLowerCase()
 }
 
+/**
+ * Strict social link normalizer and validator.
+ * - Enforces max 100 characters.
+ * - Validates format: starts with https://, http://, or www.
+ * - Prepends https:// if starting with www.
+ * - Supports graceful handle fallback if given a domain (e.g. 'instagram.com', 'youtube.com').
+ * - Returns null if invalid or exceeding length.
+ */
+export function normalizeSocialUrl(raw: string | null | undefined, fallbackDomain?: string): string | null {
+  if (!raw) return null
+  let trimmed = raw.trim()
+  if (!trimmed || trimmed.length > 100) return null
+
+  // Security: Disallow javascript:, data:, etc.
+  if (/^(javascript|data|vbscript):/i.test(trimmed)) return null
+
+  // If starts with www., prepend https://
+  if (/^www\./i.test(trimmed)) {
+    trimmed = `https://${trimmed}`
+  }
+
+  // If starts with http:// or https://, validate as URL
+  if (/^https?:\/\//i.test(trimmed)) {
+    try {
+      const parsed = new URL(trimmed)
+      if (!parsed.hostname || !parsed.hostname.includes('.')) return null
+      return trimmed
+    } catch {
+      return null
+    }
+  }
+
+  // If fallbackDomain is provided and value looks like a handle or partial path
+  if (fallbackDomain && !trimmed.includes('/')) {
+    const handle = trimmed.replace(/^@+/, '')
+    if (handle.length > 0 && /^[a-zA-Z0-9._]+$/.test(handle)) {
+      return `https://${fallbackDomain}/${handle}`
+    }
+  }
+
+  return null
+}
+
+/**
+ * Checks whether a booking request's SLA confirmation window has expired.
+ */
+export function isBookingRequestExpired(booking: {
+  status?: string | null
+  request_expires_at?: string | null
+  requestExpiresAt?: string | null
+  created_at?: string | null
+  createdAt?: string | null
+} | null | undefined): boolean {
+  if (!booking) return false
+  const status = booking.status
+  const isPending = status === 'pending' || status === 'pending_approval' || status === 'requested'
+  if (!isPending) return false
+
+  const exp = booking.request_expires_at || booking.requestExpiresAt
+  if (exp) {
+    const expTime = new Date(exp).getTime()
+    if (!isNaN(expTime)) {
+      return expTime <= Date.now()
+    }
+  }
+
+  // Fallback: 24h from created_at
+  const created = booking.created_at || booking.createdAt
+  if (created) {
+    const createdTime = new Date(created).getTime()
+    if (!isNaN(createdTime)) {
+      return Date.now() - createdTime >= 24 * 60 * 60 * 1000
+    }
+  }
+
+  return false
+}
+
+

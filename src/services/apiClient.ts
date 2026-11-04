@@ -395,6 +395,15 @@ export const apiClient = {
     return handleApiResponse<{ success: boolean; status: string }>(res, `/bookings/${bookingId}/cancel`, 'POST')
   },
 
+  async expirePendingBookings(): Promise<{ success: boolean; swept_count: number }> {
+    const endpoint = `${getBaseUrl()}/bookings/expire-pending`
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: await getHeaders(),
+    })
+    return handleApiResponse<{ success: boolean; swept_count: number }>(res, '/bookings/expire-pending', 'POST')
+  },
+
   async updateBookingNotes(bookingId: string, notes: string): Promise<Booking> {
     const endpoint = `${getBaseUrl()}/bookings/${bookingId}/notes`
     const res = await fetch(endpoint, {

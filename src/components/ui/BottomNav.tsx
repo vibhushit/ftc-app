@@ -25,18 +25,25 @@ export function BottomNav({ active, onNav, notifications = 0 }: BottomNavProps) 
       <div className="flex items-center justify-around py-1.5 px-2">
         {tabs.map(t => {
           const Ic = t.icon
-          const isActive = t.screen ? screen === t.screen : (!isDedicatedScreenActive && active === t.id)
+          const isInbox = t.id === 'inbox'
+          const isActive = !isInbox && (t.screen ? screen === t.screen : (!isDedicatedScreenActive && active === t.id))
           return (
             <button
               key={t.id + (t.screen || '')}
+              disabled={isInbox}
               onClick={() => {
+                if (isInbox) return
                 if (t.screen) {
                   dispatch({ type: 'GO', screen: t.screen })
                 } else {
                   onNav(t.id as Tab)
                 }
               }}
-              className="tap relative flex flex-col items-center justify-center py-1 px-3 rounded-2xl min-w-[56px] min-h-[44px] cursor-pointer"
+              title={isInbox ? 'Inbox coming soon' : undefined}
+              className={cn(
+                'tap relative flex flex-col items-center justify-center py-1 px-3 rounded-2xl min-w-[56px] min-h-[44px]',
+                isInbox ? 'opacity-35 cursor-not-allowed' : 'cursor-pointer'
+              )}
             >
               <div className="relative">
                 <Ic
@@ -44,7 +51,7 @@ export function BottomNav({ active, onNav, notifications = 0 }: BottomNavProps) 
                   className={isActive ? 'text-obsidian' : 'text-obsidian/40'}
                   strokeWidth={isActive ? 2.2 : 1.8}
                 />
-                {t.id === 'inbox' && isAuthed && notifications > 0 && (
+                {!isInbox && t.id === 'inbox' && isAuthed && notifications > 0 && (
                   <span className="absolute -top-1 -right-2 min-w-[16px] h-4 px-1 bg-danger text-paper text-[9px] font-bold rounded-full grid place-items-center">
                     {notifications}
                   </span>

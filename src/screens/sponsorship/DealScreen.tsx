@@ -64,7 +64,11 @@ export function DealScreen() {
             <div className="text-[14px] font-semibold truncate">{deal.campaignTitle}</div>
             <div className="text-[11px] text-obsidian/60">{other} · {inr(deal.quote)}</div>
           </div>
-          <button onClick={() => dispatch({ type: 'GO', screen: 'chat' })} className="tap w-10 h-10 rounded-full bg-bone grid place-items-center">
+          <button
+            disabled
+            title="Messaging coming soon"
+            className="tap w-10 h-10 rounded-full bg-bone text-obsidian/30 opacity-40 cursor-not-allowed grid place-items-center"
+          >
             <MessageCircle size={17} />
           </button>
         </div>
@@ -114,7 +118,13 @@ export function DealScreen() {
                   <button onClick={() => upd({ stage: 'contract' })} className="tap flex-1 py-3.5 rounded-xl bg-obsidian text-paper text-[13px] font-semibold flex items-center justify-center gap-1.5">
                     <Check size={14} /> Accept — send contract
                   </button>
-                  <button onClick={() => dispatch({ type: 'GO', screen: 'chat' })} className="tap px-4 py-3.5 rounded-xl bg-bone text-[13px] font-semibold">Message</button>
+                  <button
+                    disabled
+                    title="Messaging coming soon"
+                    className="tap px-4 py-3.5 rounded-xl bg-bone text-obsidian/35 text-[13px] font-semibold opacity-40 cursor-not-allowed"
+                  >
+                    Message
+                  </button>
                 </div>
               : <div className="mt-4 p-3 rounded-xl bg-bone flex items-center gap-2">
                   <Clock size={14} className="text-obsidian/50 shrink-0" />

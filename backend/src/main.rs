@@ -51,6 +51,20 @@ async fn main() {
                         let _ = sqlx::query("ALTER TABLE calendar_overrides ADD COLUMN IF NOT EXISTS override_type TEXT NOT NULL DEFAULT 'blocked'").execute(&p).await;
                         let _ = sqlx::query("ALTER TABLE calendar_overrides ADD COLUMN IF NOT EXISTS custom_start_time TIME").execute(&p).await;
                         let _ = sqlx::query("ALTER TABLE calendar_overrides ADD COLUMN IF NOT EXISTS custom_end_time TIME").execute(&p).await;
+
+                        // Initial sweep of expired booking requests on startup
+                        let _ = routes::bookings::sweep_expired_bookings(&p).await;
+
+                        // Periodic background sweeper: runs every 60s to transition stale requests to cancelled
+                        let p_sweeper = p.clone();
+                        tokio::spawn(async move {
+                            let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+                            loop {
+                                interval.tick().await;
+                                let _ = routes::bookings::sweep_expired_bookings(&p_sweeper).await;
+                            }
+                        });
+
                         Some(p)
                     }
                     Err(e) => {

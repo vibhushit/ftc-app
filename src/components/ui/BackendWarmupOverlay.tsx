@@ -8,7 +8,8 @@ import { useQueryClient } from '@tanstack/react-query'
 // Global flag: once confirmed online in this browser session, never show the overlay again.
 let hasBackendWarmedUp = false
 
-const EXPECTED_COLD_START_MS = 35_000
+const EXPECTED_COLD_START_MS = 60_000
+const OVERTIME_MS = 68_000
 const GRACE_PERIOD_MS = 1200
 
 export function BackendWarmupOverlay() {
@@ -17,7 +18,7 @@ export function BackendWarmupOverlay() {
   const [visible, setVisible]         = useState(false)
   const [status, setStatus]           = useState<'checking' | 'waking' | 'connected' | 'overtime'>('checking')
   const [progress, setProgress]       = useState(0)
-  const [remainingSec, setRemaining]  = useState(35)
+  const [remainingSec, setRemaining]  = useState(60)
   const [retrying, setRetrying]       = useState(false)
 
   const isMountedRef                  = useRef(true)
@@ -49,7 +50,7 @@ export function BackendWarmupOverlay() {
         }
       } catch {}
 
-      // If not yet ok and still mounted, keep polling every 3 seconds
+      // Steady 3s polling interval to conserve network and API calls
       if (!hasBackendWarmedUp && isMountedRef.current) {
         pollTimer = setTimeout(checkServer, 3000)
       }
@@ -88,12 +89,15 @@ export function BackendWarmupOverlay() {
         const leftSec = Math.max(0, Math.ceil((EXPECTED_COLD_START_MS - elapsed) / 1000))
         setRemaining(leftSec)
 
-        if (elapsed > 45_000) {
+        if (elapsed > OVERTIME_MS) {
           setStatus('overtime')
         }
 
-        // Smooth ease up to 92% (holds at 92% until server genuinely returns 200)
-        const calculatedProgress = Math.min(92, Math.round((elapsed / EXPECTED_COLD_START_MS) * 92))
+        // Asymptotic deceleration curve:
+        // Rapid initial feedback (0 -> 50% in ~20s), smooth progression (50 -> 80% in ~45s),
+        // and asymptotically eases towards 96% so the progress bar never freezes.
+        const rawProgress = (1 - Math.exp(-elapsed / 26_000)) * 96
+        const calculatedProgress = Math.min(96, Math.max(0, Math.round(rawProgress * 10) / 10))
         setProgress(calculatedProgress)
       }, 100)
     }
@@ -168,26 +172,48 @@ export function BackendWarmupOverlay() {
             </h2>
 
             {/* Subtext */}
-            <p className="text-[12px] text-obsidian/60 leading-relaxed mb-5 max-w-[260px]">
+            <p className="text-[12px] text-obsidian/60 leading-relaxed mb-5 max-w-[270px]">
               {status === 'connected'
                 ? 'Backend is online. Loading marketplace…'
                 : status === 'overtime'
-                ? 'Render container is still spinning up. Thank you for your patience.'
-                : 'Our cloud service is waking up from idle. This takes about 35 seconds.'}
+                ? 'Render container is taking a bit longer to allocate. Thank you for your patience.'
+                : remainingSec > 40
+                ? 'Waking cloud server from idle. This takes about a minute on the free tier.'
+                : remainingSec > 18
+                ? 'Container running. Connecting database and booking calendar…'
+                : 'Almost ready, finalizing connection…'}
             </p>
 
             {/* Progress Bar Container */}
-            <div className="w-full bg-bone rounded-full h-2 overflow-hidden mb-2.5 border border-line/60">
+            <div className="w-full bg-bone rounded-full h-2 overflow-hidden mb-2.5 border border-line/60 relative">
               <motion.div
-                className="h-full bg-obsidian rounded-full"
-                style={{ width: `${progress}%` }}
-                transition={{ ease: 'linear' }}
-              />
+                className="h-full bg-obsidian rounded-full relative overflow-hidden"
+                initial={{ width: '0%' }}
+                animate={{ width: `${progress}%` }}
+                transition={{ ease: [0.16, 1, 0.3, 1], duration: 0.5 }}
+              >
+                {/* Smooth animated light shimmer gliding across the bar */}
+                {status !== 'connected' && (
+                  <motion.div
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-paper/30 to-transparent w-full"
+                    animate={{ x: ['-100%', '100%'] }}
+                    transition={{ repeat: Infinity, duration: 1.8, ease: 'linear' }}
+                  />
+                )}
+              </motion.div>
             </div>
 
             {/* Labels below bar */}
             <div className="w-full flex items-center justify-between text-[11px] font-mono text-obsidian/45">
-              <span>{status === 'connected' ? 'Ready' : 'Waking up container'}</span>
+              <span>
+                {status === 'connected'
+                  ? 'Ready'
+                  : remainingSec > 40
+                  ? 'Booting container'
+                  : remainingSec > 18
+                  ? 'Starting services'
+                  : 'Handshaking'}
+              </span>
               <span>
                 {status === 'connected'
                   ? '100%'

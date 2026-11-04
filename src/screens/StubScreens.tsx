@@ -23,7 +23,7 @@ export function InboxList() {
           )}
           <div className="font-display text-3xl tracking-tight leading-none">Inbox</div>
         </div>
-        <button className="tap w-9 h-9 rounded-full bg-bone grid place-items-center">
+        <button disabled title="New conversation coming soon" className="tap w-9 h-9 rounded-full bg-bone grid place-items-center opacity-40 cursor-not-allowed">
           <Edit3 size={15} />
         </button>
       </div>
@@ -33,9 +33,9 @@ export function InboxList() {
             <div className="w-14 h-14 rounded-full bg-bone grid place-items-center mb-3 text-obsidian/40 mx-auto">
               <MessageCircle size={26} />
             </div>
-            <div className="font-display text-lg">Your inbox is empty</div>
+            <div className="font-display text-lg">No messages yet</div>
             <p className="text-[13px] text-obsidian/50 mt-1 max-w-xs leading-relaxed">
-              When you message creators or receive booking inquiries, they will show up here.
+              Conversations will appear here once messaging is live.
             </p>
           </div>
         ) : (
@@ -423,22 +423,35 @@ export function MeScreen() {
 
           {/* Menu Cards — Responsive 3-Column Grid on Desktop */}
           <div className="mt-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-            {menu.map(r => (
-              <button
-                key={r.label}
-                onClick={() => go(r.s)}
-                className="tap w-full flex items-center gap-3.5 p-4 rounded-2xl bg-paper border border-line hover:border-obsidian/40 hover:shadow-md transition text-left group"
-              >
-                <div className="w-10 h-10 rounded-xl bg-bone grid place-items-center shrink-0 group-hover:bg-obsidian group-hover:text-paper transition-colors">
-                  <r.icon size={18} className="text-obsidian/75 group-hover:text-acid transition-colors" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[14px] font-semibold text-obsidian">{r.label}</div>
-                  <div className="text-[11.5px] text-obsidian/55 truncate mt-0.5">{r.sub}</div>
-                </div>
-                <ChevronRight size={15} className="text-obsidian/30 shrink-0 group-hover:translate-x-0.5 transition-transform" />
-              </button>
-            ))}
+            {menu.map(r => {
+              const isInbox = r.s === 'inbox'
+              return (
+                <button
+                  key={r.label}
+                  disabled={isInbox}
+                  onClick={() => go(r.s)}
+                  className={cn(
+                    'tap w-full flex items-center gap-3.5 p-4 rounded-2xl bg-paper border border-line text-left transition',
+                    isInbox
+                      ? 'opacity-40 cursor-not-allowed'
+                      : 'hover:border-obsidian/40 hover:shadow-md group cursor-pointer'
+                  )}
+                  title={isInbox ? 'Messaging coming soon' : undefined}
+                >
+                  <div className={cn(
+                    'w-10 h-10 rounded-xl bg-bone grid place-items-center shrink-0 transition-colors',
+                    !isInbox && 'group-hover:bg-obsidian group-hover:text-paper'
+                  )}>
+                    <r.icon size={18} className={cn('text-obsidian/75', !isInbox && 'group-hover:text-acid transition-colors')} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[14px] font-semibold text-obsidian">{r.label}</div>
+                    <div className="text-[11.5px] text-obsidian/55 truncate mt-0.5">{r.sub}</div>
+                  </div>
+                  <ChevronRight size={15} className={cn('text-obsidian/30 shrink-0', !isInbox && 'group-hover:translate-x-0.5 transition-transform')} />
+                </button>
+              )
+            })}
           </div>
 
           {/* Account Footer & Log Out */}

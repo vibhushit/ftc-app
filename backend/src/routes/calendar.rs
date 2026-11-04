@@ -347,12 +347,15 @@ pub async fn fetch_month_availability_internal(
             blocked_dates.insert(date_k, true);
         }
 
-        // 4. Fetch booked intervals
+        // 4. Fetch booked intervals (excluding expired pending requests)
         let bookings = sqlx::query_as::<_, (chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>)>(
             r#"
             SELECT start_time, end_time FROM bookings
             WHERE creator_id = $1::uuid
-              AND status IN ('confirmed', 'pending')
+              AND (
+                status = 'confirmed'
+                OR (status = 'pending' AND (request_expires_at IS NULL OR request_expires_at > now()))
+              )
               AND start_time >= $2::timestamptz
               AND start_time <= $3::timestamptz
             "#

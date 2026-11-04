@@ -31,25 +31,33 @@ export function SideNav({ active, onNav, notifications = 0 }: SideNavProps) {
       <nav className="flex flex-col gap-1">
         {tabs.map(t => {
           const Ic = t.icon
-          const isActive = t.screen ? screen === t.screen : (!isDedicatedScreenActive && active === t.id)
+          const isInbox = t.id === 'inbox'
+          const isActive = !isInbox && (t.screen ? screen === t.screen : (!isDedicatedScreenActive && active === t.id))
           return (
             <button
               key={t.id + (t.screen || '')}
+              disabled={isInbox}
               onClick={() => {
+                if (isInbox) return
                 if (t.screen) {
                   dispatch({ type: 'GO', screen: t.screen })
                 } else {
                   onNav(t.id as Tab)
                 }
               }}
+              title={isInbox ? 'Inbox coming soon' : undefined}
               className={cn(
-                'tap relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition cursor-pointer',
-                isActive ? 'bg-obsidian text-paper font-semibold' : 'text-obsidian/65 hover:bg-obsidian/5',
+                'tap relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition',
+                isInbox
+                  ? 'text-obsidian/40 opacity-35 cursor-not-allowed'
+                  : isActive
+                  ? 'bg-obsidian text-paper font-semibold cursor-pointer'
+                  : 'text-obsidian/65 hover:bg-obsidian/5 cursor-pointer',
               )}
             >
               <Ic size={19} strokeWidth={isActive ? 2.2 : 1.8} />
               <span className="text-[13.5px] font-medium">{t.label}</span>
-              {t.id === 'inbox' && isAuthed && notifications > 0 && (
+              {!isInbox && t.id === 'inbox' && isAuthed && notifications > 0 && (
                 <span className="ml-auto min-w-[18px] h-[18px] px-1 bg-danger text-paper text-[9px] font-bold rounded-full grid place-items-center">
                   {notifications}
                 </span>

@@ -114,7 +114,10 @@ export interface Creator {
   trustScore: number
   availableToday: boolean
   travelMode: TravelMode
-  oneOnOne: OneOnOne
+  oneOnOne?: OneOnOne
+  igHandle?: string | null
+  ytHandle?: string | null
+  websiteUrl?: string | null
   lat?: number
   lng?: number
 }
