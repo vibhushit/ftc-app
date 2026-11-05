@@ -11,12 +11,19 @@ const BOOKING_KEYS = {
 }
 
 // ─── My bookings (consumer) ───────────────────────────────────────────────────
-export function useMyBookings(status?: BookingRow['status'][]) {
+export function useMyBookings(
+  statusOrOptions?: BookingRow['status'][] | { enabled?: boolean },
+  maybeOptions?: { enabled?: boolean }
+) {
+  const isOptions = statusOrOptions && !Array.isArray(statusOrOptions) && typeof statusOrOptions === 'object'
+  const status = isOptions ? undefined : (statusOrOptions as BookingRow['status'][] | undefined)
+  const options = isOptions ? (statusOrOptions as { enabled?: boolean }) : maybeOptions
+
   return useQuery({
     queryKey:  [...BOOKING_KEYS.mine, status],
     queryFn:   () => bookingsApi.getMyBookings(status),
-    staleTime: 5_000,
-    refetchInterval: 5_000,
+    staleTime: 30_000,
+    enabled:   options?.enabled,
   })
 }
 
@@ -25,8 +32,7 @@ export function useMyJobs(status?: BookingRow['status'][]) {
   return useQuery({
     queryKey:  [...BOOKING_KEYS.jobs, status],
     queryFn:   () => bookingsApi.getMyJobs(status),
-    staleTime: 5_000,
-    refetchInterval: 5_000,
+    staleTime: 30_000,
   })
 }
 

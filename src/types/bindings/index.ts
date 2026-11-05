@@ -18,6 +18,8 @@ export type { Transaction } from './Transaction'
 export type { WithdrawPayload } from './WithdrawPayload'
 export type { Review } from './Review'
 export type { CreateReviewPayload } from './CreateReviewPayload'
+export type { CreatorReviewsSummary } from './CreatorReviewsSummary'
+export type { BookingReviewResponse } from './BookingReviewResponse'
 
 // Calendar & Scheduling
 export type { CreatorSchedule } from './CreatorSchedule'

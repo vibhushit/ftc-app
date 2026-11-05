@@ -169,3 +169,13 @@ export function useSetOnboardStep() {
       creatorsApi.setOnboardStep(id, step),
   })
 }
+
+// ─── Verified Creator Reviews ────────────────────────────────────────────────
+export function useCreatorReviews(creatorId: string | null) {
+  return useQuery({
+    queryKey: ['reviews', 'creator', creatorId],
+    queryFn: () => apiClient.getCreatorReviews(creatorId!),
+    enabled: !!creatorId,
+    staleTime: 60_000,
+  })
+}

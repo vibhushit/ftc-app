@@ -105,6 +105,23 @@ export function formatFallbackSession12h(dateStr?: string | null, timeStr?: stri
   return `${dateStr} · ${timeStr}`
 }
 
+export function formatReviewDate(dateStr?: string | null): string {
+  if (!dateStr) return ''
+  try {
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return dateStr
+    const diffMs = Date.now() - d.getTime()
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+    if (diffDays < 1) return 'Today'
+    if (diffDays === 1) return 'Yesterday'
+    if (diffDays < 7) return `${diffDays}d ago`
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`
+    return d.toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })
+  } catch {
+    return dateStr
+  }
+}
+
 /**
  * shareOrCopy — Invokes native Web Share API on mobile (WhatsApp, iMessage, Instagram)
  * with graceful fallback to clipboard copy on desktop.

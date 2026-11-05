@@ -1,13 +1,18 @@
-import { Heart, Bell, Search, SlidersHorizontal, ChevronRight, MessageCircle, ArrowRight, ShieldCheck } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { Heart, Bell, Search, SlidersHorizontal, ChevronRight, MessageCircle, ArrowRight, ShieldCheck, Star, X } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import { CreatorCardLarge } from '@/components/creator/CreatorCardLarge'
 import { useAppStore } from '@/store/appStore'
 import { DISCIPLINE_CONFIG } from '@/data/creators'
 import { inr } from '@/data/constants'
 import { CreatorPipelineHome } from './CreatorPipelineHome'
 import { useHomeCreators } from '@/hooks/useCreators'
+import { useMyBookings } from '@/hooks/useBookings'
+import { ReviewModal } from '@/components/review/ReviewModal'
 import type { Creator } from '@/types/bindings'
 
 export function HomeScreen() {
+  const qc = useQueryClient()
   const isAuthed = useAppStore(s => s.isAuthed)
   const isCreator = useAppStore(s => s.isCreator)
   const campaigns = useAppStore(s => s.campaigns)
@@ -18,6 +23,20 @@ export function HomeScreen() {
 
   const { data: creatorsData, isLoading: loading } = useHomeCreators(!isCreator)
   const creators = (creatorsData as Creator[]) ?? []
+
+  // Check bookings for next-visit review trigger (Client only)
+  const { data: myBookings } = useMyBookings({ enabled: isAuthed && !isCreator })
+  const [dismissedReviewBookingId, setDismissedReviewBookingId] = useState<string | null>(null)
+  const [reviewModalBooking, setReviewModalBooking] = useState<any | null>(null)
+
+  const pendingReviewBooking = useMemo(() => {
+    if (!isAuthed || isCreator || !myBookings || myBookings.length === 0) return null
+    // Single most recent completed booking without a verified review rating
+    const found = myBookings.find(
+      (b: any) => b.status === 'completed' && !b.review_rating && b.id !== dismissedReviewBookingId
+    )
+    return found || null
+  }, [isAuthed, isCreator, myBookings, dismissedReviewBookingId])
 
   if (isCreator) return <CreatorPipelineHome />
 
@@ -92,6 +111,42 @@ export function HomeScreen() {
             ))}
           </div>
         </div>
+
+        {/* Next-Visit Review Trigger (Single most recent unreviewed session) */}
+        {pendingReviewBooking && (
+          <div className="px-5 mb-5 animate-fade-in">
+            <div className="p-4 rounded-3xl bg-amber-50/90 border border-amber-200/80 shadow-xs flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-full bg-amber-100 border border-amber-200 text-amber-700 grid place-items-center shrink-0">
+                  <Star size={18} className="fill-amber-400 text-amber-500" />
+                </div>
+                <div className="min-w-0">
+                  <div className="font-semibold text-[13px] text-amber-950 truncate">
+                    Your session with {pendingReviewBooking.creator_name || 'your creator'} is complete
+                  </div>
+                  <p className="text-[11.5px] text-amber-900/70 truncate">
+                    Tap to rate your experience and support their profile.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  onClick={() => setReviewModalBooking(pendingReviewBooking)}
+                  className="tap px-3.5 py-1.5 rounded-full bg-obsidian text-paper text-[11.5px] font-medium shadow-2xs hover:bg-obsidian/90 active:scale-95 transition-all"
+                >
+                  Rate Now
+                </button>
+                <button
+                  onClick={() => setDismissedReviewBookingId(pendingReviewBooking.id)}
+                  className="tap w-7 h-7 rounded-full text-amber-800/50 hover:text-amber-900 grid place-items-center transition-colors"
+                  aria-label="Dismiss review prompt"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Active Booking Banner / Explore Banner */}
         <div className="px-5 mb-8">
@@ -253,6 +308,27 @@ export function HomeScreen() {
           </div>
         )}
       </div>
+
+      {/* Next-Visit Verified Review Modal */}
+      {reviewModalBooking && (
+        <ReviewModal
+          isOpen={Boolean(reviewModalBooking)}
+          bookingId={String(reviewModalBooking.id)}
+          creatorId={String(reviewModalBooking.creator_id || '')}
+          creatorName={reviewModalBooking.creator_name || 'Creator'}
+          creatorAvatar={reviewModalBooking.creator_avatar || ''}
+          packageName={reviewModalBooking.pkg_name || ''}
+          sessionDate={reviewModalBooking.session_date || undefined}
+          onClose={() => setReviewModalBooking(null)}
+          onSuccess={(result) => {
+            if (reviewModalBooking) {
+              setDismissedReviewBookingId(reviewModalBooking.id)
+            }
+            qc.invalidateQueries({ queryKey: ['bookings'] })
+            setReviewModalBooking(null)
+          }}
+        />
+      )}
     </div>
   )
 }

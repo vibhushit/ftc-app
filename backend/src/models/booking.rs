@@ -32,6 +32,10 @@ pub struct Booking {
     pub created_at: Option<String>,
     #[serde(default)]
     pub confirmed_at: Option<String>,
+    #[serde(default)]
+    pub review_rating: Option<u8>,
+    #[serde(default)]
+    pub review_comment: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

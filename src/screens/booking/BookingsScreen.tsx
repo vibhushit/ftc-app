@@ -1,13 +1,15 @@
 import { useState, useMemo } from 'react'
 import {
   ArrowLeft, Calendar, Loader2,
-  CheckCircle2, Clock, AlertCircle, X
+  CheckCircle2, Clock, AlertCircle, X, Star
 } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useAppStore } from '@/store/appStore'
 import { useShallow } from 'zustand/shallow'
 import { useMyBookings } from '@/hooks/useBookings'
 import { inr } from '@/data/constants'
 import { cn, formatIsoSlot12h, formatFallbackSession12h, isBookingRequestExpired, isConfirmedBookingExpired } from '@/utils'
+import { ReviewModal } from '@/components/review/ReviewModal'
 
 type BookingFilterTab = 'all' | 'active' | 'completed' | 'cancelled'
 
@@ -75,9 +77,12 @@ function getStatusBadge(status: string) {
 }
 
 export function BookingsScreen() {
+  const qc = useQueryClient()
   const { state, dispatch } = useAppStore(useShallow(s => ({ state: s, dispatch: s.dispatch })))
   const { data: dbBookings, isLoading, error } = useMyBookings()
   const [filterTab, setFilterTab] = useState<BookingFilterTab>('all')
+  const [activeReviewBooking, setActiveReviewBooking] = useState<any | null>(null)
+  const [locallyReviewed, setLocallyReviewed] = useState<Record<string, { rating: number; comment?: string | null }>>({})
 
   const bookings: any[] = dbBookings && dbBookings.length > 0
     ? dbBookings
@@ -259,6 +264,36 @@ export function BookingsScreen() {
                             {displayDate}
                           </div>
                         )}
+
+                        {/* Completed Status & Review Action */}
+                        {isCompleted && (() => {
+                          const effectiveRating = b.review_rating ?? locallyReviewed[b.id]?.rating
+                          return (
+                            <div className="mt-3 pt-2.5 border-t border-line/60 flex items-center justify-between gap-2">
+                              <span className="font-mono text-[10px] text-emerald-800 bg-emerald-50 border border-emerald-200/60 px-2 py-0.5 rounded-md font-semibold">
+                                Session Completed
+                              </span>
+                              {effectiveRating ? (
+                                <span className="inline-flex items-center gap-1 font-mono text-[11px] font-semibold text-amber-800 bg-amber-50 border border-amber-200/60 px-2 py-0.5 rounded-md">
+                                  <Star size={11} className="fill-amber-400 text-amber-400" />
+                                  {effectiveRating}.0 Rated
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setActiveReviewBooking(b)
+                                  }}
+                                  className="tap px-3 py-1 rounded-full bg-obsidian text-paper text-[11px] font-medium flex items-center gap-1.5 hover:bg-obsidian/90 active:scale-95 transition-all shadow-xs"
+                                >
+                                  <Star size={11} className="fill-amber-400 text-amber-400" />
+                                  <span>Rate Experience</span>
+                                </button>
+                              )}
+                            </div>
+                          )
+                        })()}
                       </div>
                     </div>
                   </div>
@@ -267,6 +302,30 @@ export function BookingsScreen() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Verified Client Review Modal */}
+      {activeReviewBooking && (
+        <ReviewModal
+          isOpen={Boolean(activeReviewBooking)}
+          bookingId={String(activeReviewBooking.id)}
+          creatorId={String(activeReviewBooking.creator_id || '')}
+          creatorName={activeReviewBooking.creator?.name || activeReviewBooking.creatorName || 'Creator'}
+          creatorAvatar={activeReviewBooking.creator?.avatar_url || activeReviewBooking.creatorAvatar || ''}
+          packageName={activeReviewBooking.pkg_name || activeReviewBooking.pkg || ''}
+          sessionDate={formatBookingDate(activeReviewBooking.session_date) || undefined}
+          onClose={() => setActiveReviewBooking(null)}
+          onSuccess={(result) => {
+            if (activeReviewBooking) {
+              setLocallyReviewed(prev => ({
+                ...prev,
+                [activeReviewBooking.id]: { rating: result.rating, comment: result.comment }
+              }))
+            }
+            qc.invalidateQueries({ queryKey: ['bookings'] })
+            setActiveReviewBooking(null)
+          }}
+        />
       )}
     </div>
   )

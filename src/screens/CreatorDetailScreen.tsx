@@ -11,8 +11,8 @@ import { useShallow } from 'zustand/shallow'
 import { useAppStore } from '@/store/appStore'
 import { apiClient } from '@/services/apiClient'
 import { inr } from '@/data/constants'
-import { cn, shareOrCopy, formatSlotRange12h, getProfileUrl, normalizeSocialUrl } from '@/utils'
-import { useCreator, useCreatorServices, useMonthAvailability } from '@/hooks/useCreators'
+import { cn, shareOrCopy, formatSlotRange12h, getProfileUrl, normalizeSocialUrl, formatReviewDate } from '@/utils'
+import { useCreator, useCreatorServices, useMonthAvailability, useCreatorReviews } from '@/hooks/useCreators'
 import type { CreatorWithUser } from '@/lib/database.types'
 import type { Tier, Verification, Gender, TravelMode, TravelRadius, Creator, BookingDraft } from '@/types'
 
@@ -143,6 +143,12 @@ export function CreatorDetailScreen() {
       websiteUrl: (ob as any)?.web || null,
     }
   }
+
+  // Live verified reviews for this creator profile
+  const { data: reviewsSummary } = useCreatorReviews(c?.id || null)
+  const liveReviews = reviewsSummary?.reviews || []
+  const displayReviewsCount = reviewsSummary ? reviewsSummary.review_count : (c?.reviews || 0)
+  const displayRating = reviewsSummary ? reviewsSummary.rating : (c?.rating || 5.0)
 
   const now = new Date()
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
@@ -1017,7 +1023,7 @@ export function CreatorDetailScreen() {
 
         {/* Stats */}
         <div className="px-5 py-5 border-b border-line grid grid-cols-3 gap-3">
-          <Stat value={c.reviews > 0 ? c.rating.toFixed(1) : 'New'} label="Rating" />
+          <Stat value={displayReviewsCount > 0 ? displayRating.toFixed(1) : 'New'} label="Rating" />
           <Stat value={c.completed || 0} label="Projects" />
           <Stat value={c.yearsExp || 1} label="Experience" unit="yr" />
         </div>
@@ -1083,24 +1089,81 @@ export function CreatorDetailScreen() {
         <div className="px-5 py-5 border-b border-line md:border-b-0">
           <div className="flex items-center justify-between mb-3">
             <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-obsidian/50">
-              Client Reviews {c.reviews > 0 ? `(${c.reviews})` : ''}
+              Client Reviews {displayReviewsCount > 0 ? `(${displayReviewsCount})` : ''}
             </div>
-            {c.reviews > 0 && (
-              <span className="text-[11px] font-medium text-obsidian/60 flex items-center gap-1">
-                <Star size={11} className="fill-obsidian text-obsidian" /> {c.rating.toFixed(1)}
+            {displayReviewsCount > 0 && (
+              <span className="text-[11px] font-semibold text-obsidian flex items-center gap-1 font-mono">
+                <Star size={11} className="fill-amber-400 text-amber-500" /> {displayRating.toFixed(1)}
               </span>
             )}
           </div>
 
-          <div className="p-6 rounded-2xl bg-bone/70 border border-line text-center space-y-1.5">
-            <div className="w-10 h-10 rounded-full bg-paper border border-line mx-auto grid place-items-center mb-2">
-              <Star size={16} className="text-obsidian/30" />
+          {liveReviews.length === 0 ? (
+            <div className="p-6 rounded-2xl bg-bone/70 border border-line text-center space-y-1.5">
+              <div className="w-10 h-10 rounded-full bg-paper border border-line mx-auto grid place-items-center mb-2">
+                <Star size={16} className="text-obsidian/30" />
+              </div>
+              <div className="font-display text-[15px] text-obsidian/90">No client reviews yet</div>
+              <p className="text-[12px] text-obsidian/50 max-w-xs mx-auto leading-relaxed">
+                Reviews will appear here after completed sessions with escrow protection.
+              </p>
             </div>
-            <div className="font-display text-[15px] text-obsidian/90">No client reviews yet</div>
-            <p className="text-[12px] text-obsidian/50 max-w-xs mx-auto leading-relaxed">
-              Reviews will appear here after completed bookings with escrow protection.
-            </p>
-          </div>
+          ) : (
+            <div className="space-y-3">
+              {liveReviews.map((rev) => (
+                <div key={rev.id} className="p-4 rounded-2xl bg-paper border border-line space-y-2.5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-full overflow-hidden bg-cream shrink-0 border border-line/60">
+                        {rev.client_avatar ? (
+                          <img src={rev.client_avatar} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full grid place-items-center font-display text-[11px] font-semibold text-obsidian/70">
+                            {rev.client_name.slice(0, 1).toUpperCase()}
+                          </div>
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-[13px] font-semibold text-obsidian truncate">
+                          {rev.client_name}
+                        </div>
+                        {rev.package_name && (
+                          <div className="text-[10.5px] font-mono text-obsidian/50 truncate">
+                            {rev.package_name}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col items-end shrink-0">
+                      <div className="flex items-center gap-0.5">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Star
+                            key={star}
+                            size={12}
+                            className={cn(
+                              star <= rev.rating
+                                ? 'fill-amber-400 text-amber-400'
+                                : 'text-obsidian/15'
+                            )}
+                          />
+                        ))}
+                      </div>
+                      <span className="text-[10px] font-mono text-obsidian/40 mt-1">
+                        {formatReviewDate(rev.created_at)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {rev.comment && (
+                    <p className="text-[12.5px] text-obsidian/80 leading-relaxed italic pt-0.5">
+                      "{rev.comment}"
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

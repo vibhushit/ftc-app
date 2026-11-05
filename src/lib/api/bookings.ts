@@ -46,7 +46,7 @@ export async function getMyBookings(status?: BookingRow['status'][]): Promise<Bo
   if (!user) return []
 
   let q = (supabase.from('bookings') as any)
-    .select('*, creator:creator_id(id, name, avatar_url), service:service_id(name, price, duration)')
+    .select('*, creator:creator_id(id, name, avatar_url), service:service_id(name, price, duration), reviews(id, rating, comment)')
     .eq('consumer_id', user.id)
     .order('created_at', { ascending: false })
 
@@ -54,7 +54,14 @@ export async function getMyBookings(status?: BookingRow['status'][]): Promise<Bo
 
   const { data, error } = await q
   if (error) throw error
-  return data as BookingWithParties[]
+  return (data || []).map((b: any) => {
+    const rev = Array.isArray(b.reviews) ? b.reviews[0] : b.reviews
+    return {
+      ...b,
+      review_rating: rev?.rating ?? b.review_rating ?? null,
+      review_comment: rev?.comment ?? b.review_comment ?? null,
+    }
+  }) as BookingWithParties[]
 }
 
 // ─── My jobs (creator) ────────────────────────────────────────────────────────
@@ -63,7 +70,7 @@ export async function getMyJobs(status?: BookingRow['status'][]): Promise<Bookin
   if (!user) return []
 
   let q = (supabase.from('bookings') as any)
-    .select('*, consumer:consumer_id(id, name, avatar_url), service:service_id(name, price, duration)')
+    .select('*, consumer:consumer_id(id, name, avatar_url), service:service_id(name, price, duration), reviews(id, rating, comment)')
     .eq('creator_id', user.id)
     .order('created_at', { ascending: false })
 
@@ -71,18 +78,31 @@ export async function getMyJobs(status?: BookingRow['status'][]): Promise<Bookin
 
   const { data, error } = await q
   if (error) throw error
-  return data as BookingWithParties[]
+  return (data || []).map((b: any) => {
+    const rev = Array.isArray(b.reviews) ? b.reviews[0] : b.reviews
+    return {
+      ...b,
+      review_rating: rev?.rating ?? b.review_rating ?? null,
+      review_comment: rev?.comment ?? b.review_comment ?? null,
+    }
+  }) as BookingWithParties[]
 }
 
 // ─── Get booking by ID ────────────────────────────────────────────────────────
 export async function getBookingById(id: string): Promise<BookingWithParties | null> {
   const { data, error } = await (supabase.from('bookings') as any)
-    .select('*, creator:creator_id(id, name, avatar_url), consumer:consumer_id(id, name, avatar_url), service:service_id(name, price, duration)')
+    .select('*, creator:creator_id(id, name, avatar_url), consumer:consumer_id(id, name, avatar_url), service:service_id(name, price, duration), reviews(id, rating, comment)')
     .eq('id', id)
     .single()
 
   if (error) throw error
-  return data as BookingWithParties
+  if (!data) return null
+  const rev = Array.isArray(data.reviews) ? data.reviews[0] : data.reviews
+  return {
+    ...data,
+    review_rating: rev?.rating ?? data.review_rating ?? null,
+    review_comment: rev?.comment ?? data.review_comment ?? null,
+  } as BookingWithParties
 }
 
 // ─── Status transitions ───────────────────────────────────────────────────────

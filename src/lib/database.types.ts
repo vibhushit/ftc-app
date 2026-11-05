@@ -426,4 +426,7 @@ export interface BookingWithParties extends BookingRow {
   creator: Pick<UserRow, 'id' | 'name' | 'avatar_url'>
   consumer: Pick<UserRow, 'id' | 'name' | 'avatar_url'>
   service?: Pick<ServiceRow, 'name' | 'price' | 'duration'>
+  review_rating?: number | null
+  review_comment?: string | null
+  reviews?: { id: string; rating: number; comment?: string | null }[] | { id: string; rating: number; comment?: string | null } | null
 }

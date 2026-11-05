@@ -174,13 +174,13 @@ export function BackendWarmupOverlay() {
             {/* Subtext */}
             <p className="text-[12px] text-obsidian/60 leading-relaxed mb-5 max-w-[270px]">
               {status === 'connected'
-                ? 'Backend is online. Loading marketplace…'
+                ? 'Services online. Loading marketplace…'
                 : status === 'overtime'
-                ? 'Render container is taking a bit longer to allocate. Thank you for your patience.'
+                ? 'Establishing secure connection. Thank you for your patience.'
                 : remainingSec > 40
-                ? 'Waking cloud server from idle. This takes about a minute on the free tier.'
+                ? 'Initializing secure marketplace session…'
                 : remainingSec > 18
-                ? 'Container running. Connecting database and booking calendar…'
+                ? 'Syncing creator profiles and live availability…'
                 : 'Almost ready, finalizing connection…'}
             </p>
 
@@ -209,10 +209,10 @@ export function BackendWarmupOverlay() {
                 {status === 'connected'
                   ? 'Ready'
                   : remainingSec > 40
-                  ? 'Booting container'
+                  ? 'Initializing'
                   : remainingSec > 18
-                  ? 'Starting services'
-                  : 'Handshaking'}
+                  ? 'Syncing data'
+                  : 'Connecting'}
               </span>
               <span>
                 {status === 'connected'

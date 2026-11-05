@@ -24,6 +24,7 @@ use state::AppState;
 #[tokio::main]
 async fn main() {
     dotenvy::dotenv().ok();
+    dotenvy::from_filename("backend/.env").ok();
 
     tracing_subscriber::registry()
         .with(tracing_subscriber::EnvFilter::new(
@@ -48,9 +49,6 @@ async fn main() {
                 {
                     Ok(p) => {
                         tracing::info!("✅ Successfully connected to PostgreSQL database pool!");
-                        let _ = sqlx::query("ALTER TABLE calendar_overrides ADD COLUMN IF NOT EXISTS override_type TEXT NOT NULL DEFAULT 'blocked'").execute(&p).await;
-                        let _ = sqlx::query("ALTER TABLE calendar_overrides ADD COLUMN IF NOT EXISTS custom_start_time TIME").execute(&p).await;
-                        let _ = sqlx::query("ALTER TABLE calendar_overrides ADD COLUMN IF NOT EXISTS custom_end_time TIME").execute(&p).await;
 
                         // Sweep expired booking requests on server startup
                         let _ = routes::bookings::sweep_expired_bookings(&p).await;
@@ -143,6 +141,8 @@ mod tests {
 
         models::review::Review::export_all().unwrap();
         models::review::CreateReviewPayload::export_all().unwrap();
+        models::review::CreatorReviewsSummary::export_all().unwrap();
+        models::review::BookingReviewResponse::export_all().unwrap();
 
         models::calendar::CreatorSchedule::export_all().unwrap();
         models::calendar::CreatorCalendarSettings::export_all().unwrap();

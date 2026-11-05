@@ -78,6 +78,8 @@ struct BookingListRow {
     client_notes: Option<String>,
     created_at: Option<String>,
     confirmed_at: Option<String>,
+    review_rating: Option<i16>,
+    review_comment: Option<String>,
 }
 
 async fn list_bookings(
@@ -116,11 +118,14 @@ async fn list_bookings(
             to_char(b.request_expires_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as request_expires_at,
             b.notes as client_notes,
             to_char(b.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as created_at,
-            to_char(b.confirmed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as confirmed_at
+            to_char(b.confirmed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as confirmed_at,
+            r.rating::int2 as review_rating,
+            r.comment as review_comment
         FROM bookings b
         LEFT JOIN users u_creator ON u_creator.id = b.creator_id
         LEFT JOIN users u_consumer ON u_consumer.id = b.consumer_id
         LEFT JOIN services s ON s.id = b.service_id
+        LEFT JOIN reviews r ON r.booking_id = b.id
         WHERE b.consumer_id = $1::uuid OR b.creator_id = $1::uuid
         ORDER BY b.created_at DESC
         LIMIT 50
@@ -157,6 +162,8 @@ async fn list_bookings(
             client_notes: r.client_notes,
             created_at: r.created_at,
             confirmed_at: r.confirmed_at,
+            review_rating: r.review_rating.map(|rt| rt as u8),
+            review_comment: r.review_comment,
         }
     }).collect();
 
@@ -265,6 +272,8 @@ async fn request_booking(
                 client_notes: payload.client_notes,
                 created_at: Some(chrono::Utc::now().to_rfc3339()),
                 confirmed_at: None,
+                review_rating: None,
+                review_comment: None,
             }));
         }
     };
@@ -463,6 +472,8 @@ async fn request_booking(
         client_notes: payload.client_notes,
         created_at: Some(chrono::Utc::now().to_rfc3339()),
         confirmed_at: None,
+        review_rating: None,
+        review_comment: None,
     }))
 }
 
@@ -476,6 +487,27 @@ async fn create_booking(
 }
 
 // ─── 4. GET BOOKING DETAIL ───────────────────────────────────────────────────
+#[derive(sqlx::FromRow)]
+struct BookingDetailRow {
+    id: String,
+    status: String,
+    creator_name: Option<String>,
+    client_name: Option<String>,
+    session_date: Option<String>,
+    session_time: Option<String>,
+    start_time: Option<String>,
+    end_time: Option<String>,
+    total_price: Option<i32>,
+    advance_amount: Option<i32>,
+    balance_amount: Option<i32>,
+    notes: Option<String>,
+    request_expires_at: Option<String>,
+    pkg_name: Option<String>,
+    location_type: Option<String>,
+    review_rating: Option<i16>,
+    review_comment: Option<String>,
+}
+
 async fn get_booking_detail(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -486,32 +518,31 @@ async fn get_booking_detail(
     let booking_uuid = uuid::Uuid::parse_str(&id)
         .map_err(|_| AppError::BadRequest("Invalid booking UUID".into()))?;
 
-    let row = sqlx::query_as::<_, (
-        String, String, Option<String>, Option<String>,
-        Option<String>, Option<String>, Option<String>, Option<String>,
-        i32, i32, i32, Option<String>, Option<String>, Option<String>, Option<String>
-    )>(
+    let row = sqlx::query_as::<_, BookingDetailRow>(
         r#"
         SELECT
-            b.id::text,
-            b.status::text,
-            u_creator.name,
-            u_consumer.name,
-            b.session_date::text,
-            b.session_time::text,
-            to_char(b.start_time AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
-            to_char(b.end_time AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
-            b.total_price::int,
-            b.advance_amount::int,
-            b.balance_amount::int,
-            b.notes,
-            to_char(b.request_expires_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+            b.id::text as id,
+            b.status::text as status,
+            u_creator.name as creator_name,
+            u_consumer.name as client_name,
+            b.session_date::text as session_date,
+            b.session_time::text as session_time,
+            to_char(b.start_time AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as start_time,
+            to_char(b.end_time AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as end_time,
+            b.total_price::int as total_price,
+            b.advance_amount::int as advance_amount,
+            b.balance_amount::int as balance_amount,
+            b.notes as notes,
+            to_char(b.request_expires_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as request_expires_at,
             s.name as pkg_name,
-            b.location_type::text
+            b.location_type::text as location_type,
+            r.rating::int2 as review_rating,
+            r.comment as review_comment
         FROM bookings b
         LEFT JOIN users u_creator ON u_creator.id = b.creator_id
         LEFT JOIN users u_consumer ON u_consumer.id = b.consumer_id
         LEFT JOIN services s ON s.id = b.service_id
+        LEFT JOIN reviews r ON r.booking_id = b.id
         WHERE b.id = $1::uuid
         "#
     )
@@ -522,21 +553,23 @@ async fn get_booking_detail(
     .ok_or_else(|| AppError::NotFound(format!("Booking '{}' not found", id)))?;
 
     Ok(Json(json!({
-        "id": row.0,
-        "status": row.1,
-        "creator_name": row.2.unwrap_or_else(|| "Creator".into()),
-        "client_name": row.3.unwrap_or_else(|| "Client".into()),
-        "session_date": row.4,
-        "session_time": row.5,
-        "start_time": row.6,
-        "end_time": row.7,
-        "total_price": row.8,
-        "advance_amount": row.9,
-        "balance_amount": row.10,
-        "notes": row.11,
-        "request_expires_at": row.12,
-        "pkg_name": row.13.unwrap_or_else(|| "Session".into()),
-        "location_type": row.14.unwrap_or_else(|| "studio".into())
+        "id": row.id,
+        "status": row.status,
+        "creator_name": row.creator_name.unwrap_or_else(|| "Creator".into()),
+        "client_name": row.client_name.unwrap_or_else(|| "Client".into()),
+        "session_date": row.session_date,
+        "session_time": row.session_time,
+        "start_time": row.start_time,
+        "end_time": row.end_time,
+        "total_price": row.total_price.unwrap_or(0),
+        "advance_amount": row.advance_amount.unwrap_or(0),
+        "balance_amount": row.balance_amount.unwrap_or(0),
+        "notes": row.notes,
+        "request_expires_at": row.request_expires_at,
+        "pkg_name": row.pkg_name.unwrap_or_else(|| "Session".into()),
+        "location_type": row.location_type.unwrap_or_else(|| "studio".into()),
+        "review_rating": row.review_rating,
+        "review_comment": row.review_comment
     })))
 }
 

@@ -16,6 +16,10 @@ import type {
   CreateOverridePayload,
   CalendarOverride,
   PlatformConfig,
+  CreateReviewPayload,
+  CreatorReviewsSummary,
+  BookingReviewResponse,
+  Review,
 } from '@/types/bindings'
 import { compressImageToWebP } from '@/utils/imageCompressor'
 import { getApiBaseUrl } from '@/config/environmentMode'
@@ -536,5 +540,28 @@ export const apiClient = {
       body: JSON.stringify(payload),
     })
     return handleApiResponse<{ success: boolean; message: string }>(res, '/payouts/withdraw', 'POST')
+  },
+
+  // ─── VERIFIED REVIEWS ────────────────────────────────────────────────────────
+  async createReview(payload: CreateReviewPayload): Promise<{ success: boolean; review_id: string }> {
+    const endpoint = `${getBaseUrl()}/reviews`
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: await getHeaders(),
+      body: JSON.stringify(payload),
+    })
+    return handleApiResponse<{ success: boolean; review_id: string }>(res, '/reviews', 'POST')
+  },
+
+  async getCreatorReviews(creatorId: string): Promise<CreatorReviewsSummary> {
+    const endpoint = `${getBaseUrl()}/reviews/creator/${encodeURIComponent(creatorId)}`
+    const res = await fetch(endpoint, { headers: await getHeaders() })
+    return handleApiResponse<CreatorReviewsSummary>(res, `/reviews/creator/${creatorId}`, 'GET')
+  },
+
+  async getBookingReview(bookingId: string): Promise<BookingReviewResponse> {
+    const endpoint = `${getBaseUrl()}/reviews/booking/${encodeURIComponent(bookingId)}`
+    const res = await fetch(endpoint, { headers: await getHeaders() })
+    return handleApiResponse<BookingReviewResponse>(res, `/reviews/booking/${bookingId}`, 'GET')
   },
 }

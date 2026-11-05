@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import {
   Check, Lock, MessageCircle, X,
   KeyRound, Clock, XCircle, AlertCircle, RefreshCw,
-  ShieldAlert, Loader2, Calendar
+  ShieldAlert, Loader2, Calendar, Star
 } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { SimpleHeader } from '@/components/ui/SimpleHeader'
@@ -13,6 +13,7 @@ import { cn, formatIsoSlot12h, formatFallbackSession12h, isBookingRequestExpired
 import { apiClient } from '@/services/apiClient'
 import { useToast } from '@/components/ui/ToastNotification'
 import { useBooking, useRealtimeBooking } from '@/hooks/useBookings'
+import { ReviewModal } from '@/components/review/ReviewModal'
 
 function depositInfo(price: number) {
   return price <= 10000
@@ -117,8 +118,17 @@ export function BookingDetailScreen() {
   // Realtime update handler when liveBooking status updates
   useEffect(() => {
     if (liveBooking && liveBooking.status) {
+      if ((liveBooking as any).review_rating) {
+        setLocalReviewRating((liveBooking as any).review_rating)
+        setLocalReviewComment((liveBooking as any).review_comment)
+      }
       if (liveBooking.status === 'confirmed' && initialBooking?.status === 'pending') {
         showSuccess('Your booking request was accepted by the creator!')
+      }
+      if (liveBooking.status === 'completed' && initialBooking?.status !== 'completed') {
+        if (!isCreatorViewing) {
+          setShowReviewModal(true)
+        }
       }
       if (liveBooking.status !== initialBooking?.status) {
         dispatch({
@@ -133,12 +143,24 @@ export function BookingDetailScreen() {
   useRealtimeBooking(bookingId || null, (updatedRow) => {
     if (updatedRow.status === 'completed' && b?.status !== 'completed') {
       showSuccess('Session marked complete by creator! Escrow payment released.')
+      if (!isCreatorViewing) {
+        setShowReviewModal(true)
+      }
     }
     dispatch({
       type: 'OPEN_BOOKING',
       booking: { ...initialBooking, ...updatedRow } as any,
     })
   })
+
+  // ─── Verified Review State ───────────────────────────────────────────────
+  const [showReviewModal, setShowReviewModal] = useState<boolean>(false)
+  const [localReviewRating, setLocalReviewRating] = useState<number | null>(
+    (initialBooking?.review_rating as number) || null
+  )
+  const [localReviewComment, setLocalReviewComment] = useState<string | null>(
+    (initialBooking?.review_comment as string) || null
+  )
 
   // ─── OTP Generator State (Client-Side) ───────────────────────────────────
   const [activeOtp, setActiveOtp] = useState<string | null>(null)
@@ -253,6 +275,18 @@ export function BookingDetailScreen() {
   const isCancelled = status === 'cancelled' || status === 'declined'
   const isCompleted = status === 'completed'
   const isConfirmed = status === 'confirmed' || status === 'upcoming' || status === 'in_progress'
+
+  // Fetch review status for completed booking if not already loaded
+  useEffect(() => {
+    if (isCompleted && !isCreatorViewing && bookingId && localReviewRating === null) {
+      apiClient.getBookingReview(bookingId).then((res) => {
+        if (res.reviewed && res.review) {
+          setLocalReviewRating(res.review.rating)
+          setLocalReviewComment(res.review.comment)
+        }
+      }).catch((e) => console.warn('Failed to fetch review status:', e))
+    }
+  }, [isCompleted, isCreatorViewing, bookingId, localReviewRating])
   const curStage = isCompleted ? 2 : isConfirmed ? 1 : 0
   const createdRaw = (b.created_at as string) || (b.createdAt as string) || ''
   const confirmedRaw = (b.confirmed_at as string) || (b.confirmedAt as string) || ''
@@ -584,6 +618,56 @@ export function BookingDetailScreen() {
                     </p>
                   </div>
                 </div>
+
+                {/* Client Verified Review Status or Action */}
+                {!isCreatorViewing && (
+                  <>
+                    {localReviewRating ? (
+                      <div className="mt-3.5 p-4 rounded-2xl bg-paper border border-line space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono text-[10px] uppercase tracking-wider text-obsidian/50 font-semibold">
+                            Your Verified Review
+                          </span>
+                          <div className="flex items-center gap-1">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <Star
+                                key={star}
+                                size={14}
+                                className={cn(
+                                  star <= (localReviewRating || 0)
+                                    ? 'text-amber-400 fill-amber-400'
+                                    : 'text-obsidian/20'
+                                )}
+                              />
+                            ))}
+                            <span className="text-[12px] font-bold text-obsidian ml-1 font-mono">
+                              {localReviewRating}.0
+                            </span>
+                          </div>
+                        </div>
+                        {localReviewComment && (
+                          <p className="text-[12.5px] text-obsidian/80 italic leading-relaxed pt-0.5">
+                            "{localReviewComment}"
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="mt-3.5 p-4 rounded-2xl bg-cream/70 border border-line/80 flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-[13px] font-semibold text-obsidian">How was your session?</div>
+                          <p className="text-[11.5px] text-obsidian/60 mt-0.5">Rate {creatorName} to support verified creators.</p>
+                        </div>
+                        <button
+                          onClick={() => setShowReviewModal(true)}
+                          className="tap px-4 py-2.5 rounded-full bg-obsidian text-paper text-[12px] font-medium shrink-0 flex items-center gap-1.5 shadow-xs hover:bg-obsidian/90 active:scale-95 transition-all"
+                        >
+                          <Star size={13} className="fill-amber-400 text-amber-400" />
+                          <span>Leave Review</span>
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
               </Card>
             )}
 
@@ -854,6 +938,25 @@ export function BookingDetailScreen() {
           </div>
         </div>
       )}
+
+      {/* Verified Client Review Modal */}
+      <ReviewModal
+        isOpen={showReviewModal}
+        bookingId={bookingId}
+        creatorId={(b?.creator_id as string) || (c?.id as string) || ''}
+        creatorName={creatorName}
+        creatorAvatar={creatorAvatar}
+        packageName={(b?.pkg as string) || (b?.pkg_name as string) || ''}
+        sessionDate={formatShootSlot(b) || undefined}
+        onClose={() => setShowReviewModal(false)}
+        onSuccess={(result) => {
+          setLocalReviewRating(result.rating)
+          setLocalReviewComment(result.comment)
+          qc.invalidateQueries({ queryKey: ['bookings'] })
+          qc.invalidateQueries({ queryKey: ['booking', bookingId] })
+          setShowReviewModal(false)
+        }}
+      />
     </div>
   )
 }
